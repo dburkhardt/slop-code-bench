@@ -24,8 +24,9 @@ PROVIDER_GRADS = {
 
 VERSION_COLORS = {
     "2.0.51": "#7eb0d5",  # Light blue (oldest)
-    "2.0.62": "#b2e061",  # Green (middle)
-    "2.0.75": "#fd7f6f",  # Coral (newest)
+    "2.0.62": "#b2e061",  # Green
+    "2.0.75": "#fd7f6f",  # Coral
+    "2.1.6": "#bd7ebe",  # Purple (newest)
 }
 
 # -----------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import tempfile
 import typing as tp
 from pathlib import Path
 
+from jinja2 import Template
 from pydantic import Field
 from pydantic import JsonValue
 
@@ -98,6 +99,15 @@ class ClaudeCodeConfig(AgentConfigBase):
 
     def get_binary(self) -> str:
         return self.binary
+
+    def get_docker_file(self, base_image: str) -> str | None:
+        """Render the Docker template with version."""
+        if self.docker_template is None:
+            return None
+        template = self.docker_template.read_text()
+        return Template(template).render(
+            base_image=base_image, version=self.version
+        )
 
 
 class ClaudeCodeAgent(Agent):

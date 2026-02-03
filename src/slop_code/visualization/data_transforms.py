@@ -36,15 +36,17 @@ def filter_version_data(
     versions: list[str],
     model: str | None = None,
     thinking: str | None = None,
+    prompt: str | None = None,
     version_col: str = "agent_version",
 ) -> pd.DataFrame:
-    """Filter dataframe to specific versions/model/thinking.
+    """Filter dataframe to specific versions/model/thinking/prompt.
 
     Args:
         df: DataFrame with version data
         versions: List of versions to include
         model: Optional model name filter (e.g., 'opus-4.5')
         thinking: Optional thinking level filter (e.g., 'high')
+        prompt: Optional prompt name filter (e.g., 'just-solve')
         version_col: Column containing version info (default: 'agent_version')
 
     Returns:
@@ -55,6 +57,8 @@ def filter_version_data(
         mask &= df["model"] == model
     if thinking is not None:
         mask &= df["thinking"] == thinking
+    if prompt is not None:
+        mask &= df["prompt"] == prompt
     return df[mask].copy()
 
 
