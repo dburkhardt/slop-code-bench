@@ -11,15 +11,20 @@ _SENSITIVE_ENV_MARKERS = (
     "authorization",
 )
 
+_DO_NOT_REDACT = {"CLAUDE_CODE_MAX_OUTPUT_TOKENS", "MAX_THINKING_TOKENS"}
+
 
 def mask_sensitive_values(values: dict[str, str]) -> dict[str, str]:
     """Hide sensitive values before logging."""
     masked: dict[str, str] = {}
     for key, value in values.items():
-        if any(marker in key.lower() for marker in _SENSITIVE_ENV_MARKERS):
+        if key.upper() in _DO_NOT_REDACT:
+            masked[key] = value
+        elif any(marker in key.lower() for marker in _SENSITIVE_ENV_MARKERS):
             masked[key] = "***redacted***"
         else:
             masked[key] = value
+
     return masked
 
 
