@@ -18,6 +18,8 @@ from slop_code.agent_runner.agent import AgentConfigBase
 from slop_code.agent_runner.agents.cli_utils import AgentCommandResult
 from slop_code.agent_runner.agents.cli_utils import stream_cli_command
 from slop_code.agent_runner.agents.utils import HOME_PATH
+from slop_code.agent_runner.agents.utils import copy_jsonl_files
+from slop_code.agent_runner.agents.utils import find_jsonl_files
 from slop_code.agent_runner.agents.utils import resolve_env_vars
 from slop_code.agent_runner.credentials import ProviderCredential
 from slop_code.agent_runner.models import AgentCostLimits
@@ -29,6 +31,7 @@ from slop_code.common.llms import APIPricing
 from slop_code.common.llms import ModelDefinition
 from slop_code.common.llms import ThinkingPreset
 from slop_code.common.llms import TokenUsage
+from slop_code.execution import DockerEnvironmentSpec
 from slop_code.execution import EnvironmentSpec
 from slop_code.execution import Session
 from slop_code.execution import StreamingRuntime
@@ -173,6 +176,8 @@ class ClaudeCodeAgent(Agent):
 
         # Temporary directory for storing artifacts of agent execution
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
+        self._trace_dir: Path | None = None
+        self._settings_path: Path | None = None
 
         self._last_prompt: str = ""
         self._last_steps: list[TrajectoryStep] = []
@@ -300,21 +305,30 @@ class ClaudeCodeAgent(Agent):
             )
         return Path(self._tmp_dir.name)
 
-    def _get_volumes(self) -> dict[str, dict[str, str]]:
-        volumes = {}
-        settings = {
-            "spinnerTipsEnabled": False,
+    def _prepare_mounts(self) -> dict[str, dict[str, str]]:
+        if self._tmp_dir is None or self._workspace is None:
+            raise AgentError(
+                "ClaudeCodeAgent has not been set up with a session"
+            )
+        settings_path = Path(self._tmp_dir.name) / "settings.json"
+        settings_path.write_text(json.dumps(resolve_env_vars(self.settings)))
+        self._settings_path = settings_path
+
+        projects_dir = Path(self._tmp_dir.name) / "claude_projects"
+        projects_dir.mkdir(parents=True, exist_ok=True)
+        projects_dir.chmod(0o777)
+        self._trace_dir = projects_dir
+
+        return {
+            str(settings_path): {
+                "bind": f"{HOME_PATH}/.claude/settings.json",
+                "mode": "rw",
+            },
+            str(projects_dir): {
+                "bind": f"{HOME_PATH}/.claude/projects",
+                "mode": "rw",
+            },
         }
-        if self.settings:
-            settings.update(resolve_env_vars(self.settings))
-        settings_path = self.tmp_dir / "settings.json"
-        with settings_path.open("w") as f:
-            json.dump(resolve_env_vars(self.settings), f)
-        volumes[str(settings_path.absolute())] = {
-            "bind": f"{HOME_PATH}/.claude/settings.json",
-            "mode": "rw",
-        }
-        return volumes
 
     @staticmethod
     def parse_line(line: str):
@@ -444,8 +458,11 @@ class ClaudeCodeAgent(Agent):
         self._environment = session.spec
         self._workspace = session.working_dir
         self._tmp_dir = tempfile.TemporaryDirectory()
+        volumes: dict[str, dict[str, str]] = {}
+        if isinstance(session.spec, DockerEnvironmentSpec):
+            volumes = self._prepare_mounts()
         self._runtime = session.spawn(
-            mounts=self._get_volumes(),
+            mounts=volumes,
             env_vars={
                 "HOME": HOME_PATH,
             },
@@ -634,6 +651,26 @@ class ClaudeCodeAgent(Agent):
 
         self._write_artifacts(
             path,
+        )
+        self._save_claude_traces(path)
+
+    def _save_claude_traces(self, output_dir: Path) -> None:
+        if self._trace_dir is None:
+            self.log.debug(
+                "agent.claude_code.traces.skipped", reason="no_trace_dir"
+            )
+            return
+        jsonl_files = find_jsonl_files(self._trace_dir)
+        self.log.debug(
+            "agent.claude_code.traces.found",
+            trace_dir=str(self._trace_dir),
+            files=len(jsonl_files),
+        )
+        copied = copy_jsonl_files(jsonl_files, output_dir)
+        self.log.debug(
+            "agent.claude_code.traces.saved",
+            output_dir=str(output_dir),
+            saved=len(copied),
         )
 
     def cleanup(self) -> None:

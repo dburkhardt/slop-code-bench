@@ -94,6 +94,7 @@ dev = [
     "pytest-xdist>=3.8.0",
     "flask>=3.1.2",
     "pytest-asyncio>=1.2.0",
+    "ty>=0.0.14",
 ]
 openhands = [
     "openhands-agent-server>=1.0.0a5",

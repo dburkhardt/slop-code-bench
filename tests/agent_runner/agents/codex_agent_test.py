@@ -11,10 +11,12 @@ import pytest
 
 from slop_code.agent_runner.agents.codex import CodexAgent
 from slop_code.agent_runner.agents.codex import CodexConfig
+from slop_code.agent_runner.agents.utils import HOME_PATH
 from slop_code.agent_runner.credentials import ProviderCredential
 from slop_code.agent_runner.models import AgentCostLimits
 from slop_code.common.llms import APIPricing
 from slop_code.common.llms import ModelDefinition
+from slop_code.execution import DockerConfig
 from slop_code.execution import DockerEnvironmentSpec
 from slop_code.execution.runtime import RuntimeEvent
 
@@ -41,6 +43,16 @@ class FakeRuntime:
         self.cleaned = True
 
 
+class FakeLogger:
+    """Capture debug logs for assertions."""
+
+    def __init__(self) -> None:
+        self.debug_calls: list[tuple[str, dict]] = []
+
+    def debug(self, event: str, **kwargs: object) -> None:
+        self.debug_calls.append((event, kwargs))
+
+
 @dataclass
 class FakeDockerSpec:
     """Fake docker spec for testing."""
@@ -56,8 +68,12 @@ class FakeSession:
     runtime: FakeRuntime
     working_dir: Path
     spec: DockerEnvironmentSpec | None = None
+    last_spawn_env_vars: dict[str, str] | None = None
+    last_spawn_mounts: dict[str, dict[str, str] | str] | None = None
 
     def spawn(self, **_: object) -> FakeRuntime:
+        self.last_spawn_env_vars = dict(_.get("env_vars") or {})
+        self.last_spawn_mounts = dict(_.get("mounts") or {})
         return self.runtime
 
 
@@ -387,6 +403,132 @@ class TestCodexAgent:
         prompt_file = output_dir / "prompt.txt"
         assert prompt_file.exists()
         assert prompt_file.read_text() == "test prompt"
+
+    def test_save_artifacts_copies_codex_traces(
+        self, tmp_path, mock_cost_limits, mock_pricing
+    ):
+        """save_artifacts copies Codex trace jsonl files from home."""
+        runtime = FakeRuntime()
+        spec = DockerEnvironmentSpec(
+            name="test",
+            docker=DockerConfig(image="test-image"),
+        )
+        session = FakeSession(
+            runtime=runtime,
+            working_dir=tmp_path,
+            spec=spec,
+        )
+
+        agent = CodexAgent(
+            problem_name="test-problem",
+            verbose=False,
+            image="test-image",
+            cost_limits=mock_cost_limits,
+            pricing=mock_pricing,
+            credential=None,
+            binary="codex",
+            model=None,
+            timeout=None,
+            thinking=None,
+            max_thinking_tokens=None,
+            extra_args=[],
+            env={},
+        )
+
+        agent.setup(session)
+        assert agent._trace_dir is not None
+        trace_dir = agent._trace_dir / "traces"
+        trace_dir.mkdir(parents=True, exist_ok=True)
+        trace_file = trace_dir / "trace.jsonl"
+        trace_file.write_text('{"type":"turn.started"}\n')
+
+        output_dir = tmp_path / "artifacts"
+        agent.save_artifacts(output_dir)
+
+        saved_trace = output_dir / "trace.jsonl"
+        assert saved_trace.exists()
+        assert saved_trace.read_text() == trace_file.read_text()
+
+    def test_setup_uses_default_home_for_docker(
+        self, tmp_path, mock_cost_limits, mock_pricing
+    ):
+        """setup keeps HOME at agent home and mounts codex dir."""
+        runtime = FakeRuntime()
+        spec = DockerEnvironmentSpec(
+            name="test",
+            docker=DockerConfig(image="test-image"),
+        )
+        session = FakeSession(
+            runtime=runtime,
+            working_dir=tmp_path,
+            spec=spec,
+        )
+
+        agent = CodexAgent(
+            problem_name="test-problem",
+            verbose=False,
+            image="test-image",
+            cost_limits=mock_cost_limits,
+            pricing=mock_pricing,
+            credential=None,
+            binary="codex",
+            model=None,
+            timeout=None,
+            thinking=None,
+            max_thinking_tokens=None,
+            extra_args=[],
+            env={},
+        )
+
+        agent.setup(session)
+
+        assert session.last_spawn_env_vars is not None
+        assert session.last_spawn_env_vars.get("HOME") == HOME_PATH
+        assert session.last_spawn_mounts is not None
+        assert any(
+            isinstance(value, dict)
+            and value.get("bind") == f"{HOME_PATH}/.codex"
+            for value in session.last_spawn_mounts.values()
+        )
+
+    def test_save_artifacts_logs_trace_counts(
+        self, tmp_path, mock_cost_limits, mock_pricing
+    ):
+        """_save_codex_traces logs discovered and saved trace counts."""
+        agent = CodexAgent(
+            problem_name="test-problem",
+            verbose=False,
+            image="test-image",
+            cost_limits=mock_cost_limits,
+            pricing=mock_pricing,
+            credential=None,
+            binary="codex",
+            model=None,
+            timeout=None,
+            thinking=None,
+            max_thinking_tokens=None,
+            extra_args=[],
+            env={},
+        )
+        logger = FakeLogger()
+        agent.log = logger
+
+        trace_dir = tmp_path / "codex_traces"
+        trace_dir.mkdir(parents=True, exist_ok=True)
+        (trace_dir / "trace.jsonl").write_text('{"type":"turn.started"}\n')
+        agent._trace_dir = trace_dir
+
+        output_dir = tmp_path / "artifacts"
+        agent._save_codex_traces(output_dir)
+
+        assert any(
+            event == "agent.codex.traces.found" and kwargs.get("files") == 1
+            for event, kwargs in logger.debug_calls
+        )
+        assert any(
+            event == "agent.codex.traces.saved" and kwargs.get("saved") == 1
+            for event, kwargs in logger.debug_calls
+        )
 
     def test_build_command_with_thinking_disabled(
         self, mock_cost_limits, mock_pricing

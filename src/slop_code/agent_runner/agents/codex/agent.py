@@ -5,6 +5,8 @@ from __future__ import annotations
 import functools
 import json
 import shlex
+import shutil
+import tempfile
 import typing as tp
 from pathlib import Path
 
@@ -16,6 +18,8 @@ from slop_code.agent_runner.agent import AgentConfigBase
 from slop_code.agent_runner.agents.cli_utils import AgentCommandResult
 from slop_code.agent_runner.agents.cli_utils import stream_cli_command
 from slop_code.agent_runner.agents.utils import HOME_PATH
+from slop_code.agent_runner.agents.utils import copy_jsonl_files
+from slop_code.agent_runner.agents.utils import find_jsonl_files
 from slop_code.agent_runner.credentials import CredentialType
 from slop_code.agent_runner.credentials import ProviderCredential
 from slop_code.agent_runner.models import AgentCostLimits
@@ -112,6 +116,8 @@ class CodexAgent(Agent):
 
         self._environment: EnvironmentSpec | None = None
         self._runtime: StreamingRuntime | None = None
+        self._trace_tmp: tempfile.TemporaryDirectory | None = None
+        self._trace_dir: Path | None = None
 
         # Get auth file from credential if it's a file credential
         self._auth_file: Path | None = None
@@ -229,10 +235,16 @@ class CodexAgent(Agent):
         self._session = session
         self._environment = session.spec
         mounts: dict[str, dict[str, str]] = {}
-        if self._auth_file is not None:
-            mounts[str(self._auth_file)] = {
-                "bind": str(Path(HOME_PATH) / ".codex" / "auth.json"),
-                "mode": "ro",
+        if isinstance(session.spec, DockerEnvironmentSpec):
+            self._trace_tmp = tempfile.TemporaryDirectory()
+            self._trace_dir = Path(self._trace_tmp.name)
+            self._trace_dir.mkdir(parents=True, exist_ok=True)
+            self._trace_dir.chmod(0o777)
+            if self._auth_file is not None:
+                shutil.copy2(self._auth_file, self._trace_dir / "auth.json")
+            mounts[str(self._trace_dir)] = {
+                "bind": f"{HOME_PATH}/.codex",
+                "mode": "rw",
             }
         self._runtime = session.spawn(
             mounts=mounts,
@@ -463,10 +475,32 @@ class CodexAgent(Agent):
             stderr_text = self._last_command.stderr or ""
 
         self._write_artifacts(path, stdout_text, stderr_text)
+        self._save_codex_traces(path)
+
+    def _save_codex_traces(self, output_dir: Path) -> None:
+        if self._trace_dir is None:
+            self.log.debug("agent.codex.traces.skipped", reason="no_trace_dir")
+            return
+        jsonl_files = find_jsonl_files(self._trace_dir)
+        self.log.debug(
+            "agent.codex.traces.found",
+            trace_dir=str(self._trace_dir),
+            files=len(jsonl_files),
+        )
+        copied = copy_jsonl_files(jsonl_files, output_dir)
+        self.log.debug(
+            "agent.codex.traces.saved",
+            output_dir=str(output_dir),
+            saved=len(copied),
+        )
 
     def cleanup(self) -> None:
         """Clean up resources held by the Codex agent."""
         self._session = None
+        if self._trace_tmp is not None:
+            self._trace_tmp.cleanup()
+            self._trace_tmp = None
+            self._trace_dir = None
         self.log.debug("agent.codex.cleanup")
 
 
