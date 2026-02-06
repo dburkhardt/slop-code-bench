@@ -187,6 +187,7 @@ class ClaudeCodeAgent(Agent):
         self.steps = []
         self.final_result: RuntimeResult | None = None
         self._had_error: bool = False
+        self._got_successful_result: bool = False
 
     @classmethod
     def _from_config(
@@ -310,8 +311,14 @@ class ClaudeCodeAgent(Agent):
             raise AgentError(
                 "ClaudeCodeAgent has not been set up with a session"
             )
+
+        # Build settings dict, merging with max_output_tokens if specified
+        settings = dict(resolve_env_vars(self.settings))
+        if self.max_output_tokens is not None:
+            settings["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = self.max_output_tokens
+
         settings_path = Path(self._tmp_dir.name) / "settings.json"
-        settings_path.write_text(json.dumps(resolve_env_vars(self.settings)))
+        settings_path.write_text(json.dumps(settings))
         self._settings_path = settings_path
 
         projects_dir = Path(self._tmp_dir.name) / "claude_projects"
@@ -382,6 +389,27 @@ class ClaudeCodeAgent(Agent):
             payload,
         )
 
+    def _process_payload_for_error(self, payload: dict) -> None:
+        """Process a payload to track success/error state.
+
+        Tracks when we receive a successful result and ignores error payloads
+        that arrive afterward. This handles the case where post-completion
+        errors (like 403 telemetry failures) should not fail an otherwise
+        successful run.
+        """
+        payload_type = payload.get("type")
+        is_error = payload.get("is_error", False)
+
+        # Check for successful result (result type without is_error)
+        if payload_type == "result" and not is_error:
+            self._got_successful_result = True
+            return
+
+        # Only treat as error if we haven't received a successful result yet
+        if is_error and not self._had_error and not self._got_successful_result:
+            self._had_error = True
+            self.log.error("Claude Code process had an error", error=payload)
+
     def _run(
         self, command: str | list[str], env_overrides: dict[str, str]
     ) -> RuntimeResult:
@@ -420,15 +448,7 @@ class ClaudeCodeAgent(Agent):
                 type=payload.get("type"),
                 content=content[:128],
             )
-            if (
-                "is_error" in payload
-                and payload["is_error"]
-                and not self._had_error
-            ):
-                self._had_error = True
-                self.log.error(
-                    "Claude Code process had an error", error=payload
-                )
+            self._process_payload_for_error(payload)
 
             if cost is not None:
                 self.log.debug("Got result", cost=cost, verbose=True)
@@ -645,6 +665,7 @@ class ClaudeCodeAgent(Agent):
         self._last_steps = []
         self._last_prompt = ""
         self._last_command = None
+        self._got_successful_result = False
 
     def save_artifacts(self, path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)

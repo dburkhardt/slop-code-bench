@@ -397,9 +397,12 @@ def save_results(
         error_type=metrics_tracker.error_type,
         error_message=metrics_tracker.error_message,
         error_traceback=metrics_tracker.error_traceback,
+        # Errored/skipped checkpoints are complete failures
         passed_policy=all(
-            r.passed_policy or run_spec.skip_evaluation for r in results
-        ),
+            (r.passed_policy and not r.had_error) or run_spec.skip_evaluation
+            for r in results
+        )
+        and len(results) == len(all_checkpoint_names),
     )
 
     # Build combined run_info structure
