@@ -237,12 +237,11 @@ Lower is better. High values indicate excessive abstraction or verbose patterns.
 
 ### Erosion Score
 
-Measures code health degradation (complexity + lint issues).
+Measures structural degradation (complexity mass concentration).
 
 **Formula:**
 ```python
-erosion = mean((cc_high_count + cc_extreme_count) / (functions + methods))
-        + mean(lint_per_loc)
+erosion = mean(mass.complexity_concentration)
 ```
 
 Lower is better. High values indicate structural decay and accumulating technical debt.

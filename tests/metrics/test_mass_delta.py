@@ -11,6 +11,7 @@ import pytest
 from slop_code.metrics.checkpoint.mass import _compute_gini_coefficient
 from slop_code.metrics.checkpoint.mass import _compute_top_n_distribution
 from slop_code.metrics.checkpoint.mass import compute_mass_delta
+from slop_code.metrics.checkpoint.mass import compute_top20_share
 
 
 class TestComputeGiniCoefficient:
@@ -70,6 +71,71 @@ class TestComputeGiniCoefficient:
         masses = [10.0, 1e-10, 1e-11]
         gini = _compute_gini_coefficient(masses)
         assert gini == 0.0  # Only one non-zero value
+
+
+class TestComputeTop20Share:
+    """Tests for compute_top20_share helper function."""
+
+    def test_empty_list_returns_zero(self):
+        assert compute_top20_share([]) == 0.0
+
+    def test_single_value_returns_zero(self):
+        assert compute_top20_share([5.0]) == 0.0
+
+    def test_all_zeros_returns_zero(self):
+        assert compute_top20_share([0.0, 0.0, 0.0]) == 0.0
+
+    def test_uniform_distribution(self):
+        """100 equal values: top 20 hold 20/100 = 0.20."""
+        values = [10.0] * 100
+        assert compute_top20_share(values) == pytest.approx(0.20, abs=0.01)
+
+    def test_uniform_small(self):
+        """5 equal values: top 1 holds 1/5 = 0.20."""
+        values = [10.0] * 5
+        assert compute_top20_share(values) == pytest.approx(0.20, abs=0.01)
+
+    def test_known_distribution(self):
+        """[1,2,3,4,5]: top 1 of 5 = 5/15 ≈ 0.333."""
+        values = [1.0, 2.0, 3.0, 4.0, 5.0]
+        assert compute_top20_share(values) == pytest.approx(
+            5.0 / 15.0, abs=0.01
+        )
+
+    def test_god_function_pattern(self):
+        """[1,1,1,1,10]: top 1 of 5 = 10/14 ≈ 0.714."""
+        values = [1.0, 1.0, 1.0, 1.0, 10.0]
+        assert compute_top20_share(values) == pytest.approx(
+            10.0 / 14.0, abs=0.01
+        )
+
+    def test_maximum_inequality(self):
+        """One large value with tiny values should approach 1.0."""
+        values = [100.0] + [0.001] * 99
+        assert compute_top20_share(values) > 0.95
+
+    def test_ignores_tiny_values(self):
+        """Values below threshold (1e-9) should be filtered."""
+        values = [10.0, 1e-10, 1e-11]
+        assert compute_top20_share(values) == 0.0  # Only one non-zero value
+
+    def test_two_equal_values(self):
+        """Two equal values: top 1 of 2 = 0.50."""
+        assert compute_top20_share([5.0, 5.0]) == pytest.approx(0.50, abs=0.01)
+
+    def test_two_unequal_values(self):
+        """[1, 3]: top 1 of 2 = 3/4 = 0.75."""
+        assert compute_top20_share([1.0, 3.0]) == pytest.approx(0.75, abs=0.01)
+
+    def test_larger_population(self):
+        """50 values: top 10 (20%) hold their share."""
+        values = list(range(1, 51))  # [1..50]
+        total = sum(values)
+        top_10 = sum(range(41, 51))  # Top 10 values: 41..50
+        expected = top_10 / total
+        assert compute_top20_share([float(v) for v in values]) == pytest.approx(
+            expected, abs=0.01
+        )
 
 
 class TestComputeTopNDistribution:

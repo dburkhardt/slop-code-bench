@@ -184,6 +184,7 @@ def _build_metrics_from_snapshot(
         "high_cc_mean": functions["high_cc_mean"],
         "cc_normalized": functions["cc_normalized"],
         "cc_concentration": functions["cc_concentration"],
+        "cc_top20": functions.get("cc_top20", 0.0),
         "max_nesting_depth": functions["depth_max"],
         "lines_per_symbol": functions["lines_mean"],
         # Waste
@@ -196,18 +197,24 @@ def _build_metrics_from_snapshot(
         # Function distribution stats
         "nesting_mean": functions["nesting_mean"],
         "nesting_concentration": functions["nesting_concentration"],
+        "nesting_top20": functions.get("nesting_top20", 0.0),
         "comparisons_mean": functions["comparisons_mean"],
         "comparisons_concentration": functions["comparisons_concentration"],
+        "comparisons_top20": functions.get("comparisons_top20", 0.0),
         "branches_mean": functions["branches_mean"],
         "branches_concentration": functions["branches_concentration"],
+        "branches_top20": functions.get("branches_top20", 0.0),
         "control_mean": functions["control_mean"],
         "control_concentration": functions["control_concentration"],
-        # Size concentration (Gini for LOC and statements across functions)
+        "control_top20": functions.get("control_top20", 0.0),
+        # Size concentration
         "lines_concentration": functions.get("lines_concentration", 0.0),
+        "lines_top20": functions.get("lines_top20", 0.0),
         "statements_mean": functions.get("statements_mean", 0.0),
         "statements_concentration": functions.get(
             "statements_concentration", 0.0
         ),
+        "statements_top20": functions.get("statements_top20", 0.0),
         # AST-grep
         "ast_grep_violations": ast_grep["violations"],
         # Source file tracking

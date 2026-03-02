@@ -350,14 +350,11 @@ verbosity_per_checkpoint = (
 
 Mean across all checkpoints = verbosity score
 
-**Erosion Score**: Measures code health degradation
+**Erosion Score**: Measures structural degradation
 
 **Formula:**
 ```
-erosion_per_checkpoint = (
-  (cc_high_count + cc_extreme_count) / (functions + methods) +
-  lint_errors / loc
-) / 2
+erosion_per_checkpoint = mass.complexity_concentration
 ```
 
 Mean across all checkpoints = erosion score

@@ -1,0 +1,9 @@
+internal_name: gpt-5.3-codex-spark
+provider: openai
+pricing:
+  input: 0.25
+  output: 2.00
+  cache_read: 0.025
+  cache_write: 0
+aliases:
+  - gpt-5.3-codex-spark-2026-02-12

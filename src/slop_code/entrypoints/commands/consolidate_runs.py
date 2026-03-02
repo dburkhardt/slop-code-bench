@@ -94,11 +94,13 @@ COMPLEXITY_PREFIXES = [
 MASS_PREFIX = "mass."
 EXPECTED_MASS_COLS = [
     "mass.complexity",
+    "mass.complexity_concentration",
     "mass.branches",
     "mass.comparisons",
     "mass.vars_used",
     "mass.vars_defined",
     "mass.try_scaffold",
+    "mass.try_scaffold_concentration",
     "mass.top50_count",
     "mass.top50_mass",
     "mass.top75_count",

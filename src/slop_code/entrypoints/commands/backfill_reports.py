@@ -13,7 +13,9 @@ from rich.console import Console
 
 from slop_code.common import CHECKPOINT_RESULTS_FILENAME
 from slop_code.common import CONFIG_FILENAME
+from slop_code.common import QUALITY_DIR
 from slop_code.common import QUALITY_METRIC_SAVENAME
+from slop_code.common import SYMBOLS_QUALITY_SAVENAME
 from slop_code.entrypoints.commands import common
 from slop_code.entrypoints.evaluation.metrics import create_problem_reports
 from slop_code.entrypoints.evaluation.metrics import update_results_jsonl
@@ -25,6 +27,117 @@ from slop_code.metrics.languages.python.ast_grep import RuleLookup
 from slop_code.metrics.languages.python.ast_grep import (
     build_ast_grep_rules_lookup,
 )
+
+
+def _backfill_top20_share(
+    results_dir: Path,
+    logger: Any,
+) -> tuple[int, int]:
+    """Backfill *_top20 fields into overall_quality.json from symbols.jsonl.
+
+    Reads per-function metrics from symbols.jsonl, computes top-20% share
+    for each metric family, and patches the functions section of
+    overall_quality.json.
+
+    Returns:
+        Tuple of (files_processed, files_updated).
+    """
+    from slop_code.metrics.checkpoint.mass import compute_top20_share
+
+    # Map from symbols.jsonl field → overall_quality.json functions field
+    metric_fields = {
+        "complexity": "cc_top20",
+        "lines": "lines_top20",
+        "statements": "statements_top20",
+        "max_nesting_depth": "nesting_top20",
+        "comparisons": "comparisons_top20",
+        "branches": "branches_top20",
+        "control_blocks": "control_top20",
+    }
+
+    files_processed = 0
+    files_updated = 0
+
+    for quality_dir in results_dir.glob(f"*/checkpoint_*/{QUALITY_DIR}"):
+        symbols_path = quality_dir / SYMBOLS_QUALITY_SAVENAME
+        overall_path = quality_dir / QUALITY_METRIC_SAVENAME
+
+        if not symbols_path.exists() or not overall_path.exists():
+            continue
+
+        files_processed += 1
+
+        # Collect per-function values from symbols.jsonl
+        value_lists: dict[str, list[float]] = {k: [] for k in metric_fields}
+        try:
+            with symbols_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    sym = json.loads(line)
+                    if sym.get("type") not in {"function", "method"}:
+                        continue
+                    for field in metric_fields:
+                        value_lists[field].append(float(sym.get(field, 0)))
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning(
+                "Failed to read symbols.jsonl",
+                path=str(symbols_path),
+                error=str(e),
+            )
+            continue
+
+        # Compute top-20% shares
+        top20_values = {
+            target: round(compute_top20_share(value_lists[source]), 3)
+            for source, target in metric_fields.items()
+        }
+
+        # Patch overall_quality.json
+        try:
+            with overall_path.open("r", encoding="utf-8") as f:
+                overall = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning(
+                "Failed to read overall_quality.json",
+                path=str(overall_path),
+                error=str(e),
+            )
+            continue
+
+        functions = overall.get("functions", {})
+        needs_update = any(
+            functions.get(k) != v for k, v in top20_values.items()
+        )
+
+        if not needs_update:
+            continue
+
+        functions.update(top20_values)
+        overall["functions"] = functions
+
+        # Write back atomically
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=quality_dir,
+                suffix=".json.tmp",
+                delete=False,
+            ) as tmp:
+                json.dump(overall, tmp, indent=2, sort_keys=True)
+                tmp_path = Path(tmp.name)
+            tmp_path.replace(overall_path)
+            files_updated += 1
+        except OSError as e:
+            logger.warning(
+                "Failed to write updated overall_quality.json",
+                path=str(overall_path),
+                error=str(e),
+            )
+
+    return files_processed, files_updated
 
 
 def _process_single_run_backfill(
@@ -46,6 +159,15 @@ def _process_single_run_backfill(
     all_errors: list[tuple[str, str]] = []
     all_reports: list[dict] = []
     problems_processed = 0
+
+    # Backfill top-20% share into overall_quality.json BEFORE reports
+    t20_files, t20_updated = _backfill_top20_share(results_dir, logger)
+    if t20_updated > 0:
+        logger.info(
+            "Backfilled top-20% share metrics",
+            files_updated=t20_updated,
+            files_processed=t20_files,
+        )
 
     # Backfill evaluation group types BEFORE generating reports
     # This fixes Error tests from prior checkpoints to Regression

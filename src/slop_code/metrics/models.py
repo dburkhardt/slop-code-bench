@@ -340,16 +340,19 @@ class FunctionStats(BaseModel):
     extreme_cc_mean: float = 0.0
     cc_normalized: float = 0.0
     cc_concentration: float = 0.0
+    cc_top20: float = 0.0
     # Depth stats
     depth_max: int = 0
     # Lines stats (LOC per function)
     lines_sum: int = 0
     lines_mean: float = 0.0
     lines_concentration: float = 0.0
+    lines_top20: float = 0.0
     # Statements stats (statements per function)
     statements_sum: int = 0
     statements_mean: float = 0.0
     statements_concentration: float = 0.0
+    statements_top20: float = 0.0
     # Control blocks
     control_blocks_sum: int = 0
 
@@ -357,21 +360,25 @@ class FunctionStats(BaseModel):
     # Nesting (threshold > 3)
     nesting_mean: float = 0.0
     nesting_concentration: float = 0.0
+    nesting_top20: float = 0.0
     nesting_high_count: int = 0
 
     # Comparisons (threshold > 5)
     comparisons_mean: float = 0.0
     comparisons_concentration: float = 0.0
+    comparisons_top20: float = 0.0
     comparisons_high_count: int = 0
 
     # Branches (threshold > 5)
     branches_mean: float = 0.0
     branches_concentration: float = 0.0
+    branches_top20: float = 0.0
     branches_high_count: int = 0
 
     # Control blocks (threshold > 5)
     control_mean: float = 0.0
     control_concentration: float = 0.0
+    control_top20: float = 0.0
     control_high_count: int = 0
 
 

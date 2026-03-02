@@ -144,8 +144,8 @@ def build_mass_delta_bars(context: ChartContext) -> go.Figure:
         if pd.isna(mean_top90_ratio):
             mean_top90_ratio = 0
 
-        # Added concentration (Gini)
-        conc_col = "delta.mass.complexity_added_concentration"
+        # Added concentration (Top-20% Share)
+        conc_col = "delta.mass.complexity_added_top20"
         mean_concentration = (
             run_df[conc_col].mean() if conc_col in run_df.columns else 0
         )
@@ -362,7 +362,7 @@ def build_mass_delta_heatmap(context: ChartContext) -> go.Figure:
 def build_delta_vs_solve_scatter(context: ChartContext) -> go.Figure:
     """Build scatter plot of mass concentration vs solve rate.
 
-    X-axis: Mean added concentration (Gini) - how concentrated is added mass
+    X-axis: Mean added concentration (top-20% share) - how concentrated is added mass
     Y-axis: Solve rate
 
     Lower concentration + high solve = good (spread mass, solving problems)
@@ -374,7 +374,7 @@ def build_delta_vs_solve_scatter(context: ChartContext) -> go.Figure:
     if delta_df is None or run_summaries.empty:
         return go.Figure()
 
-    conc_col = "delta.mass.complexity_added_concentration"
+    conc_col = "delta.mass.complexity_added_top20"
     if conc_col not in delta_df.columns:
         return go.Figure()
 
@@ -488,7 +488,7 @@ def build_mass_delta_boxplots(context: ChartContext) -> go.Figure:
 
     metrics = [
         ("top90_ratio", 1, 1),
-        ("delta.mass.complexity_added_concentration", 1, 2),
+        ("delta.mass.complexity_added_top20", 1, 2),
         ("delta.mass.top90_mass", 1, 3),
         ("mass.high_cc_pct", 2, 1),
         ("delta.mass.top75_mass", 2, 2),

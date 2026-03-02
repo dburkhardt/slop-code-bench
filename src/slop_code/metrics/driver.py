@@ -16,6 +16,7 @@ from pathlib import Path
 
 from slop_code.common import RUBRIC_FILENAME
 from slop_code.logging import get_logger
+from slop_code.metrics.checkpoint.mass import compute_top20_share
 from slop_code.metrics.languages import get_language_by_extension
 from slop_code.metrics.languages.python import extract_imports
 from slop_code.metrics.models import AstGrepAggregates
@@ -238,6 +239,7 @@ def _compute_function_stats(
     # Derived metrics
     cc_normalized = _normalized_complexity(cc_values)
     cc_concentration = _concentration_score(cc_values)
+    cc_top20 = compute_top20_share([float(v) for v in cc_values])
 
     # Depth stats
     depth_max = max(depth_values) if depth_values else 0
@@ -246,6 +248,7 @@ def _compute_function_stats(
     lines_sum = sum(lines_values)
     lines_mean = statistics.mean(lines_values) if lines_values else 0.0
     lines_concentration = _concentration_score(lines_values)
+    lines_top20 = compute_top20_share([float(v) for v in lines_values])
 
     # Statements stats (statements per function)
     statements_sum = sum(statements_values)
@@ -253,6 +256,9 @@ def _compute_function_stats(
         statistics.mean(statements_values) if statements_values else 0.0
     )
     statements_concentration = _concentration_score(statements_values)
+    statements_top20 = compute_top20_share(
+        [float(v) for v in statements_values]
+    )
 
     # Control blocks
     control_blocks_sum = sum(control_blocks_values)
@@ -260,19 +266,28 @@ def _compute_function_stats(
     # Helper for distribution stats
     def _dist_stats(
         values: list[int], threshold: int
-    ) -> tuple[float, float, int]:
+    ) -> tuple[float, float, float, int]:
         if not values:
-            return 0.0, 0.0, 0
+            return 0.0, 0.0, 0.0, 0
         mean = statistics.mean(values)
         conc = _concentration_score(values)
+        top20 = compute_top20_share([float(v) for v in values])
         high = sum(1 for v in values if v > threshold)
-        return mean, conc, high
+        return mean, conc, top20, high
 
     # Compute distribution stats for each family
-    nesting_mean, nesting_conc, nesting_high = _dist_stats(depth_values, 3)
-    comp_mean, comp_conc, comp_high = _dist_stats(comparisons_values, 5)
-    branch_mean, branch_conc, branch_high = _dist_stats(branches_values, 5)
-    ctrl_mean, ctrl_conc, ctrl_high = _dist_stats(control_blocks_values, 5)
+    nesting_mean, nesting_conc, nesting_top20, nesting_high = _dist_stats(
+        depth_values, 3
+    )
+    comp_mean, comp_conc, comp_top20, comp_high = _dist_stats(
+        comparisons_values, 5
+    )
+    branch_mean, branch_conc, branch_top20, branch_high = _dist_stats(
+        branches_values, 5
+    )
+    ctrl_mean, ctrl_conc, ctrl_top20, ctrl_high = _dist_stats(
+        control_blocks_values, 5
+    )
 
     return FunctionStats(
         count=count,
@@ -286,26 +301,33 @@ def _compute_function_stats(
         extreme_cc_mean=extreme_cc_mean,
         cc_normalized=cc_normalized,
         cc_concentration=cc_concentration,
+        cc_top20=cc_top20,
         depth_max=depth_max,
         lines_sum=lines_sum,
         lines_mean=lines_mean,
         lines_concentration=lines_concentration,
+        lines_top20=lines_top20,
         statements_sum=statements_sum,
         statements_mean=statements_mean,
         statements_concentration=statements_concentration,
+        statements_top20=statements_top20,
         control_blocks_sum=control_blocks_sum,
         # Distribution stats
         nesting_mean=nesting_mean,
         nesting_concentration=nesting_conc,
+        nesting_top20=nesting_top20,
         nesting_high_count=nesting_high,
         comparisons_mean=comp_mean,
         comparisons_concentration=comp_conc,
+        comparisons_top20=comp_top20,
         comparisons_high_count=comp_high,
         branches_mean=branch_mean,
         branches_concentration=branch_conc,
+        branches_top20=branch_top20,
         branches_high_count=branch_high,
         control_mean=ctrl_mean,
         control_concentration=ctrl_conc,
+        control_top20=ctrl_top20,
         control_high_count=ctrl_high,
     )
 

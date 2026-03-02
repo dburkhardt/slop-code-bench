@@ -139,6 +139,30 @@ def _compute_gini_coefficient(masses: list[float]) -> float:
     return (2 * weighted_sum - (n + 1) * total) / (n * total)
 
 
+def compute_top20_share(values: list[float]) -> float:
+    """Fraction of total value held by the top 20% of entries.
+
+    Measures concentration as a share ratio:
+    - 0.2 = perfectly uniform (top 20% holds exactly 20%)
+    - 1.0 = maximum concentration (all value in one entry)
+    - 0.0 = degenerate (≤1 entry or no value)
+
+    Args:
+        values: List of metric values (positive floats).
+
+    Returns:
+        Share in [0, 1].
+    """
+    non_zero = [v for v in values if v > 1e-9]
+
+    if len(non_zero) <= 1 or sum(non_zero) < 1e-9:
+        return 0.0
+
+    sorted_desc = sorted(non_zero, reverse=True)
+    k = max(1, math.ceil(0.2 * len(sorted_desc)))
+    return sum(sorted_desc[:k]) / sum(sorted_desc)
+
+
 def compute_mass_metrics(
     symbol_iter: Iterator[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -189,6 +213,9 @@ def compute_mass_metrics(
         result[f"mass.{key}"] = round(mass_totals[metric], 2)
         result[f"mass.{key}_concentration"] = round(
             _compute_gini_coefficient(mass_lists[metric]), 3
+        )
+        result[f"mass.{key}_top20"] = round(
+            compute_top20_share(mass_lists[metric]), 3
         )
 
     # Add distribution metrics
@@ -382,6 +409,9 @@ def _add_complexity_metrics(
     result[f"delta.mass.{key}_added_concentration"] = round(
         _compute_gini_coefficient(added_masses), 3
     )
+    result[f"delta.mass.{key}_added_top20"] = round(
+        compute_top20_share(added_masses), 3
+    )
 
     # Top N distribution for added mass
     added_top_n = _compute_top_n_distribution(
@@ -400,6 +430,9 @@ def _add_complexity_metrics(
     result[f"delta.mass.{key}_removed_count"] = len(removed_masses)
     result[f"delta.mass.{key}_removed_concentration"] = round(
         _compute_gini_coefficient(removed_masses), 3
+    )
+    result[f"delta.mass.{key}_removed_top20"] = round(
+        compute_top20_share(removed_masses), 3
     )
 
     # Aggregate metrics

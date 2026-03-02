@@ -430,3 +430,81 @@ class TestRunSummaryCcMetrics:
         assert summary.cc.high_mean.mean == 15.0
         assert summary.cc.max.max == 30
         assert summary.cc.max.min == 24
+
+
+class TestRunSummaryCompositeScores:
+    """Tests for composite verbosity/erosion score aggregation."""
+
+    def test_erosion_uses_complexity_mass_gini(self, mock_config):
+        checkpoints = [
+            {
+                "problem": "prob1",
+                "idx": 1,
+                "pass_rate": 1.0,
+                "checkpoint_pass_rate": 1.0,
+                "functions": 4,
+                "methods": 0,
+                "loc": 100,
+                "mass.complexity_concentration": 0.4,
+            }
+        ]
+        summary = compute_run_summary(mock_config, checkpoints)
+
+        assert summary.erosion.mean == pytest.approx(0.4)
+        assert summary.erosion.count == 1
+
+    def test_erosion_uses_only_complexity_mass_gini(self, mock_config):
+        checkpoints = [
+            {
+                "problem": "prob1",
+                "idx": 1,
+                "pass_rate": 1.0,
+                "checkpoint_pass_rate": 1.0,
+                "functions": 4,
+                "methods": 0,
+                "loc": 100,
+                "mass.complexity_concentration": 0.2,
+            },
+            {
+                "problem": "prob1",
+                "idx": 2,
+                "pass_rate": 1.0,
+                "checkpoint_pass_rate": 1.0,
+                "functions": 4,
+                "methods": 0,
+                "loc": 100,
+                "mass.complexity_concentration": 0.4,
+            },
+        ]
+        summary = compute_run_summary(mock_config, checkpoints)
+
+        assert summary.erosion.count == 2
+        assert summary.erosion.mean == pytest.approx((0.2 + 0.4) / 2)
+
+    def test_erosion_skips_out_of_range_values(self, mock_config):
+        checkpoints = [
+            {
+                "problem": "prob1",
+                "idx": 1,
+                "pass_rate": 1.0,
+                "checkpoint_pass_rate": 1.0,
+                "functions": 4,
+                "methods": 0,
+                "loc": 100,
+                "mass.complexity_concentration": 1.1,  # invalid (>1)
+            },
+            {
+                "problem": "prob1",
+                "idx": 2,
+                "pass_rate": 1.0,
+                "checkpoint_pass_rate": 1.0,
+                "functions": 4,
+                "methods": 0,
+                "loc": 100,
+                "mass.complexity_concentration": -0.1,  # invalid (<0)
+            },
+        ]
+        summary = compute_run_summary(mock_config, checkpoints)
+
+        assert summary.erosion.count == 0
+        assert summary.erosion.mean is None

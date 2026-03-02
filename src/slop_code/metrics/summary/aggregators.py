@@ -10,6 +10,7 @@ import math
 import statistics
 from typing import Any
 
+from slop_code.logging import get_logger
 from slop_code.metrics.models import CostsStats
 from slop_code.metrics.models import CyclomaticComplexityStats
 from slop_code.metrics.models import DeltaStats
@@ -25,6 +26,8 @@ from slop_code.metrics.summary.stats import compute_metric_stats
 from slop_code.metrics.summary.stats import compute_pass_rate
 from slop_code.metrics.summary.stats import compute_ratio_values
 from slop_code.metrics.summary.stats import extract_metric_values
+
+logger = get_logger(__name__)
 
 
 def safe_mean(values: list[float]) -> float:
@@ -301,7 +304,7 @@ def compute_composite_scores(
     """Compute verbosity and erosion composite scores.
 
     Verbosity measures code bloat: flags per LOC + wrapper/single-use ratios.
-    Erosion measures code degradation: high complexity ratio + lint density.
+    Erosion measures structural degradation: complexity mass gini.
     """
     verbosity_values: list[float] = []
     erosion_values: list[float] = []
@@ -326,14 +329,37 @@ def compute_composite_scores(
                 flags_per_loc + wrapper_ratio + single_use_ratio
             )
 
-        # Erosion: high complexity ratio + lint per LOC
-        lint_per_loc = chkpt.get("lint_per_loc", 0.0) or 0.0
-        if total_callables > 0:
-            high_complex = (
-                chkpt.get("cc_high_count", 0)
-                + chkpt.get("cc_extreme_count", 0) * 2
-            ) / total_callables
-            erosion_values.append(high_complex + lint_per_loc)
+        # Structural erosion requires complexity mass gini.
+        complexity_concentration = chkpt.get("mass.complexity_concentration")
+        if complexity_concentration is None:
+            logger.warning(
+                "Skipping erosion for checkpoint with missing complexity mass gini",
+                problem=chkpt.get("problem"),
+                checkpoint=chkpt.get("checkpoint"),
+                idx=chkpt.get("idx"),
+            )
+            continue
+
+        if not isinstance(complexity_concentration, int | float):
+            logger.warning(
+                "Skipping erosion for checkpoint with non-numeric complexity mass gini",
+                problem=chkpt.get("problem"),
+                checkpoint=chkpt.get("checkpoint"),
+                idx=chkpt.get("idx"),
+            )
+            continue
+
+        if not (0.0 <= complexity_concentration <= 1.0):
+            logger.warning(
+                "Skipping erosion for checkpoint with out-of-range complexity mass gini",
+                problem=chkpt.get("problem"),
+                checkpoint=chkpt.get("checkpoint"),
+                idx=chkpt.get("idx"),
+                complexity_concentration=complexity_concentration,
+            )
+            continue
+
+        erosion_values.append(complexity_concentration)
 
     return {
         "verbosity": compute_metric_stats(verbosity_values),
