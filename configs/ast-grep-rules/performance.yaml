@@ -4,31 +4,16 @@ language: python
 severity: warning
 message: Checking 'key in dict.keys()' - inefficient, use 'key in dict'
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: comparison_operator
-  regex: "\\sin\\s"
+  regex: \sin\s
   has:
     kind: call
     has:
       kind: attribute
-      regex: "\\.keys$"
----
-id: deepcopy-single-mutation
-language: python
-severity: warning
-message: Deepcopy followed by a single attribute tweak; prefer shallow copy or direct
-  construction.
-metadata:
-  weight: 3
-  category: performance
-rule:
-  kind: expression_statement
-  pattern: $NEW.$ATTR = $VAL
-  follows:
-    kind: expression_statement
-    pattern: $NEW = copy.deepcopy($OBJ)
+      regex: \.keys$
 ---
 id: excessive-deepcopy
 language: python
@@ -42,36 +27,14 @@ rule:
   kind: call
   has:
     kind: attribute
-    regex: "\\.deepcopy$"
----
-id: generator-into-list-then-first-element
-language: python
-severity: warning
-message: Materializing generator just to index [0] - use next(...) instead
-metadata:
-  weight: 3
-  category: performance
-rule:
-  kind: subscript
-  all:
-  - has:
-      kind: call
-      all:
-      - has:
-          kind: identifier
-          regex: "^list$"
-      - has:
-          kind: generator_expression
-  - has:
-      kind: integer
-      pattern: '0'
+    regex: \.deepcopy$
 ---
 id: json-loads-read
 language: python
 severity: warning
 message: json.loads(f.read()) - use json.load(f)
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: call
@@ -81,7 +44,7 @@ rule:
       kind: call
       has:
         kind: attribute
-        regex: "\\.read$"
+        regex: \.read$
 ---
 id: json-roundtrip-dumps-loads
 language: python
@@ -101,7 +64,7 @@ severity: warning
 message: List comprehension used only for side effects; use a loop instead of building
   an unused list.
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: expression_statement
@@ -113,28 +76,28 @@ language: python
 severity: warning
 message: list(d.keys()) is verbose - use list(d) or iterate directly
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: call
   all:
   - has:
       kind: identifier
-      regex: "^list$"
+      regex: ^list$
   - has:
       kind: argument_list
       has:
         kind: call
         has:
           kind: attribute
-          regex: "\\.keys$"
+          regex: \.keys$
 ---
 id: logging-f-string
 language: python
 severity: warning
 message: logging with f-string - use lazy formatting logging.info('%s', x)
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: call
@@ -142,45 +105,19 @@ rule:
     kind: argument_list
     has:
       kind: string
-      regex: "^f['\"]"
+      regex: ^f['"]
   any:
   - has:
       kind: identifier
-      regex: "^logging$"
+      regex: ^logging$
   - has:
       kind: attribute
-      regex: "\\.(debug|info|warning|error|exception|critical)$"
----
-id: math-pow
-language: python
-severity: warning
-message: math.pow(x, y) - use x ** y operator
-metadata:
-  weight: 2
-  category: performance
-rule:
-  kind: call
-  has:
-    kind: attribute
-    regex: "math\\.pow"
+      regex: \.(debug|info|warning|error|exception|critical)$
 ---
 id: pandas-iterrows
 language: python
 severity: warning
 message: Use of .iterrows() - highly inefficient, use vectorization or .itertuples()
-metadata:
-  weight: 4
-  category: performance
-rule:
-  kind: call
-  has:
-    kind: attribute
-    regex: "\\.iterrows$"
----
-id: re-compile-in-function
-language: python
-severity: warning
-message: re.compile() inside function - compile at module level to avoid recompilation
 metadata:
   weight: 3
   category: performance
@@ -188,16 +125,14 @@ rule:
   kind: call
   has:
     kind: attribute
-    regex: "re\\.compile"
-  inside:
-    kind: function_definition
+    regex: \.iterrows$
 ---
 id: repeated-method-call
 language: python
 severity: warning
 message: Repeated method calls - consider loop or bulk operation
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: expression_statement
@@ -205,14 +140,14 @@ rule:
     kind: call
     has:
       kind: attribute
-      regex: "\\.(append|add|update|extend|remove|pop)$"
+      regex: \.(append|add|update|extend|remove|pop)$
   follows:
     kind: expression_statement
     has:
       kind: call
       has:
         kind: attribute
-        regex: "\\.(append|add|update|extend|remove|pop)$"
+        regex: \.(append|add|update|extend|remove|pop)$
 ---
 id: listcomp-in-builtin-call
 language: python
@@ -220,14 +155,14 @@ severity: warning
 message: List comprehension in all/any/sum/set/dict call - use generator expression
   or comprehension for memory efficiency
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: call
   all:
   - has:
       kind: identifier
-      regex: "^(all|any|sum|set|dict)$"
+      regex: ^(all|any|sum|set|dict)$
   - has:
       kind: argument_list
       has:
@@ -238,7 +173,7 @@ language: python
 severity: warning
 message: Unnecessary list() around iterable in for loop
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: for_statement
@@ -246,12 +181,12 @@ rule:
     kind: call
     has:
       kind: identifier
-      regex: "^list$"
+      regex: ^list$
 ---
 id: sorted-first-last
 language: python
 severity: warning
-message: "sorted(x)[0] or sorted(x)[-1] is O(n log n) - use min(x) or max(x) for O(n)"
+message: sorted(x)[0] or sorted(x)[-1] is O(n log n) - use min(x) or max(x) for O(n)
 metadata:
   weight: 3
   category: performance
@@ -262,7 +197,7 @@ rule:
       kind: call
       has:
         kind: identifier
-        regex: "^sorted$"
+        regex: ^sorted$
   - any:
     - has:
         kind: integer
@@ -274,9 +209,9 @@ rule:
 id: len-as-condition
 language: python
 severity: warning
-message: "Comparing len() to 0 is verbose - use truthiness 'if x:' or 'if not x:'"
+message: Comparing len() to 0 is verbose - use truthiness 'if x:' or 'if not x:'
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: comparison_operator
@@ -285,7 +220,7 @@ rule:
       kind: call
       has:
         kind: identifier
-        regex: "^len$"
+        regex: ^len$
   - has:
       kind: integer
       pattern: '0'
@@ -293,13 +228,13 @@ rule:
 id: string-concat-in-loop
 language: python
 severity: warning
-message: "String concatenation with += in loop is O(n²) - consider ''.join()"
+message: "String concatenation with += in loop is O(n\xB2) - consider ''.join()"
 metadata:
   weight: 3
   category: performance
 rule:
   kind: augmented_assignment
-  regex: "\\+="
+  regex: \+=
   has:
     kind: string
   inside:
@@ -311,7 +246,8 @@ rule:
 id: open-without-context-manager
 language: python
 severity: warning
-message: "open() without context manager risks resource leak - use 'with open(...) as f:'"
+message: open() without context manager risks resource leak - use 'with open(...)
+  as f:'
 metadata:
   weight: 3
   category: performance
@@ -320,7 +256,7 @@ rule:
   - kind: call
     has:
       kind: identifier
-      regex: "^open$"
+      regex: ^open$
   - not:
       inside:
         kind: with_statement
@@ -328,30 +264,30 @@ rule:
 id: list-map-filter
 language: python
 severity: warning
-message: "list(map(...)) or list(filter(...)) - consider list comprehension instead"
+message: list(map(...)) or list(filter(...)) - consider list comprehension instead
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: call
   all:
   - has:
       kind: identifier
-      regex: "^list$"
+      regex: ^list$
   - has:
       kind: argument_list
       has:
         kind: call
         has:
           kind: identifier
-          regex: "^(map|filter)$"
+          regex: ^(map|filter)$
 ---
 id: range-len-antipattern
 language: python
 severity: warning
-message: "for i in range(len(x)) - use 'enumerate(x)' or iterate directly"
+message: for i in range(len(x)) - use 'enumerate(x)' or iterate directly
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: for_statement
@@ -360,21 +296,22 @@ rule:
     all:
     - has:
         kind: identifier
-        regex: "^range$"
+        regex: ^range$
     - has:
         kind: argument_list
         has:
           kind: call
           has:
             kind: identifier
-            regex: "^len$"
+            regex: ^len$
 ---
 id: membership-test-list-literal
 language: python
 severity: warning
-message: "Membership test on list literal with 4+ items - use set literal {...} for O(1) lookup"
+message: Membership test on list literal with 4+ items - use set literal {...} for
+  O(1) lookup
 metadata:
-  weight: 2
+  weight: 3
   category: performance
 rule:
   kind: comparison_operator

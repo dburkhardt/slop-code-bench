@@ -18,6 +18,9 @@ from slop_code.metrics.languages.python import AST_GREP_RULES_DIR
 from slop_code.metrics.languages.python import _get_ast_grep_rules_dir
 from slop_code.metrics.languages.python import _is_sg_available
 from slop_code.metrics.languages.python import calculate_ast_grep_metrics
+from slop_code.metrics.languages.python.ast_grep import (
+    build_ast_grep_rules_lookup,
+)
 from slop_code.metrics.models import AstGrepMetrics
 from slop_code.metrics.models import AstGrepViolation
 
@@ -72,6 +75,41 @@ class TestGetAstGrepRulesDir:
             f"Expected {AST_GREP_RULES_DIR} to exist"
         )
         assert AST_GREP_RULES_DIR.is_dir()
+
+
+class TestBuildAstGrepRulesLookup:
+    """Tests for build_ast_grep_rules_lookup."""
+
+    def test_includes_new_verbosity_rules(self) -> None:
+        lookup = build_ast_grep_rules_lookup()
+
+        expected_rule_ids = {
+            "join-list-literal",
+            "join-list-comprehension",
+            "manual-sum-loop",
+            "manual-count-loop",
+            "set-add-loop",
+            "manual-dict-get-assign",
+            "newline-split",
+            "split-space-literal",
+            "frozenset-list-wrap",
+            "list-self-concat",
+            "manual-dict-counter-if-else",
+            "redundant-type-suffix-name",
+            "overqualified-variable-prefix",
+            "overlong-identifier",
+            "nested-if-pyramid",
+            "same-variable-if-ladder",
+            "tail-return-none",
+            "branch-assignment-ladder",
+            "long-elif-ladder",
+            "set-from-list-literal",
+            "triple-if-pyramid",
+            "state-comparison-ladder",
+        }
+
+        for rule_id in expected_rule_ids:
+            assert lookup[rule_id]["category"] == "verbosity"
 
 
 # =============================================================================

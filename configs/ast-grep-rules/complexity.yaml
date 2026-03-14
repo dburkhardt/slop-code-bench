@@ -4,7 +4,7 @@ language: python
 severity: warning
 message: Use chained comparison (e.g., a < b < c) instead of 'and'
 metadata:
-  weight: 1
+  weight: 3
   category: complexity
 rule:
   kind: boolean_operator
@@ -23,7 +23,7 @@ language: python
 severity: warning
 message: Chained .get().get() - overly defensive, extract to helper
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: call
@@ -33,8 +33,8 @@ rule:
       kind: call
       has:
         kind: attribute
-        regex: "\\.get$"
-    regex: "\\.get$"
+        regex: \.get$
+    regex: \.get$
 ---
 id: comprehension-used-but-ignored-result
 language: python
@@ -57,7 +57,7 @@ language: python
 severity: warning
 message: Constant condition in if - dead code or unnecessary branching
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
@@ -67,50 +67,6 @@ rule:
   - pattern: 'if None: $$$'
   - pattern: 'if 0: $$$'
   - pattern: 'if 1: $$$'
----
-id: continue-in-else
-language: python
-severity: warning
-message: continue in else branch - can often be simplified
-metadata:
-  weight: 1
-  category: complexity
-rule:
-  kind: continue_statement
-  inside:
-    kind: else_clause
----
-id: deeply-nested-try
-language: python
-severity: warning
-message: Try-except with deep nesting - excessive complexity
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  kind: try_statement
-  inside:
-    any:
-    - kind: for_statement
-    - kind: while_statement
-    - kind: if_statement
-    inside:
-      any:
-      - kind: for_statement
-      - kind: while_statement
-      - kind: if_statement
----
-id: double-negation
-language: python
-severity: warning
-message: Double negation - can be simplified
-metadata:
-  weight: 1
-  category: complexity
-rule:
-  kind: not_operator
-  has:
-    kind: not_operator
 ---
 id: duplicated-if-condition
 language: python
@@ -128,7 +84,7 @@ language: python
 severity: warning
 message: Triple nested loops - O(n^3) complexity, consider refactoring
 metadata:
-  weight: 4
+  weight: 3
   category: complexity
 rule:
   kind: for_statement
@@ -144,7 +100,7 @@ rule:
 id: function-too-many-args
 language: python
 severity: warning
-message: Function with 8+ arguments - consider using a data object
+message: Function with 10+ arguments - consider using a data object
 metadata:
   weight: 3
   category: complexity
@@ -154,14 +110,14 @@ rule:
     kind: parameters
     has:
       nthChild:
-        position: 8
+        position: 10
 ---
 id: isinstance-chain
 language: python
 severity: warning
 message: Multiple isinstance checks - consider using isinstance with tuple
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
@@ -169,7 +125,7 @@ rule:
     kind: elif_clause
     has:
       kind: call
-      regex: "isinstance"
+      regex: isinstance
 ---
 id: isinstance-return-ladder
 language: python
@@ -177,7 +133,7 @@ severity: warning
 message: Long isinstance/elif ladder returning simple values; prefer a dispatch table
   or polymorphism.
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   pattern: "if isinstance($X, $T1):\n  return $V1\nelif isinstance($X, $T2):\n  return\
@@ -188,7 +144,7 @@ language: python
 severity: warning
 message: Manual min/max logic - use built-in min() or max()
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
@@ -215,40 +171,12 @@ rule:
         kind: augmented_assignment
         pattern: $S += $X
 ---
-id: multiple-context-managers-nested
-language: python
-severity: warning
-message: Nested with statements - use 'with A, B' syntax
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: with_statement
-  has:
-    kind: block
-    has:
-      kind: with_statement
----
-id: nested-dict-comprehension
-language: python
-severity: warning
-message: Nested dict/list comprehension - may be hard to read
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  kind: dictionary_comprehension
-  has:
-    any:
-    - kind: dictionary_comprehension
-    - kind: list_comprehension
----
 id: nested-function-definition
 language: python
 severity: warning
 message: Nested function definition - often unnecessary closure
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: function_definition
@@ -262,7 +190,7 @@ language: python
 severity: warning
 message: Nested if statements without else - consider flattening or combining conditions
 metadata:
-  weight: 4
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
@@ -274,35 +202,12 @@ rule:
         has:
           kind: else_clause
 ---
-id: nested-if-same-var
-language: python
-severity: warning
-message: Nested if checking same variable - consider combining conditions
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: if_statement
-  pattern: "if $COND:\n  if $COND:\n    $$$\n"
----
-id: nested-ternary
-language: python
-severity: warning
-message: Nested ternary expression - use if/elif/else for clarity
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  kind: conditional_expression
-  has:
-    kind: conditional_expression
----
 id: pointless-lambda-call
 language: python
 severity: warning
 message: Immediately called lambda - just execute the code
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: call
@@ -310,18 +215,6 @@ rule:
     kind: parenthesized_expression
     has:
       kind: lambda
----
-id: redundant-assignment-before-return
-language: python
-severity: warning
-message: Assigning to variable just to return it - return directly
-metadata:
-  weight: 1
-  category: complexity
-rule:
-  pattern: $VAR = $VAL
-  precedes:
-    pattern: return $VAR
 ---
 id: repeated-dict-key-assignment
 language: python
@@ -346,7 +239,7 @@ language: python
 severity: warning
 message: Multiple if-continue guards - consider list comprehension or filter function
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: for_statement
@@ -370,7 +263,7 @@ language: python
 severity: warning
 message: Multiple if-return error checks - consolidate validation logic
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
@@ -378,21 +271,21 @@ rule:
     kind: block
     has:
       kind: return_statement
-      regex: "error|Error|ERROR"
+      regex: error|Error|ERROR
   follows:
     kind: if_statement
     has:
       kind: block
       has:
         kind: return_statement
-        regex: "error|Error|ERROR"
+        regex: error|Error|ERROR
 ---
 id: repeated-try-except
 language: python
 severity: warning
 message: Sequential try/except blocks - consolidate error handling
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: try_statement
@@ -404,33 +297,18 @@ language: python
 severity: warning
 message: Repeated validation function calls - consider data-driven validation
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: expression_statement
   has:
     kind: call
-    regex: "^validate_"
+    regex: ^validate_
   follows:
     kind: expression_statement
     has:
       kind: call
-      regex: "^validate_"
----
-id: superfluous-else-continue
-language: python
-severity: warning
-message: 'else: continue at end of loop - redundant'
-metadata:
-  weight: 1
-  category: complexity
-rule:
-  kind: if_statement
-  has:
-    kind: else_clause
-    has:
-      kind: block
-      pattern: continue
+      regex: ^validate_
 ---
 id: ternary-same-value
 language: python
@@ -446,7 +324,7 @@ rule:
 id: too-many-returns
 language: python
 severity: warning
-message: Function with 6+ return statements - hard to reason about control flow
+message: Function with 9+ return statements - hard to reason about control flow
 metadata:
   weight: 3
   category: complexity
@@ -457,14 +335,14 @@ rule:
     has:
       kind: return_statement
       nthChild:
-        position: 6
+        position: 9
 ---
 id: triple-nested-if
 language: python
 severity: warning
 message: Triple nested if - flatten or extract function
 metadata:
-  weight: 4
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
@@ -482,7 +360,7 @@ language: python
 severity: warning
 message: Triple OR condition - may indicate need for membership test
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: boolean_operator
@@ -491,7 +369,7 @@ rule:
 id: repeated-function-or-chain
 language: python
 severity: warning
-message: "Same function called 4+ times with 'or' - use any(func(x) for x in [...])"
+message: Same function called 4+ times with 'or' - use any(func(x) for x in [...])
 metadata:
   weight: 3
   category: complexity
@@ -504,7 +382,7 @@ language: python
 severity: warning
 message: type(x) is T - use isinstance(x, T) to support inheritance
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: comparison_operator
@@ -515,7 +393,7 @@ language: python
 severity: warning
 message: Useless try-except - re-raising the exception without handling it
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: try_statement
@@ -526,7 +404,7 @@ rule:
       all:
       - has:
           kind: raise_statement
-          regex: "^raise$"
+          regex: ^raise$
       - not:
           has:
             kind: expression_statement
@@ -537,7 +415,7 @@ severity: warning
 message: Long value comparison ladder returning literals; prefer a dispatch map or
   dict lookup with a default.
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
@@ -547,88 +425,25 @@ rule:
     has:
       kind: else_clause
 ---
-id: while-true-break
-language: python
-severity: warning
-message: 'while True with break - consider restructuring loop condition'
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: while_statement
-  pattern: "while True:\n  $$$"
-  has:
-    kind: break_statement
----
-id: return-in-finally
-language: python
-severity: warning
-message: Returning inside finally can swallow real errors and hides control flow
-metadata:
-  weight: 4
-  category: complexity
-rule:
-  pattern: |
-    try:
-      $$$
-    finally:
-      return $VAL
----
-id: attribute-chain-depth-four
-language: python
-severity: warning
-message: Attribute chain 4+ deep is hard to read - break it up
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: attribute
-  has:
-    kind: attribute
-    has:
-      kind: attribute
-      has:
-        kind: attribute
----
 id: redundant-else-after-exit
 language: python
 severity: warning
 message: else after return/raise is redundant - remove unnecessary indentation
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
   any:
-  - pattern: |
-      if $COND:
-        return $VAL
-      else:
-        $$$
-  - pattern: |
-      if $COND:
-        raise $E
-      else:
-        $$$
----
-id: while-true-pass
-language: python
-severity: warning
-message: Infinite while True with pass - busy loop with no exit
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  pattern: |
-    while True:
-      pass
+  - pattern: "if $COND:\n  return $VAL\nelse:\n  $$$\n"
+  - pattern: "if $COND:\n  raise $E\nelse:\n  $$$\n"
 ---
 id: dynamic-code-execution
 language: python
 severity: warning
 message: exec/eval usage is opaque and risky - avoid dynamic code execution
 metadata:
-  weight: 4
+  weight: 3
   category: complexity
 rule:
   kind: call
@@ -651,7 +466,7 @@ language: python
 severity: warning
 message: nonlocal usage tangles scopes - prefer explicit parameters
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: nonlocal_statement
@@ -661,25 +476,11 @@ language: python
 severity: warning
 message: Boolean chain with 4+ terms - consider extracting to helper or variable
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: boolean_operator
   pattern: $A and $B and $C and $D
----
-id: print-in-except
-language: python
-severity: warning
-message: Printing in except instead of handling/raising hides failures
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  pattern: |
-    try:
-      $$$
-    except $E:
-      print($$)
 ---
 id: assert-false-sentinel
 language: python
@@ -691,27 +492,15 @@ metadata:
 rule:
   pattern: assert False
 ---
-id: raise-generic-exception
-language: python
-severity: warning
-message: Raising raw Exception loses specificity and debugging context
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  pattern: raise Exception($$)
----
 id: equality-or-chain-four
 language: python
 severity: warning
 message: Long equality OR chain - use membership checks or dispatch maps
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
-  pattern: |
-    if $X == $A or $X == $B or $X == $C or $X == $D:
-      $$$
+  pattern: "if $X == $A or $X == $B or $X == $C or $X == $D:\n  $$$\n"
 ---
 id: state-ladder
 language: python
@@ -722,49 +511,25 @@ metadata:
   category: complexity
 rule:
   kind: if_statement
-  pattern: |
-    if $STATE == $S1:
-      $$$
-    elif $STATE == $S2:
-      $$$
-    elif $STATE == $S3:
-      $$$
+  pattern: "if $STATE == $S1:\n  $$$\nelif $STATE == $S2:\n  $$$\nelif $STATE == $S3:\n\
+    \  $$$\n"
 ---
 id: repetitive-list-append-elif
 language: python
 severity: warning
 message: Appending to the same list across elifs reads like copy/paste - refactor
 metadata:
-  weight: 2
-  category: complexity
-rule:
-  pattern: |
-    if $C1:
-      $L.append($A)
-    elif $C2:
-      $L.append($B)
-    elif $C3:
-      $L.append($C)
----
-id: while-true-sleep
-language: python
-severity: warning
-message: Polling loop with time.sleep in while True is brittle; add exit conditions
-metadata:
   weight: 3
   category: complexity
 rule:
-  pattern: |
-    while True:
-      $$$
-      time.sleep($$)
+  pattern: "if $C1:\n  $L.append($A)\nelif $C2:\n  $L.append($B)\nelif $C3:\n  $L.append($C)\n"
 ---
 id: import-inside-function
 language: python
 severity: warning
 message: Imports inside functions hide dependencies and reload modules repeatedly
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: function_definition
@@ -780,14 +545,10 @@ language: python
 severity: warning
 message: Bare except with pass swallows every error - handle specific cases
 metadata:
-  weight: 4
+  weight: 3
   category: complexity
 rule:
-  pattern: |
-    try:
-      $$$
-    except:
-      pass
+  pattern: "try:\n  $$$\nexcept:\n  pass\n"
 ---
 id: broad-except-return-none
 language: python
@@ -797,18 +558,14 @@ metadata:
   weight: 3
   category: complexity
 rule:
-  pattern: |
-    try:
-      $$$
-    except Exception:
-      return None
+  pattern: "try:\n  $$$\nexcept Exception:\n  return None\n"
 ---
 id: monolithic-module
 language: python
 severity: warning
 message: File with 200+ top-level statements - split into modules
 metadata:
-  weight: 5
+  weight: 3
   category: complexity
 rule:
   kind: module
@@ -819,9 +576,9 @@ rule:
 id: oversized-function-body
 language: python
 severity: warning
-message: Function with 40+ statements is hard to follow - extract helpers
+message: Function with 60+ statements is hard to follow - extract helpers
 metadata:
-  weight: 4
+  weight: 3
   category: complexity
 rule:
   kind: function_definition
@@ -829,14 +586,14 @@ rule:
     kind: block
     has:
       nthChild:
-        position: 40
+        position: 60
 ---
 id: class-too-many-members
 language: python
 severity: warning
 message: Class with 25+ members becomes an unreadable God object
 metadata:
-  weight: 4
+  weight: 3
   category: complexity
 rule:
   kind: class_definition
@@ -860,40 +617,16 @@ rule:
     nthChild:
       position: 4
 ---
-id: args-kwargs-only-signature
-language: python
-severity: warning
-message: Signature of only *args/**kwargs hides the expected inputs
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  pattern: |
-    def $F(*args, **kwargs):
-      $$$
----
 id: manual-path-concat
 language: python
 severity: warning
 message: Manual string path concatenation - use pathlib or os.path.join
 metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: binary_operator
-  regex: "\\+\\s*[\"']/[\"']\\s*\\+"
----
-id: multiple-flag-parameters
-language: python
-severity: warning
-message: Function with multiple boolean flag parameters - unclear responsibilities
-metadata:
   weight: 3
   category: complexity
 rule:
-  pattern: |
-    def $F($A=False, $B=False, $C=False):
-      $$$
+  kind: binary_operator
+  regex: \+\s*["']/["']\s*\+
 ---
 id: nested-try-in-except
 language: python
@@ -903,47 +636,26 @@ metadata:
   weight: 3
   category: complexity
 rule:
-  pattern: |
-    try:
-      $$$
-    except $E:
-      try:
-        $$$
-      except $F:
-        $$$
+  pattern: "try:\n  $$$\nexcept $E:\n  try:\n    $$$\n  except $F:\n    $$$\n"
 ---
 id: lambda-nested-ternary
 language: python
 severity: warning
 message: Lambda containing a ternary is dense; use a named function
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: lambda
   has:
     kind: conditional_expression
 ---
-id: class-defined-in-function
-language: python
-severity: warning
-message: Defining classes inside functions obscures reuse - move to module scope
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: function_definition
-  has:
-    kind: block
-    has:
-      kind: class_definition
----
 id: import-inside-loop
 language: python
 severity: warning
 message: Imports inside loops add hidden side effects and slow iterations
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: for_statement
@@ -959,56 +671,30 @@ language: python
 severity: warning
 message: Re-raising the caught exception object drops traceback; use bare raise
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
-  pattern: |
-    try:
-      $$$
-    except Exception as $E:
-      raise $E
----
-id: try-else-pass
-language: python
-severity: warning
-message: try/else with a pass else block is needless nesting noise
-metadata:
-  weight: 1
-  category: complexity
-rule:
-  pattern: |
-    try:
-      $$$
-    except $E:
-      $$$
-    else:
-      pass
+  pattern: "try:\n  $$$\nexcept Exception as $E:\n  raise $E\n"
 ---
 id: try-finally-pass
 language: python
 severity: warning
 message: try/finally with pass in finally hides missing cleanup
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
-  pattern: |
-    try:
-      $$$
-    finally:
-      pass
+  pattern: "try:\n  $$$\nfinally:\n  pass\n"
 ---
 id: for-range-len
 language: python
 severity: warning
 message: range(len(seq)) loop suggests index juggling; prefer enumerate
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
-  pattern: |
-    for $I in range(len($SEQ)):
-      $$$
+  pattern: "for $I in range(len($SEQ)):\n  $$$\n"
 ---
 id: catch-baseexception
 language: python
@@ -1018,37 +704,7 @@ metadata:
   weight: 3
   category: complexity
 rule:
-  pattern: |
-    try:
-      $$$
-    except BaseException:
-      $$$
----
-id: while-true-continue
-language: python
-severity: warning
-message: while True with only continue is an infinite spin loop
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  pattern: |
-    while True:
-      continue
----
-id: lambda-assigned-then-called
-language: python
-severity: warning
-message: Assigning a lambda then immediately calling it is needless indirection
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: expression_statement
-  pattern: $F($$CALL_ARGS)
-  follows:
-    kind: expression_statement
-    pattern: "$F = lambda $$ARGS: $BODY"
+  pattern: "try:\n  $$$\nexcept BaseException:\n  $$$\n"
 ---
 id: except-exception-return-literal
 language: python
@@ -1058,39 +714,7 @@ metadata:
   weight: 3
   category: complexity
 rule:
-  pattern: |
-    try:
-      $$$
-    except Exception:
-      return $LIT
----
-id: double-while-true
-language: python
-severity: warning
-message: Nested while True loops are opaque and likely runaway control flow
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  pattern: |
-    while True:
-      while True:
-        $$$
----
-id: time-sleep-in-loop
-language: python
-severity: warning
-message: Repeated time.sleep inside loop signals polling slop; consider event-driven
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: for_statement
-  has:
-    kind: block
-    has:
-      kind: call
-      regex: "time\\.sleep"
+  pattern: "try:\n  $$$\nexcept Exception:\n  return $LIT\n"
 ---
 id: deep-nested-with
 language: python
@@ -1119,80 +743,30 @@ language: python
 severity: warning
 message: if/else returning True/False - simplify to return the condition directly
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
   any:
-  - pattern: |
-      if $COND:
-        return True
-      else:
-        return False
-  - pattern: |
-      if $COND:
-        return False
-      else:
-        return True
----
-id: list-map-lambda
-language: python
-severity: warning
-message: list(map(lambda ...)) is noisier than a list comprehension
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  pattern: "list(map(lambda $$ARGS: $BODY, $ITER))"
----
-id: map-filter-lambda
-language: python
-severity: warning
-message: Combining map and filter lambdas reads like a pipeline of indirection
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  pattern: "list(map($F, filter($G, $ITER)))"
----
-id: chained-str-replace
-language: python
-severity: warning
-message: Multiple sequential .replace calls are brittle; use a small helper
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  pattern: $S.replace($$ARGS1).replace($$ARGS2)
+  - pattern: "if $COND:\n  return True\nelse:\n  return False\n"
+  - pattern: "if $COND:\n  return False\nelse:\n  return True\n"
 ---
 id: json-dumps-then-loads
 language: python
 severity: warning
 message: json.loads(json.dumps(x)) is noisy; copy the structure directly
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   pattern: json.loads(json.dumps($X))
----
-id: nested-lambda
-language: python
-severity: warning
-message: Lambda returning another lambda obscures behavior; use named functions
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: lambda
-  has:
-    kind: lambda
 ---
 id: lambda-default-argument
 language: python
 severity: warning
 message: Default argument as a lambda is surprising implicit behavior
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: function_definition
@@ -1202,20 +776,6 @@ rule:
       kind: default_parameter
       has:
         kind: lambda
----
-id: len-compare-redundant
-language: python
-severity: warning
-message: len(x) compared to 0 - prefer truthiness check on the container
-metadata:
-  weight: 1
-  category: complexity
-rule:
-  kind: if_statement
-  any:
-  - pattern: "if len($X) == 0:"
-  - pattern: "if len($X) != 0:"
-  - pattern: "if len($X) > 0:"
 ---
 id: function-too-many-ifs
 language: python
@@ -1233,50 +793,20 @@ rule:
       nthChild:
         position: 10
 ---
-id: function-too-many-continues
-language: python
-severity: warning
-message: Function with 4+ continue statements hides intent
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: function_definition
-  has:
-    kind: block
-    has:
-      kind: continue_statement
-      nthChild:
-        position: 4
----
 id: chained-assignment
 language: python
 severity: warning
 message: Chained assignment a = b = c obscures source of values
 metadata:
-  weight: 1
+  weight: 3
   category: complexity
 rule:
   pattern: $A = $B = $C
 ---
-id: log-and-swallow-exception
-language: python
-severity: warning
-message: Logging an exception then continuing hides failures; re-raise or handle it
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  pattern: |
-    try:
-      $$$
-    except Exception as $E:
-      log.error($$)
----
 id: call-too-many-positional-args
 language: python
 severity: warning
-message: Call with 8+ positional args is hard to read; use kwargs or objects
+message: Call with 10+ positional args is hard to read; use kwargs or objects
 metadata:
   weight: 3
   category: complexity
@@ -1286,39 +816,25 @@ rule:
     kind: argument_list
     has:
       nthChild:
-        position: 8
----
-id: nested-conditional-in-call
-language: python
-severity: warning
-message: Passing a ternary directly into a call makes it dense; split it out
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: call
-  has:
-    kind: conditional_expression
+        position: 10
 ---
 id: pointless-bool-cast
 language: python
 severity: warning
 message: Wrapping a condition in bool() before if is redundant ceremony
 metadata:
-  weight: 1
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
-  pattern: |
-    if bool($COND):
-      $$$
+  pattern: "if bool($COND):\n  $$$\n"
 ---
 id: list-filter-none
 language: python
 severity: warning
 message: list(filter(None, ...)) obscures the predicate; use comprehension
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   pattern: list(filter(None, $ITER))
@@ -1326,40 +842,19 @@ rule:
 id: single-call-wrapper
 language: python
 severity: warning
-message: "Function body is just 'return func(...)' - trivial wrapper adds indirection"
+message: Function body is just 'return func(...)' - trivial wrapper adds indirection
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
-  pattern: |
-    def $NAME($$$ARGS):
-      return $FUNC($$$CALL_ARGS)
----
-id: immediate-builder-pattern
-language: python
-severity: warning
-message: "Builder instantiated and .build() called in same expression - pattern adds ceremony without benefit"
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: call
-  has:
-    kind: attribute
-    regex: "\\.build$"
-    has:
-      kind: call
-      has:
-        kind: attribute
-        has:
-          kind: call
+  pattern: "def $NAME($$$ARGS):\n  return $FUNC($$$CALL_ARGS)\n"
 ---
 id: empty-abstract-base
 language: python
 severity: warning
-message: "ABC class with no @abstractmethod - just a regular class with ABC inheritance"
+message: ABC class with no @abstractmethod - just a regular class with ABC inheritance
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: class_definition
@@ -1367,7 +862,7 @@ rule:
     kind: argument_list
     has:
       kind: identifier
-      regex: "^ABC$"
+      regex: ^ABC$
   not:
     has:
       kind: block
@@ -1375,44 +870,45 @@ rule:
         kind: decorated_definition
         has:
           kind: decorator
-          regex: "@abstractmethod"
+          regex: '@abstractmethod'
 ---
 id: env-based-branching
 language: python
 severity: warning
-message: "Conditional on environment variable buried in logic - extract to config"
+message: Conditional on environment variable buried in logic - extract to config
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
   has:
     kind: call
     any:
-      - pattern: os.environ.get($$$)
-      - pattern: os.getenv($$$)
-      - pattern: os.environ[$KEY]
+    - pattern: os.environ.get($$$)
+    - pattern: os.getenv($$$)
+    - pattern: os.environ[$KEY]
 ---
 id: silent-value-clamping
 language: python
 severity: warning
-message: "Value clamping with min/max without logging - silently adjusts out-of-range values"
+message: Value clamping with min/max without logging - silently adjusts out-of-range
+  values
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   any:
-    - pattern: max($A, min($B, $C))
-    - pattern: min(max($A, $B), $C)
-    - pattern: min($A, max($B, $C))
-    - pattern: max(min($A, $B), $C)
+  - pattern: max($A, min($B, $C))
+  - pattern: min(max($A, $B), $C)
+  - pattern: min($A, max($B, $C))
+  - pattern: max(min($A, $B), $C)
 ---
 id: decorator-chain-three-plus
 language: python
 severity: warning
-message: "Function has 3+ decorators - consider composing into single decorator"
+message: Function has 3+ decorators - consider composing into single decorator
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: decorated_definition
@@ -1424,7 +920,7 @@ rule:
 id: consecutive-if-same-variable
 language: python
 severity: warning
-message: "Consecutive if statements checking same variable - should use elif for efficiency"
+message: Consecutive if statements checking same variable - should use elif for efficiency
 metadata:
   weight: 3
   category: complexity
@@ -1438,23 +934,24 @@ rule:
   follows:
     kind: if_statement
     all:
-      - has:
-          kind: comparison_operator
-          has:
-            kind: identifier
-            pattern: $VAR
-      - has:
-          kind: block
-          has:
-            kind: return_statement
+    - has:
+        kind: comparison_operator
+        has:
+          kind: identifier
+          pattern: $VAR
+    - has:
+        kind: block
+        has:
+          kind: return_statement
     stopBy: neighbor
 ---
 id: excessive-method-chain
 language: python
 severity: warning
-message: "Excessive method chaining (4+ calls) - extract intermediate variables for readability"
+message: Excessive method chaining (4+ calls) - extract intermediate variables for
+  readability
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: call
@@ -1474,87 +971,90 @@ rule:
 id: nested-attribute-guard-chain
 language: python
 severity: warning
-message: "Nested attribute guard chain (if x: if x.y: if x.y.z:) - use walrus operator or getattr"
+message: 'Nested attribute guard chain (if x: if x.y: if x.y.z:) - use walrus operator
+  or getattr'
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
   all:
-    - has:
-        kind: identifier
-        pattern: $OBJ
-    - has:
-        kind: block
-        has:
-          kind: if_statement
-          all:
-            - has:
-                kind: attribute
-                has:
-                  kind: identifier
-                  pattern: $OBJ
-            - has:
-                kind: block
-                has:
-                  kind: if_statement
+  - has:
+      kind: identifier
+      pattern: $OBJ
+  - has:
+      kind: block
+      has:
+        kind: if_statement
+        all:
+        - has:
+            kind: attribute
+            has:
+              kind: identifier
+              pattern: $OBJ
+        - has:
+            kind: block
+            has:
+              kind: if_statement
 ---
 id: repeated-isinstance-validation
 language: python
 severity: warning
-message: "Repeated isinstance validation pattern - extract to validation helper or use schema"
+message: Repeated isinstance validation pattern - extract to validation helper or
+  use schema
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
   all:
+  - has:
+      kind: not_operator
+      has:
+        kind: call
+        pattern: isinstance($VAR, $TYPE)
+  - has:
+      kind: block
+      has:
+        kind: raise_statement
+  follows:
+    kind: if_statement
+    all:
     - has:
         kind: not_operator
         has:
           kind: call
-          pattern: isinstance($VAR, $TYPE)
+          regex: isinstance
     - has:
         kind: block
         has:
           kind: raise_statement
-  follows:
-    kind: if_statement
-    all:
-      - has:
-          kind: not_operator
-          has:
-            kind: call
-            regex: "isinstance"
-      - has:
-          kind: block
-          has:
-            kind: raise_statement
     stopBy: neighbor
 ---
 id: split-magic-index
 language: python
 severity: warning
-message: "String split with magic index - extract to named variable or use unpacking"
+message: String split with magic index - extract to named variable or use unpacking
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: subscript
   all:
-    - has:
-        kind: call
-        has:
-          kind: attribute
-          regex: "\\.split$"
-    - has:
-        kind: integer
-        regex: "^[2-9]|[1-9][0-9]+$"
+  - has:
+      kind: call
+      has:
+        kind: attribute
+        regex: \.split$
+  - has:
+      kind: integer
+      regex: ^[2-9]|[1-9][0-9]+$
 ---
 id: many-exception-types
 language: python
 severity: warning
-message: "Catching 4+ exception types suggests overly broad error handling - consider restructuring"
+message: Catching 4+ exception types suggests overly broad error handling - consider
+  restructuring
 metadata:
   weight: 3
   category: complexity
@@ -1569,35 +1069,37 @@ rule:
 id: isinstance-or-chain-validation
 language: python
 severity: warning
-message: "Chained isinstance checks with 'or not' - consider schema validation or type guards"
+message: Chained isinstance checks with 'or not' - consider schema validation or type
+  guards
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: boolean_operator
-  regex: "not isinstance.*or.*not isinstance"
+  regex: not isinstance.*or.*not isinstance
 ---
 id: return-empty-collection-pair
 language: python
 severity: warning
-message: "Returning pair of empty collections - consider returning a named tuple or dataclass"
+message: Returning pair of empty collections - consider returning a named tuple or
+  dataclass
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: return_statement
   any:
-    - pattern: return [], []
-    - pattern: return {}, {}
-    - pattern: return [], {}
-    - pattern: return {}, []
+  - pattern: return [], []
+  - pattern: return {}, {}
+  - pattern: return [], {}
+  - pattern: return {}, []
 ---
 id: ternary-none-comparison
 language: python
 severity: warning
-message: "Ternary with None comparison - consider using 'or' operator or walrus"
+message: Ternary with None comparison - consider using 'or' operator or walrus
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: conditional_expression
@@ -1606,9 +1108,9 @@ rule:
 id: redundant-bool-in-condition
 language: python
 severity: warning
-message: "Redundant bool() cast in condition - if already checks truthiness"
+message: Redundant bool() cast in condition - if already checks truthiness
 metadata:
-  weight: 1
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
@@ -1618,98 +1120,41 @@ rule:
       kind: call
       pattern: bool($X)
 ---
-id: isinstance-dispatch-ladder
-language: python
-severity: warning
-message: "Long isinstance dispatch ladder - use a dispatch dict or visitor pattern"
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  kind: if_statement
-  all:
-    - has:
-        kind: call
-        pattern: isinstance($X, $T1)
-    - has:
-        kind: block
-        has:
-          kind: return_statement
-    - has:
-        kind: elif_clause
-        all:
-          - has:
-              kind: call
-              pattern: isinstance($X, $T2)
-          - has:
-              kind: elif_clause
-              all:
-                - has:
-                    kind: call
-                    pattern: isinstance($X, $T3)
-                - has:
-                    kind: elif_clause
-                    has:
-                      kind: call
-                      pattern: isinstance($X, $T4)
----
 id: unbounded-lru-cache
 language: python
 severity: warning
-message: "lru_cache(maxsize=None) can grow unbounded - consider a bounded cache"
+message: lru_cache(maxsize=None) can grow unbounded - consider a bounded cache
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: decorator
   any:
-    - pattern: "@lru_cache(maxsize=None)"
-    - pattern: "@functools.lru_cache(maxsize=None)"
----
-id: next-generator-no-default
-language: python
-severity: warning
-message: "next() on generator without default - raises StopIteration if empty"
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  kind: call
-  all:
-    - has:
-        kind: identifier
-        regex: "^next$"
-    - has:
-        kind: argument_list
-        has:
-          kind: generator_expression
-        not:
-          has:
-            nthChild:
-              position: 2
+  - pattern: '@lru_cache(maxsize=None)'
+  - pattern: '@functools.lru_cache(maxsize=None)'
 ---
 id: truncated-uuid
 language: python
 severity: warning
-message: "Truncated UUID (hex[:N]) risks collisions - use full UUID or proper ID generation"
+message: Truncated UUID (hex[:N]) risks collisions - use full UUID or proper ID generation
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: subscript
   all:
-    - has:
-        kind: attribute
-        pattern: $UUID.hex
-    - has:
-        kind: slice
+  - has:
+      kind: attribute
+      pattern: $UUID.hex
+  - has:
+      kind: slice
 ---
 id: deep-dict-access
 language: python
 severity: warning
-message: "Deep nested dict access (4+ levels) - extract to helper or use dataclass"
+message: Deep nested dict access (4+ levels) - extract to helper or use dataclass
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: subscript
@@ -1723,9 +1168,9 @@ rule:
 id: long-tuple-unpacking
 language: python
 severity: warning
-message: "Unpacking 5+ values from tuple - use named tuple or dataclass"
+message: Unpacking 5+ values from tuple - use named tuple or dataclass
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: assignment
@@ -1735,35 +1180,18 @@ rule:
       nthChild:
         position: 5
 ---
-id: repeated-string-concat-loop
-language: python
-severity: warning
-message: "String concatenation with += in loop - use join() or list append"
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  kind: for_statement
-  has:
-    kind: block
-    has:
-      kind: augmented_assignment
-      regex: "\\+="
-      has:
-        kind: string
----
 id: fetchone-none-check
 language: python
 severity: hint
-message: "cursor.fetchone() followed by None check - common pattern, consider helper"
+message: cursor.fetchone() followed by None check - common pattern, consider helper
 metadata:
-  weight: 1
+  weight: 3
   category: complexity
 rule:
   kind: if_statement
   has:
     kind: comparison_operator
-    regex: "is None"
+    regex: is None
   follows:
     kind: expression_statement
     has:
@@ -1772,30 +1200,15 @@ rule:
         kind: call
         has:
           kind: attribute
-          regex: "\\.fetchone$"
-    stopBy: neighbor
----
-id: repeated-dict-subscript-access
-language: python
-severity: warning
-message: "Same dict key accessed multiple times - extract to local variable"
-metadata:
-  weight: 2
-  category: complexity
-rule:
-  kind: subscript
-  pattern: $DICT[$KEY]
-  follows:
-    kind: subscript
-    pattern: $DICT[$KEY]
+          regex: \.fetchone$
     stopBy: neighbor
 ---
 id: single-use-variable-return
 language: python
 severity: warning
-message: "Single-use variable immediately returned - return the expression directly"
+message: Single-use variable immediately returned - return the expression directly
 metadata:
-  weight: 1
+  weight: 3
   category: complexity
 rule:
   kind: return_statement
@@ -1814,187 +1227,171 @@ rule:
 id: nested-ternary
 language: python
 severity: warning
-message: "Nested ternary expression - extract to if/else or helper function for readability"
+message: Nested ternary expression - extract to if/else or helper function for readability
 metadata:
   weight: 3
   category: complexity
 rule:
   kind: conditional_expression
   any:
-    - has:
+  - has:
+      kind: conditional_expression
+  - has:
+      kind: parenthesized_expression
+      has:
         kind: conditional_expression
-    - has:
-        kind: parenthesized_expression
-        has:
-          kind: conditional_expression
 ---
 id: hardcoded-sleep
 language: python
 severity: warning
-message: "Hardcoded sleep value - use named constant or configuration"
+message: Hardcoded sleep value - use named constant or configuration
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: call
   all:
-    - has:
-        kind: attribute
-        pattern: time.sleep
-    - has:
-        kind: argument_list
-        has:
-          any:
-            - kind: integer
-            - kind: float
+  - has:
+      kind: attribute
+      pattern: time.sleep
+  - has:
+      kind: argument_list
+      has:
+        any:
+        - kind: integer
+        - kind: float
 ---
 id: string-path-concat
 language: python
 severity: warning
-message: "String concatenation for paths - use pathlib or os.path.join"
+message: String concatenation for paths - use pathlib or os.path.join
 metadata:
   weight: 3
   category: complexity
 rule:
   kind: binary_operator
-  regex: "\\+"
+  regex: \+
   has:
     kind: string
-    regex: "^['\"][\\\\/]['\"]$"
+    regex: ^['"][\\/]['"]$
 ---
 id: fillna-zero-default
 language: python
 severity: warning
-message: "fillna(0) masks missing data - consider if 0 is semantically correct or use explicit sentinel"
+message: fillna(0) masks missing data - consider if 0 is semantically correct or use
+  explicit sentinel
 metadata:
   weight: 3
   category: complexity
 rule:
   kind: call
   all:
-    - has:
-        kind: attribute
-        regex: "\\.fillna$"
-    - has:
-        kind: argument_list
-        has:
-          kind: integer
-          regex: "^0$"
----
-id: fillna-empty-string-default
-language: python
-severity: warning
-message: "fillna('') masks missing data - empty string hides NULL semantics"
-metadata:
-  weight: 3
-  category: complexity
-rule:
-  kind: call
-  all:
-    - has:
-        kind: attribute
-        regex: "\\.fillna$"
-    - has:
-        kind: argument_list
-        has:
-          kind: string
-          regex: "^['\"]['\"]$"
+  - has:
+      kind: attribute
+      regex: \.fillna$
+  - has:
+      kind: argument_list
+      has:
+        kind: integer
+        regex: ^0$
 ---
 id: dict-get-zero-default
 language: python
 severity: warning
-message: "dict.get() with 0 default - consider if missing key should really be 0"
+message: dict.get() with 0 default - consider if missing key should really be 0
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: call
   all:
-    - has:
-        kind: attribute
-        regex: "\\.get$"
-    - has:
-        kind: argument_list
-        has:
-          kind: integer
-          regex: "^0$"
-          nthChild:
-            position: 2
+  - has:
+      kind: attribute
+      regex: \.get$
+  - has:
+      kind: argument_list
+      has:
+        kind: integer
+        regex: ^0$
+        nthChild:
+          position: 2
 ---
 id: dict-get-empty-string-default
 language: python
 severity: warning
-message: "dict.get() with '' default - consider if missing key should really be empty string"
+message: dict.get() with '' default - consider if missing key should really be empty
+  string
 metadata:
-  weight: 2
+  weight: 3
   category: complexity
 rule:
   kind: call
   all:
-    - has:
-        kind: attribute
-        regex: "\\.get$"
-    - has:
-        kind: argument_list
-        has:
-          kind: string
-          regex: "^['\"]['\"]$"
-          nthChild:
-            position: 2
+  - has:
+      kind: attribute
+      regex: \.get$
+  - has:
+      kind: argument_list
+      has:
+        kind: string
+        regex: ^['"]['"]$
+        nthChild:
+          position: 2
 ---
 id: dict-get-empty-list-default
 language: python
 severity: warning
-message: "dict.get() with [] default - mutable default, use .setdefault() or defaultdict"
+message: dict.get() with [] default - mutable default, use .setdefault() or defaultdict
 metadata:
   weight: 3
   category: complexity
 rule:
   kind: call
   all:
-    - has:
-        kind: attribute
-        regex: "\\.get$"
-    - has:
-        kind: argument_list
-        has:
-          kind: list
-          not:
-            has:
-              any:
-                - kind: identifier
-                - kind: integer
-                - kind: string
-          nthChild:
-            position: 2
+  - has:
+      kind: attribute
+      regex: \.get$
+  - has:
+      kind: argument_list
+      has:
+        kind: list
+        not:
+          has:
+            any:
+            - kind: identifier
+            - kind: integer
+            - kind: string
+        nthChild:
+          position: 2
 ---
 id: dict-get-empty-dict-default
 language: python
 severity: warning
-message: "dict.get() with {} default - mutable default, use .setdefault() or defaultdict"
+message: dict.get() with {} default - mutable default, use .setdefault() or defaultdict
 metadata:
   weight: 3
   category: complexity
 rule:
   kind: call
   all:
-    - has:
-        kind: attribute
-        regex: "\\.get$"
-    - has:
-        kind: argument_list
-        has:
-          kind: dictionary
-          not:
-            has:
-              kind: pair
-          nthChild:
-            position: 2
+  - has:
+      kind: attribute
+      regex: \.get$
+  - has:
+      kind: argument_list
+      has:
+        kind: dictionary
+        not:
+          has:
+            kind: pair
+        nthChild:
+          position: 2
 ---
 id: too-many-optional-params
 language: python
 severity: warning
-message: "Function has 3+ Optional parameters (= None) - consider builder pattern, config object, or overloads"
+message: Function has 3+ Optional parameters (= None) - consider builder pattern,
+  config object, or overloads
 metadata:
   weight: 3
   category: complexity
@@ -2002,4 +1399,64 @@ rule:
   kind: function_definition
   has:
     kind: parameters
-    regex: "(?s)= None.*= None.*= None"
+    regex: (?s)= None.*= None.*= None
+---
+id: empty-exception-subclass
+language: python
+severity: warning
+message: Empty exception subclass with only 'pass' - consolidate into parent with
+  a code/type parameter
+metadata:
+  weight: 3
+  category: complexity
+rule:
+  kind: class_definition
+  all:
+  - has:
+      kind: argument_list
+      has:
+        any:
+        - kind: identifier
+          regex: (Error|Exception|Warning|Signal)
+        - kind: attribute
+          regex: (Error|Exception|Warning|Signal)
+  - has:
+      kind: block
+      all:
+      - has:
+          kind: pass_statement
+      - not:
+          has:
+            any:
+            - kind: function_definition
+            - kind: assignment
+---
+id: exception-subclass-attribute-only
+language: python
+severity: warning
+message: Exception subclass sets only class attributes - use parent exception with
+  parameters instead of a new class
+metadata:
+  weight: 3
+  category: complexity
+rule:
+  kind: class_definition
+  all:
+  - has:
+      kind: argument_list
+      has:
+        any:
+        - kind: identifier
+          regex: (Error|Exception|Warning)
+        - kind: attribute
+          regex: (Error|Exception|Warning)
+  - has:
+      kind: block
+      all:
+      - has:
+          kind: expression_statement
+          has:
+            kind: assignment
+      - not:
+          has:
+            kind: function_definition

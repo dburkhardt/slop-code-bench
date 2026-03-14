@@ -604,6 +604,11 @@ class ClaudeCodeAgent(Agent):
 
         if thinking_tokens is not None:
             env_overrides["MAX_THINKING_TOKENS"] = str(thinking_tokens)
+
+        # Set reasoning effort level from thinking preset
+        if self.thinking in ("low", "medium", "high"):
+            env_overrides["CLAUDE_CODE_EFFORT_LEVEL"] = self.thinking
+
         cli_args = self._build_cli_args()
         cli_args.append(shlex.quote(task))
         command_str = " ".join(cli_args)

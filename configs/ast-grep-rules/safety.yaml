@@ -4,24 +4,24 @@ language: python
 severity: warning
 message: assert False for unreachable code - use raise instead
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: assert_statement
-  regex: "assert\\s+False"
+  regex: assert\s+False
 ---
 id: catch-base-exception
 language: python
 severity: warning
 message: Catching base Exception class - catch specific exceptions instead
 metadata:
-  weight: 5
+  weight: 4
   category: safety
 rule:
   kind: except_clause
   has:
     kind: identifier
-    regex: "^Exception$"
+    regex: ^Exception$
 ---
 id: bare-except-no-reraise
 language: python
@@ -42,11 +42,11 @@ language: python
 severity: warning
 message: Bare raise outside except block - may hide original exception
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: raise_statement
-  regex: "^raise$"
+  regex: ^raise$
   not:
     inside:
       kind: except_clause
@@ -56,7 +56,7 @@ language: python
 severity: warning
 message: Duplicate None guard on the same variable; handle the None case once.
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: if_statement
@@ -65,24 +65,12 @@ rule:
     kind: if_statement
     pattern: "if $X is None:\n  $$$\n"
 ---
-id: except-log-return-none
-language: python
-severity: warning
-message: Swallowing exceptions by logging and returning None hides failures; propagate
-  or handle explicitly.
-metadata:
-  weight: 4
-  category: safety
-rule:
-  kind: except_clause
-  pattern: "except $ERR as $EXC:\n  $LOGGER.$LEVEL($$$)\n  return None\n"
----
 id: except-pass
 language: python
 severity: warning
 message: 'except: pass - silently swallowing errors'
 metadata:
-  weight: 5
+  weight: 4
   category: safety
 rule:
   kind: except_clause
@@ -97,7 +85,7 @@ severity: warning
 message: if/elif raising in each branch but no else leaves silent pass-through; add
   an explicit fallback.
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: if_statement
@@ -111,7 +99,7 @@ language: python
 severity: warning
 message: if/elif returns without an else may fall through and return None unexpectedly.
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: if_statement
@@ -125,74 +113,18 @@ language: python
 severity: warning
 message: '''is True'' or ''is False'' check - use truthiness or equality if necessary'
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: comparison_operator
-  regex: '\s+is\s+(True|False)'
----
-id: log-exception-continue
-language: python
-severity: warning
-message: Logging an exception and continuing hides errors; handle or propagate failures.
-metadata:
-  weight: 3
-  category: safety
-rule:
-  kind: except_clause
-  pattern: "except $ERR as $E:\n  $LOGGER.$LEVEL($$$)\n  continue\n"
----
-id: log-then-raise-same-exception
-language: python
-severity: warning
-message: Logging and immediately re-raising the same exception adds noise without
-  handling.
-metadata:
-  weight: 3
-  category: safety
-rule:
-  kind: except_clause
-  pattern: "except $ERR as $EXC:\n  $LOGGER.$LEVEL($$$)\n  raise $EXC\n"
----
-id: missing-default-return
-language: python
-severity: warning
-message: Function returns in if branch(es) but has no final else/default return;
-  callers may get None unexpectedly.
-metadata:
-  weight: 2
-  category: safety
-rule:
-  kind: function_definition
-  any:
-  - has:
-      kind: if_statement
-      pattern: "if $C1:\n  return $A\nelif $C2:\n  return $B\n"
-  - has:
-      kind: if_statement
-      pattern: "if $C:\n  return $A\n"
-      not:
-        has:
-          kind: else_clause
----
-id: multiple-sys-exit-in-function
-language: python
-severity: warning
-message: Multiple sys.exit calls in one function; raise exceptions and handle at the
-  boundary.
-metadata:
-  weight: 3
-  category: safety
-rule:
-  kind: function_definition
-  pattern: "def $NAME($$$):\n  $$$\n  sys.exit($A)\n  $$$\n  sys.exit($B)\n"
+  regex: \s+is\s+(True|False)
 ---
 id: mutable-default-arg
 language: python
 severity: warning
 message: Mutable default argument - dangerous pattern, use None as default
 metadata:
-  weight: 5
+  weight: 4
   category: safety
 rule:
   kind: function_definition
@@ -220,7 +152,7 @@ rule:
   kind: call
   has:
     kind: identifier
-    regex: "^open$"
+    regex: ^open$
   not:
     inside:
       kind: with_item
@@ -231,7 +163,7 @@ severity: warning
 message: Falling back to Path() when a base path is None can write to CWD unexpectedly;
   require an explicit base.
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: assignment
@@ -243,7 +175,7 @@ severity: warning
 message: while True loop without a break/raise in a parser can hang on malformed input;
   add termination.
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: while_statement
@@ -261,54 +193,25 @@ severity: warning
 message: Returning [] when a path is missing silently hides configuration errors;
   raise or log instead.
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: if_statement
   pattern: "if not $P.exists() or not $P.is_dir():\n  return []\n"
----
-id: print-exception
-language: python
-severity: warning
-message: Printing exception in except block - use logging.exception or warning
-metadata:
-  weight: 3
-  category: safety
-rule:
-  kind: except_clause
-  has:
-    kind: block
-    has:
-      kind: call
-      has:
-        kind: identifier
-        regex: "^print$"
----
-id: raise-caught-exception-variable
-language: python
-severity: warning
-message: Re-raising a caught exception via its variable drops the original traceback;
-  use bare raise.
-metadata:
-  weight: 3
-  category: safety
-rule:
-  kind: except_clause
-  pattern: "except $ERR as $EXC:\n  $$$\n  raise $EXC\n"
 ---
 id: shadowing-builtin
 language: python
 severity: warning
 message: Shadowing builtin name - avoid using list, dict, str, int as variable names
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: assignment
   pattern: $NAME = $VALUE
 constraints:
   NAME:
-    regex: "^(list|dict|str|int|float|bool|set|tuple|object|map|filter|sum|min|max|type)$"
+    regex: ^(list|dict|str|int|float|bool|set|tuple|object|map|filter|sum|min|max|type)$
 ---
 id: string-none-check
 language: python
@@ -325,7 +228,7 @@ language: python
 severity: warning
 message: subprocess call with shell=True - security risk (injection)
 metadata:
-  weight: 5
+  weight: 4
   category: safety
 rule:
   kind: call
@@ -333,7 +236,7 @@ rule:
     kind: argument_list
     has:
       kind: keyword_argument
-      regex: "shell\\s*=\\s*True"
+      regex: shell\s*=\s*True
 ---
 id: sys-exit-outside-main
 language: python
@@ -341,11 +244,11 @@ severity: warning
 message: sys.exit called outside main/CLI parsing; raise exceptions instead of exiting
   deep in the stack.
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: call
-  pattern: "sys.exit($ARG)"
+  pattern: sys.exit($ARG)
   not:
     inside:
       kind: if_statement
@@ -357,7 +260,7 @@ severity: warning
 message: Bare except logging and suppressing errors makes debugging hard; catch specific
   exceptions or re-raise.
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: try_statement
@@ -369,7 +272,7 @@ severity: warning
 message: 'Swallowing all exceptions with `except Exception: continue` hides real errors;
   handle explicitly.'
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: try_statement
@@ -380,26 +283,26 @@ language: python
 severity: warning
 message: try-except TypeError block - often over-defensive error handling
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: try_statement
   has:
     kind: except_clause
-    regex: "except TypeError"
+    regex: except TypeError
 ---
 id: try-except-valueerror
 language: python
 severity: warning
 message: try-except ValueError block - often over-defensive error handling
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: try_statement
   has:
     kind: except_clause
-    regex: "except ValueError"
+    regex: except ValueError
 ---
 id: wildcard-import
 language: python
@@ -411,20 +314,21 @@ metadata:
   category: safety
 rule:
   kind: import_from_statement
-  regex: "import\\s+\\*$"
+  regex: import\s+\*$
 ---
 id: validate-should-raise
 language: python
 severity: warning
-message: validate* helpers that perform checks but never raise can hide failures; raise or propagate an error.
+message: validate* helpers that perform checks but never raise can hide failures;
+  raise or propagate an error.
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: function_definition
   has:
     kind: identifier
-    regex: "^validate"
+    regex: ^validate
   not:
     has:
       kind: block
@@ -434,9 +338,9 @@ rule:
 id: assert-in-production-code
 language: python
 severity: warning
-message: "assert statement can be stripped in production (-O flag) - use explicit validation"
+message: assert statement can be stripped in production (-O flag) - use explicit validation
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: assert_statement
@@ -444,123 +348,78 @@ rule:
 id: hardcoded-path
 language: python
 severity: warning
-message: "Hardcoded absolute path - use configuration or environment variable"
-metadata:
-  weight: 2
-  category: safety
-rule:
-  kind: string
-  regex: "^['\"]/(home|usr|var|tmp|etc)/"
----
-id: hardcoded-localhost
-language: python
-severity: warning
-message: "Hardcoded localhost URL - use configuration or environment variable"
-metadata:
-  weight: 2
-  category: safety
-rule:
-  kind: string
-  regex: "(localhost|127\\.0\\.0\\.1):\\d+"
----
-id: dataclass-no-validation
-language: python
-severity: warning
-message: "Dataclass without __post_init__ validation - consider adding field validation"
-metadata:
-  weight: 2
-  category: safety
-rule:
-  kind: decorated_definition
-  all:
-    - has:
-        kind: decorator
-        has:
-          kind: identifier
-          regex: "^dataclass$"
-    - has:
-        kind: class_definition
-        not:
-          has:
-            kind: block
-            has:
-              kind: function_definition
-              has:
-                kind: identifier
-                regex: "^__post_init__$"
----
-id: catch-reraise-no-from
-language: python
-severity: warning
-message: "Re-raising new exception without 'from' loses original traceback context"
-metadata:
-  weight: 3
-  category: safety
-rule:
-  kind: except_clause
-  all:
-    - has:
-        kind: as_pattern
-    - has:
-        kind: block
-        has:
-          kind: raise_statement
-          has:
-            kind: call
-          not:
-            regex: "\\bfrom\\b"
----
-id: json-error-swallow
-language: python
-severity: warning
-message: "JSON parse error swallowed and replaced with None/empty dict - propagate or log the error"
+message: Hardcoded absolute path - use configuration or environment variable
 metadata:
   weight: 4
   category: safety
 rule:
-  kind: try_statement
+  kind: string
+  regex: ^['"]/(home|usr|var|tmp|etc)/
+---
+id: hardcoded-localhost
+language: python
+severity: warning
+message: Hardcoded localhost URL - use configuration or environment variable
+metadata:
+  weight: 4
+  category: safety
+rule:
+  kind: string
+  regex: (localhost|127\.0\.0\.1):\d+
+---
+id: dataclass-no-validation
+language: python
+severity: warning
+message: Dataclass without __post_init__ validation - consider adding field validation
+metadata:
+  weight: 4
+  category: safety
+rule:
+  kind: decorated_definition
   all:
-    - has:
-        kind: block
-        has:
-          kind: call
-          any:
-            - pattern: json.loads($X)
-            - pattern: json.load($X)
-    - has:
-        kind: except_clause
+  - has:
+      kind: decorator
+      has:
+        kind: identifier
+        regex: ^dataclass$
+  - has:
+      kind: class_definition
+      not:
         has:
           kind: block
           has:
-            kind: return_statement
-            any:
-              - has:
-                  kind: none
-              - has:
-                  kind: dictionary
-                  not:
-                    has:
-                      kind: pair
+            kind: function_definition
+            has:
+              kind: identifier
+              regex: ^__post_init__$
 ---
-id: str-exception-conversion
+id: catch-reraise-no-from
 language: python
 severity: warning
-message: "str(exc) on exception - exceptions stringify automatically, this may lose context"
+message: Re-raising new exception without 'from' loses original traceback context
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
-  kind: call
-  pattern: str($EXC)
-  inside:
-    kind: except_clause
+  kind: except_clause
+  all:
+  - has:
+      kind: as_pattern
+  - has:
+      kind: block
+      has:
+        kind: raise_statement
+        has:
+          kind: call
+        not:
+          regex: \bfrom\b
 ---
 id: except-return-false
 language: python
 severity: warning
-message: "Returning False from except block hides the actual error"
+message: Returning False from except block hides the actual error
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: except_clause
@@ -569,14 +428,14 @@ rule:
     has:
       kind: return_statement
       has:
-        kind: "false"
+        kind: 'false'
 ---
 id: except-return-empty-string
 language: python
 severity: warning
-message: "Returning empty string from except block hides the actual error"
+message: Returning empty string from except block hides the actual error
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: except_clause
@@ -586,12 +445,12 @@ rule:
       kind: return_statement
       has:
         kind: string
-        regex: "^['\"]\"?'?$"
+        regex: ^['"]"?'?$
 ---
 id: yaml-unsafe-load
 language: python
 severity: warning
-message: "yaml.load without Loader is unsafe - use yaml.safe_load or specify Loader"
+message: yaml.load without Loader is unsafe - use yaml.safe_load or specify Loader
 metadata:
   weight: 4
   category: safety
@@ -603,93 +462,74 @@ rule:
       kind: argument_list
       has:
         kind: keyword_argument
-        regex: "Loader"
+        regex: Loader
 ---
 id: fstring-sql-injection
 language: python
 severity: warning
-message: "f-string in SQL query - use parameterized queries to prevent injection"
+message: f-string in SQL query - use parameterized queries to prevent injection
 metadata:
-  weight: 5
+  weight: 4
   category: safety
 rule:
   kind: call
   all:
-    - has:
-        kind: attribute
-        regex: "\\.(execute|executemany)$"
-    - has:
-        kind: argument_list
-        has:
-          kind: string
-          regex: "^f['\"]"
+  - has:
+      kind: attribute
+      regex: \.(execute|executemany)$
+  - has:
+      kind: argument_list
+      has:
+        kind: string
+        regex: ^f['"]
 ---
 id: format-sql-injection
 language: python
 severity: warning
-message: ".format() in SQL query - use parameterized queries to prevent injection"
+message: .format() in SQL query - use parameterized queries to prevent injection
 metadata:
-  weight: 5
+  weight: 4
   category: safety
 rule:
   kind: call
   all:
-    - has:
-        kind: attribute
-        regex: "\\.(execute|executemany)$"
-    - has:
-        kind: argument_list
+  - has:
+      kind: attribute
+      regex: \.(execute|executemany)$
+  - has:
+      kind: argument_list
+      has:
+        kind: call
         has:
-          kind: call
-          has:
-            kind: attribute
-            regex: "\\.format$"
----
-id: percent-sql-injection
-language: python
-severity: warning
-message: "String % formatting in SQL - use parameterized queries to prevent injection"
-metadata:
-  weight: 5
-  category: safety
-rule:
-  kind: call
-  all:
-    - has:
-        kind: attribute
-        regex: "\\.(execute|executemany)$"
-    - has:
-        kind: argument_list
-        has:
-          kind: binary_operator
-          regex: "%"
+          kind: attribute
+          regex: \.format$
 ---
 id: regex-without-raw-string
 language: python
 severity: warning
-message: "re.compile() without raw string - escape sequences may be interpreted incorrectly"
+message: re.compile() without raw string - escape sequences may be interpreted incorrectly
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: call
   all:
-    - has:
-        kind: attribute
-        pattern: re.compile
-    - has:
-        kind: argument_list
-        has:
-          kind: string
-          not:
-            regex: "^r['\"]"
+  - has:
+      kind: attribute
+      pattern: re.compile
+  - has:
+      kind: argument_list
+      has:
+        kind: string
+        not:
+          regex: ^r['"]
 ---
 id: raise-runtime-error
 language: python
 severity: warning
-message: "Raising RuntimeError - use a more specific exception type"
+message: Raising RuntimeError - use a more specific exception type
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: raise_statement
@@ -697,43 +537,43 @@ rule:
     kind: call
     has:
       kind: identifier
-      regex: "^RuntimeError$"
+      regex: ^RuntimeError$
 ---
 id: pickle-load-untrusted
 language: python
 severity: warning
-message: "pickle.load is unsafe for untrusted data - consider json or other safe formats"
+message: pickle.load is unsafe for untrusted data - consider json or other safe formats
 metadata:
-  weight: 5
+  weight: 4
   category: safety
 rule:
   kind: call
   any:
-    - pattern: pickle.load($X)
-    - pattern: pickle.loads($X)
+  - pattern: pickle.load($X)
+  - pattern: pickle.loads($X)
 ---
 id: eval-input-data
 language: python
 severity: warning
-message: "eval() on variable data is a security risk - use ast.literal_eval or json"
+message: eval() on variable data is a security risk - use ast.literal_eval or json
 metadata:
-  weight: 5
+  weight: 4
   category: safety
 rule:
   kind: call
   all:
-    - has:
+  - has:
+      kind: identifier
+      regex: ^eval$
+  - has:
+      kind: argument_list
+      has:
         kind: identifier
-        regex: "^eval$"
-    - has:
-        kind: argument_list
-        has:
-          kind: identifier
 ---
 id: os-system-call
 language: python
 severity: warning
-message: "os.system() is unsafe - use subprocess with shell=False"
+message: os.system() is unsafe - use subprocess with shell=False
 metadata:
   weight: 4
   category: safety
@@ -744,9 +584,9 @@ rule:
 id: tempfile-without-delete
 language: python
 severity: warning
-message: "NamedTemporaryFile without delete=False may delete file while still in use"
+message: NamedTemporaryFile without delete=False may delete file while still in use
 metadata:
-  weight: 2
+  weight: 4
   category: safety
 rule:
   kind: call
@@ -756,32 +596,32 @@ rule:
       kind: argument_list
       has:
         kind: keyword_argument
-        regex: "delete"
+        regex: delete
 ---
 id: exec-untrusted
 language: python
 severity: warning
-message: "exec() is a security risk - avoid executing dynamic code"
+message: exec() is a security risk - avoid executing dynamic code
 metadata:
-  weight: 5
+  weight: 4
   category: safety
 rule:
   kind: call
   all:
-    - has:
+  - has:
+      kind: identifier
+      regex: ^exec$
+  - has:
+      kind: argument_list
+      has:
         kind: identifier
-        regex: "^exec$"
-    - has:
-        kind: argument_list
-        has:
-          kind: identifier
 ---
 id: raise-bare-exception
 language: python
 severity: warning
-message: "Raising bare Exception - use a more specific exception type"
+message: Raising bare Exception - use a more specific exception type
 metadata:
-  weight: 3
+  weight: 4
   category: safety
 rule:
   kind: raise_statement
@@ -789,4 +629,36 @@ rule:
     kind: call
     has:
       kind: identifier
-      regex: "^Exception$"
+      regex: ^Exception$
+---
+id: catch-specific-reraise
+language: python
+severity: warning
+message: Catching exception only to re-raise unchanged - the except clause is a no-op,
+  remove it
+metadata:
+  weight: 4
+  category: safety
+rule:
+  kind: except_clause
+  all:
+  - has:
+      any:
+      - kind: identifier
+      - kind: attribute
+  - not:
+      has:
+        kind: as_pattern
+  - has:
+      kind: block
+      all:
+      - has:
+          kind: raise_statement
+          regex: ^raise$
+      - not:
+          has:
+            nthChild:
+              position: 2
+              ofRule:
+                not:
+                  kind: comment

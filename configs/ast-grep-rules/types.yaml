@@ -4,11 +4,11 @@ language: python
 severity: warning
 message: Using 'Any' type - prefer specific types
 metadata:
-  weight: 1
+  weight: 2
   category: types
 rule:
   kind: type
-  regex: "\bAny\b"
+  regex: '\bAny\b'
 ---
 id: complex-tuple-type
 language: python
@@ -16,7 +16,7 @@ severity: warning
 message: Complex tuple type annotation (4+ elements) - consider using NamedTuple or
   dataclass
 metadata:
-  weight: 1
+  weight: 2
   category: types
 rule:
   kind: type
@@ -77,7 +77,7 @@ severity: warning
 message: '`# type: ignore[arg-type]` suppresses type errors; prefer fixing types instead
   of ignoring.'
 metadata:
-  weight: 1
+  weight: 2
   category: types
 rule:
   kind: comment
@@ -121,11 +121,11 @@ language: python
 severity: warning
 message: Unparameterized Set annotation - provide element type instead of raw Set
 metadata:
-  weight: 1
+  weight: 2
   category: types
 rule:
   kind: type
-  regex: "^Set$"
+  regex: "^(Set|set)$"
 ---
 id: list-of-bare-dicts
 language: python
@@ -165,7 +165,7 @@ language: python
 severity: warning
 message: Dict[str, Any] return/field - prefer precise value types instead of Any
 metadata:
-  weight: 1
+  weight: 2
   category: types
 rule:
   kind: type
@@ -176,7 +176,7 @@ language: python
 severity: warning
 message: List[Any] annotation - tighten element typing instead of using Any
 metadata:
-  weight: 1
+  weight: 2
   category: types
 rule:
   kind: type
@@ -192,17 +192,6 @@ metadata:
 rule:
   kind: type
   regex: "Union\\[[^\\]]*Any[^\\]]*\\]"
----
-id: cast-any-bypass
-language: python
-severity: warning
-message: "cast(Any, x) escapes the type system entirely - fix the underlying type issue instead"
-metadata:
-  weight: 3
-  category: types
-rule:
-  kind: call
-  pattern: cast(Any, $X)
 ---
 id: type-ignore-blanket
 language: python
@@ -220,7 +209,7 @@ language: python
 severity: hint
 message: "assert isinstance() used for type narrowing - consider TypeGuard or fixing upstream types"
 metadata:
-  weight: 1
+  weight: 2
   category: types
 rule:
   kind: assert_statement
