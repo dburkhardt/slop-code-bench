@@ -1123,3 +1123,36 @@ rule:
       $$$
     elif $STATE == $S3:
       $$$
+---
+id: assign-then-guard
+language: python
+severity: warning
+message: "Assign-then-guard on '$VAR' - use walrus operator to combine assignment and check"
+metadata:
+  weight: 4
+  category: verbosity
+rule:
+  kind: if_statement
+  any:
+    - pattern: |
+        if not $VAR:
+            $$$BODY
+    - pattern: |
+        if $VAR is None:
+            $$$BODY
+  has:
+    kind: block
+    has:
+      any:
+        - kind: continue_statement
+        - kind: return_statement
+        - kind: break_statement
+  follows:
+    kind: expression_statement
+    has:
+      kind: assignment
+      has:
+        kind: identifier
+        field: left
+        pattern: $VAR
+    stopBy: neighbor
