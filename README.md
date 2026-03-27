@@ -4,9 +4,9 @@
   [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
   [![GitHub stars](https://img.shields.io/github/stars/SprocketLab/slop-code-bench)](https://github.com/SprocketLab/slop-code-bench/stargazers)
-  [![DOI](https://zenodo.org/badge/1118434028.svg)](https://doi.org/10.5281/zenodo.18357192)
+  [![DOI](https://zenodo.org/badge/1118434028.svg)](https://doi.org/10.5281/zenodo.19257129)
 
-  [🌐 Website](https://www.scbench.ai) | [📝 Blog Post](https://gabeorlanski.github.io/posts/slop-code-bench)
+  [🌐 Website](https://www.scbench.ai) | [📄 Paper](https://arxiv.org/abs/2603.24755) | [📝 Blog Post](https://gabeorlanski.github.io/posts/slop-code-bench)
 </div>
 
 ![](assets/overview.png)
@@ -127,10 +127,11 @@ This is early-stage software. Your contributions will shape its direction.
 
 If you found this useful, please cite us as:
 ```bibtex
-@software{Orlanski_SlopCodeBench_Measuring_Code,
- author = {Orlanski, Gabriel and Roy, Devjeet and Yun, Alexander and Shin, Changho and Gu, Alex and Ge, Albert and Adila, Dyah and Albarghouthi, Aws and Sala, Frederic},
- license = {MIT},
- title = {{SlopCodeBench: Measuring Code Erosion Under Iterative Specification Refinement}},
- url = {https://github.com/SprocketLab/slop-code-bench}
+@article{Orlanski2025SlopCodeBench,
+  author = {Orlanski, Gabriel and Roy, Devjeet and Yun, Alexander and Shin, Changho and Gu, Alex and Ge, Albert and Adila, Dyah and Albarghouthi, Aws and Sala, Frederic},
+  title = {{SlopCodeBench: Measuring Code Erosion Under Iterative Specification Refinement}},
+  journal = {arXiv preprint arXiv:2603.24755},
+  year = {2025},
+  url = {https://arxiv.org/abs/2603.24755}
 }
 ```
