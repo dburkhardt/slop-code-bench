@@ -16,6 +16,8 @@ from slop_code.agent_runner.agents.gemini import GeminiConfig
 from slop_code.agent_runner.agents.opencode import OpenCodeAgentConfig
 from slop_code.agent_runner.agents.openhands import OpenHandsAgent
 from slop_code.agent_runner.agents.openhands import OpenHandsConfig
+from slop_code.agent_runner.agents.reviewer_coder import ReviewerCoderAgent
+from slop_code.agent_runner.agents.reviewer_coder import ReviewerCoderConfig
 from slop_code.agent_runner.registry import iter_agent_config_types
 
 
@@ -40,4 +42,6 @@ __all__ = [
     "OpenCodeAgentConfig",
     "OpenHandsAgent",
     "OpenHandsConfig",
+    "ReviewerCoderAgent",
+    "ReviewerCoderConfig",
 ]

@@ -40,6 +40,18 @@ from slop_code.logging import get_logger
 
 log = get_logger(__name__)
 
+# Sentinel for _build_cli_args defaults
+_SENTINEL = object()
+
+
+class _ResolvedConfigParams(tp.NamedTuple):
+    model_slug: str
+    base_url: str | None
+    env: dict[str, str]
+    thinking: ThinkingPreset | None
+    max_thinking_tokens: int | None
+
+
 # Token limits for thinking presets
 _THINKING_TOKEN_MAP: dict[str, int] = {
     "low": 4000,
@@ -145,9 +157,11 @@ class ClaudeCodeAgent(Agent):
         thinking: ThinkingPreset | None,
         max_thinking_tokens: int | None,
         max_output_tokens: int | None,
+        *,
+        agent_name: str = "claude_code",
     ) -> None:
         super().__init__(
-            agent_name="claude_code",
+            agent_name=agent_name,
             problem_name=problem_name,
             cost_limits=cost_limits,
             pricing=pricing,
@@ -190,6 +204,56 @@ class ClaudeCodeAgent(Agent):
         self._got_successful_result: bool = False
 
     @classmethod
+    def _resolve_config_params(
+        cls,
+        config: ClaudeCodeConfig,
+        model: ModelDefinition,
+        credential: ProviderCredential,
+        agent_settings_keys: collections.abc.Sequence[str] = ("claude_code",),
+        thinking_preset: ThinkingPreset | None = None,
+        thinking_max_tokens: int | None = None,
+    ) -> _ResolvedConfigParams:
+        """Resolve model slug, base_url, env, and thinking config."""
+        model_slug = model.get_model_slug(credential.provider)
+
+        agent_settings: dict[str, tp.Any] = {}
+        for key in agent_settings_keys:
+            agent_settings = model.get_agent_settings(key) or {}
+            if agent_settings:
+                break
+
+        endpoint = None
+        for key in agent_settings_keys:
+            endpoint = model.get_agent_endpoint(key, credential.provider)
+            if endpoint:
+                break
+
+        base_url = config.base_url
+        if base_url is None and "base_url" in agent_settings:
+            base_url = agent_settings["base_url"]
+        if base_url is None and endpoint:
+            base_url = endpoint.api_base
+
+        env = dict(config.env)
+        if "env_overrides" in agent_settings:
+            env = {**agent_settings["env_overrides"], **env}
+
+        thinking: ThinkingPreset | None = thinking_preset
+        max_thinking_tokens: int | None = thinking_max_tokens
+        if thinking is None and max_thinking_tokens is None:
+            thinking, max_thinking_tokens = model.get_thinking_config(
+                "claude_code"
+            )
+
+        return _ResolvedConfigParams(
+            model_slug=model_slug,
+            base_url=base_url,
+            env=env,
+            thinking=thinking,
+            max_thinking_tokens=max_thinking_tokens,
+        )
+
+    @classmethod
     def _from_config(
         cls,
         config: AgentConfigBase,
@@ -211,37 +275,13 @@ class ClaudeCodeAgent(Agent):
         if model.pricing is None:
             raise AgentError("ClaudeCodeAgent requires a pricing configuration")
 
-        # Get model slug for API calls
-        model_slug = model.get_model_slug(credential.provider)
-
-        # Get agent-specific settings from model catalog
-        agent_settings = model.get_agent_settings("claude_code") or {}
-
-        # Get endpoint from provider if specified in agent_specific
-        # Use credential.provider (from CLI) to allow provider override
-        endpoint = model.get_agent_endpoint("claude_code", credential.provider)
-
-        # Resolve base_url: config > agent_settings > endpoint
-        base_url = config.base_url
-        if base_url is None and "base_url" in agent_settings:
-            base_url = agent_settings["base_url"]
-        if base_url is None and endpoint:
-            base_url = endpoint.api_base
-
-        # Merge env_overrides
-        env = dict(config.env)
-        if "env_overrides" in agent_settings:
-            # Config env wins on conflicts
-            env = {**agent_settings["env_overrides"], **env}
-
-        # Resolve thinking: CLI/config override > model default
-        thinking: ThinkingPreset | None = thinking_preset
-        max_thinking_tokens: int | None = thinking_max_tokens
-        if thinking is None and max_thinking_tokens is None:
-            # Fall back to model's default thinking config
-            thinking, max_thinking_tokens = model.get_thinking_config(
-                "claude_code"
-            )
+        params = cls._resolve_config_params(
+            config,
+            model,
+            credential,
+            thinking_preset=thinking_preset,
+            thinking_max_tokens=thinking_max_tokens,
+        )
 
         return cls(
             problem_name=problem_name,
@@ -251,18 +291,18 @@ class ClaudeCodeAgent(Agent):
             pricing=model.pricing,
             credential=credential,
             binary=config.binary,
-            model=model_slug,
+            model=params.model_slug,
             timeout=config.timeout,
             settings=config.settings,
-            env=env,
+            env=params.env,
             extra_args=config.extra_args,
             append_system_prompt=config.append_system_prompt,
             allowed_tools=config.allowed_tools,
             disallowed_tools=config.disallowed_tools,
             permission_mode=config.permission_mode,
-            base_url=base_url,
-            thinking=thinking,
-            max_thinking_tokens=max_thinking_tokens,
+            base_url=params.base_url,
+            thinking=params.thinking,
+            max_thinking_tokens=params.max_thinking_tokens,
             max_output_tokens=config.max_output_tokens,
         )
 
@@ -343,13 +383,14 @@ class ClaudeCodeAgent(Agent):
             payload = json.loads(line)
         except json.JSONDecodeError:
             return None, None, None
-        if payload["type"] == "result":
-            input_tokens = payload["usage"].get("input_tokens", 0)
-            output_tokens = payload["usage"].get("output_tokens", 0)
-            cache_write_tokens = payload["usage"].get(
+        if payload.get("type") == "result":
+            usage = payload.get("usage", {})
+            input_tokens = usage.get("input_tokens", 0)
+            output_tokens = usage.get("output_tokens", 0)
+            cache_write_tokens = usage.get(
                 "cache_creation_input_tokens", 0
             )
-            cache_read_tokens = payload["usage"].get(
+            cache_read_tokens = usage.get(
                 "cache_read_input_tokens", 0
             )
             tokens = TokenUsage(
@@ -360,7 +401,7 @@ class ClaudeCodeAgent(Agent):
                 reasoning=0,
             )
 
-            return (payload["total_cost_usd"], tokens, payload)
+            return (payload.get("total_cost_usd"), tokens, payload)
 
         message = payload.get("message", {})
         if not message or not isinstance(message, dict):
@@ -566,20 +607,32 @@ class ClaudeCodeAgent(Agent):
             )
             raise AgentError("Claude Code process had an error")
 
-    def _prepare_runtime_execution(
-        self,
-        task: str,
-    ) -> tuple[collections.abc.Sequence[str] | str, dict[str, str]]:
+    def _build_env_overrides(self) -> dict[str, str]:
+        """Build environment variable overrides common to all CLI invocations.
+
+        Returns a dict of env vars including credentials, thinking tokens,
+        background task flags, and base URL settings.
+        """
         env_overrides = {key: str(value) for key, value in self.env.items()}
 
-        # Set credential in environment
-        env_overrides[self.credential.destination_key] = self.credential.value
-        # When using a non-Claude-Code credential, also set ANTHROPIC_AUTH_TOKEN
-        if self.credential.destination_key not in (
-            "ANTHROPIC_API_KEY",
-            "CLAUDE_CODE_OAUTH_TOKEN",
+        # For local auth (claude_code_local provider), don't set
+        # API key env vars so the claude binary uses its own OAuth.
+        if (
+            self.credential.provider != "claude_code_local"
+            and self.credential.destination_key
         ):
-            env_overrides["ANTHROPIC_AUTH_TOKEN"] = self.credential.value
+            env_overrides[self.credential.destination_key] = (
+                self.credential.value
+            )
+            # When using a non-Claude-Code credential, also set
+            # ANTHROPIC_AUTH_TOKEN
+            if self.credential.destination_key not in (
+                "ANTHROPIC_API_KEY",
+                "CLAUDE_CODE_OAUTH_TOKEN",
+            ):
+                env_overrides["ANTHROPIC_AUTH_TOKEN"] = (
+                    self.credential.value
+                )
         if self.max_output_tokens is not None:
             env_overrides["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(
                 self.max_output_tokens
@@ -600,7 +653,7 @@ class ClaudeCodeAgent(Agent):
             # Explicitly disable thinking with 0 tokens
             thinking_tokens = 0
         elif self.thinking is not None and self.thinking != "none":
-            thinking_tokens = _THINKING_TOKEN_MAP[self.thinking]
+            thinking_tokens = _THINKING_TOKEN_MAP.get(self.thinking)
 
         if thinking_tokens is not None:
             env_overrides["MAX_THINKING_TOKENS"] = str(thinking_tokens)
@@ -609,6 +662,13 @@ class ClaudeCodeAgent(Agent):
         if self.thinking in ("low", "medium", "high"):
             env_overrides["CLAUDE_CODE_EFFORT_LEVEL"] = self.thinking
 
+        return env_overrides
+
+    def _prepare_runtime_execution(
+        self,
+        task: str,
+    ) -> tuple[collections.abc.Sequence[str] | str, dict[str, str]]:
+        env_overrides = self._build_env_overrides()
         cli_args = self._build_cli_args()
         cli_args.append(shlex.quote(task))
         command_str = " ".join(cli_args)
@@ -616,6 +676,9 @@ class ClaudeCodeAgent(Agent):
 
     def _build_cli_args(
         self,
+        *,
+        max_turns: int | None | object = _SENTINEL,
+        append_system_prompt: str | None | object = _SENTINEL,
     ) -> list[str]:
         args = [
             self.binary,
@@ -624,15 +687,30 @@ class ClaudeCodeAgent(Agent):
             "--verbose",
         ]
 
+        # Resolve sentinel defaults
+        effective_prompt = (
+            self.append_system_prompt
+            if append_system_prompt is _SENTINEL
+            else append_system_prompt
+        )
+        if max_turns is _SENTINEL:
+            effective_turns: int | None = (
+                self.cost_limits.step_limit
+                if self.cost_limits.step_limit > 0
+                else None
+            )
+        else:
+            effective_turns = max_turns  # type: ignore[assignment]
+
         allowed_tools_value = serialize_tool_list(self.allowed_tools)
         disallowed_tools_value = serialize_tool_list(self.disallowed_tools)
 
         option_map: dict[str, str | bool | None] = {
-            "--append-system-prompt": self.append_system_prompt,
+            "--append-system-prompt": effective_prompt,
             "--model": self.model,
             "--max-turns": (
-                str(self.cost_limits.step_limit)
-                if self.cost_limits.step_limit > 0
+                str(effective_turns)
+                if effective_turns and effective_turns > 0
                 else None
             ),
             "--allowedTools": allowed_tools_value,
@@ -647,7 +725,7 @@ class ClaudeCodeAgent(Agent):
                 if value:
                     args.append(flag)
                 continue
-            args.extend([flag, value])
+            args.extend([flag, shlex.quote(str(value))])
 
         args.extend(self.extra_args)
         args.append("--print")
@@ -663,7 +741,7 @@ class ClaudeCodeAgent(Agent):
                 self.final_result.stdout or ""
             )
             (output_dir / self.STDERR_FILENAME).write_text(
-                self.final_result.stderr
+                self.final_result.stderr or ""
             )
 
     def reset(self) -> None:
@@ -671,6 +749,9 @@ class ClaudeCodeAgent(Agent):
         self._last_prompt = ""
         self._last_command = None
         self._got_successful_result = False
+        self._had_error = False
+        self.steps = []
+        self.final_result = None
 
     def save_artifacts(self, path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
