@@ -12,19 +12,45 @@ paper is that prompt-based mitigations don't prevent code erosion — only struc
 
 ## Setup
 
-1. Read the in-scope files for full context:
-  - src/slop_code/agent_runner/agents/reviewer_coder/agent.py — the agent you modify. Prompts, flow logic, reviewer configuration.
-  - configs/agents/reviewer_coder.yaml — numeric parameters (turns per batch, review cycles, step limit).
-  - optimization_log.md — running log of all experiments and results.
-  - src/slop_code/agent_runner/agents/claude_code/agent.py — parent class (modifiable if needed).
-  - src/slop_code/agent_runner/agent.py — base Agent class. Has `self.telemetry` dict that flows to checkpoint_results.jsonl automatically. Write `self.telemetry["key"] = value` to add new signals.
-2. Verify the environment:
-  - uv sync has been run
-  - Docker is running
-  - claude auth status shows logged in
-  - The claude_code_local provider is configured in configs/providers.yaml
-3. Initialize optimization_log.md with the baseline results if not already present.
-4. Confirm and go.
+1. **Generate your run ID.** Every autoresearch session gets a unique 6-character hex ID. Generate it once at startup and use it everywhere:
+   ```
+   RUN_ID=$(python3 -c "import secrets; print(secrets.token_hex(3))")
+   echo "Run ID: $RUN_ID"
+   ```
+
+2. **Create your run directory:**
+   ```
+   mkdir -p autoresearch/runs/$RUN_ID
+   ```
+
+3. **Create your git branch and worktree** (required if other autoresearch agents may be running):
+   ```
+   git checkout -b optloop/$RUN_ID
+   ```
+   If running in a worktree (launched by another agent), you are already isolated.
+
+4. **Write your manifest** (`autoresearch/runs/$RUN_ID/manifest.yaml`):
+   ```yaml
+   run_id: <RUN_ID>
+   branch: optloop/<RUN_ID>
+   started: <ISO 8601 timestamp>
+   model: claude_code_local/sonnet-4.5
+   focus: <1-sentence description of what this run is exploring>
+   budget: 500
+   status: running
+   ```
+
+5. Read the in-scope files for full context:
+   - src/slop_code/agent_runner/agents/reviewer_coder/agent.py — the agent you modify
+   - configs/agents/reviewer_coder.yaml — numeric parameters
+   - optimization_log.md — shared log of all experiments across all runs
+   - src/slop_code/agent_runner/agents/claude_code/agent.py — parent class (modifiable if needed)
+   - src/slop_code/agent_runner/agent.py — base Agent class with `self.telemetry` dict
+   - autoresearch/runs/ — other autoresearch runs (read these to avoid duplicate work)
+
+6. Verify the environment: uv sync, claude auth status, docker running.
+
+7. Confirm and go.
 
 ## What you're optimizing
 
@@ -76,7 +102,7 @@ nohup uv run slop-code run \
   --environment local-py \
   --prompt just-solve \
   --problem <problem_name> \
-  > /tmp/optloop_<label>.log 2>&1 &
+  > /tmp/optloop_${RUN_ID}_iter_N.log 2>&1 &
 
 Fast-iteration problems (3 checkpoints each): dag_execution, eve_route_planner, eve_jump_planner
 
@@ -182,11 +208,141 @@ Every run produces rich telemetry. Use these signals to diagnose WHY an experime
 - `reviewer_cost_fraction>0.2`? Reviews are expensive relative to coding. Reduce reviewer max_turns or cycle count.
 - High `churn_ratio` after review? The coder is doing destructive rewrites based on suggestions. Tell the reviewer to suggest smaller, targeted changes.
 
+## Artifact structure
+
+Every autoresearch run saves structured artifacts for reproducibility and meta-analysis. The directory layout:
+
+```
+autoresearch/
+  program.md                    # this file
+  runs/
+    <run_id>/                   # e.g., "a3f2c1"
+      manifest.yaml             # run metadata (branch, focus, budget, status)
+      iter_00/
+        agent.py                # snapshot of reviewer_coder/agent.py
+        config.yaml             # snapshot of reviewer_coder.yaml
+        report.md               # structured reflection (see template below)
+        output_dir.txt          # path to outputs/sonnet-4.5/... for this iteration
+      iter_01/
+        ...
+    <other_run_id>/
+      ...
+```
+
+### Saving artifacts after each iteration
+
+After every iteration (step 9 in the loop), save artifacts:
+
+```bash
+ITER_DIR="autoresearch/runs/${RUN_ID}/iter_$(printf '%02d' $ITER_NUM)"
+mkdir -p "$ITER_DIR"
+
+# Snapshot the agent code and config
+cp src/slop_code/agent_runner/agents/reviewer_coder/agent.py "$ITER_DIR/agent.py"
+cp configs/agents/reviewer_coder.yaml "$ITER_DIR/config.yaml"
+
+# Record which output directory has the benchmark results
+echo "<output_dir_path>" > "$ITER_DIR/output_dir.txt"
+```
+
+Then write `$ITER_DIR/report.md` using the template below.
+
+### Iteration report template
+
+Every iteration MUST produce `report.md` with this structure:
+
+```markdown
+# Iteration N: <short description>
+
+## What I changed
+<Exactly what was modified and why. Reference specific lines/functions.>
+
+## Hypothesis
+<What I expected to happen and the reasoning behind it.>
+
+## Results
+
+| Problem | pass_rate | erosion | verbosity | composite | cost | step_util | mid_delta |
+|---------|-----------|---------|-----------|-----------|------|-----------|-----------|
+| ...     | ...       | ...     | ...       | ...       | ...  | ...       | ...       |
+
+## Signal analysis
+<Interpret the diagnostic signals. What do import_errors, step_utilization, mid_phase_delta, churn_ratio, etc. tell you about WHY results moved?>
+
+## What I learned
+<The non-obvious insight from this iteration. Not just "it worked/didn't work" but WHY. What does this teach about the problem structure?>
+
+## What I'll try next
+<Concrete plan for the next iteration, informed by the signal analysis. If reverting, explain what alternative approach the signals suggest.>
+
+## Decision
+KEEP / REVERT — <reason>
+
+## Metadata
+- Git commit: <hash>
+- Output dir: <path>
+- Cost this iteration: $X.XX
+- Cumulative cost: $X.XX
+```
+
+## Multi-agent coordination
+
+Multiple autoresearch agents can run simultaneously. Each agent works on its own branch and writes to its own `autoresearch/runs/<run_id>/` directory.
+
+### Isolation rules
+
+1. **Branch isolation.** Each agent works on `optloop/<run_id>`. Never push directly to main. Merge via PR or fast-forward after human review.
+
+2. **Shared read, isolated write.** All agents can READ `optimization_log.md` and other agents' `autoresearch/runs/` directories. Only write to your own `autoresearch/runs/<run_id>/`.
+
+3. **Append-only shared log.** When logging to `optimization_log.md`, prefix your iteration header with your run ID:
+   ```
+   ## [a3f2c1] Iteration N: <description>
+   ```
+   This prevents confusion when multiple agents append to the same file.
+
+4. **Check for conflicts before starting.** At the start of each iteration, read other agents' latest `report.md` files to see what they're working on. Avoid duplicate experiments. If another agent already tested your hypothesis, build on their results instead.
+
+### Coordination workflow
+
+At the START of each iteration:
+```bash
+# Check what other agents are doing
+for run_dir in autoresearch/runs/*/; do
+  if [ -f "$run_dir/manifest.yaml" ]; then
+    echo "=== $(basename $run_dir) ==="
+    cat "$run_dir/manifest.yaml"
+    # Read their latest report
+    latest=$(ls -td "$run_dir"/iter_* 2>/dev/null | head -1)
+    if [ -f "$latest/report.md" ]; then
+      echo "Latest report:"
+      head -5 "$latest/report.md"
+    fi
+    echo
+  fi
+done
+```
+
+If another agent is exploring the same dimension (e.g., both doing prompt tuning), pivot to a different dimension. The value of multiple agents is exploring different parts of the search space simultaneously.
+
+### Merging results
+
+When an agent finishes (budget exhausted or interrupted), update `manifest.yaml`:
+```yaml
+status: completed
+best_composite: X.XXX
+iterations: N
+total_cost: $XX.XX
+ended: <ISO 8601 timestamp>
+```
+
+The human merges promising branches into main. Agents should NOT merge each other's work.
+
 ## Logging results
 
-Append every experiment to optimization_log.md with this format:
+Append every experiment to optimization_log.md with this format (prefix with your run ID):
 
-## Iteration N: <short description>
+## [RUN_ID] Iteration N: <short description>
 
 **Hypothesis:** <what you expect and why>
 **Change:** <exactly what you modified>
@@ -196,7 +352,7 @@ Append every experiment to optimization_log.md with this format:
 |---------|-----------|---------|-----------|-----------|------|-----------|-----------|
 | <name>  | X.XXX     | X.XXX   | X.XXX     | X.XXX     | $X.XX| X.XX      | X.XXX     |
 
-**Diagnostics:** <1-2 sentences using signals to explain WHY composite moved. E.g., "pass_rate dropped because import_errors=5 — agent broke file structure. Reviews cost 18% of budget but mid_phase_delta=0, no correctness improvement.">
+**Diagnostics:** <1-2 sentences using signals to explain WHY composite moved.>
 **Decision:** KEEP / REVERT
 **Cumulative spend:** $XX.XX
 
@@ -204,21 +360,24 @@ Append every experiment to optimization_log.md with this format:
 
 LOOP FOREVER:
 
-1. Read state: Check optimization_log.md and the current reviewer_coder.py / reviewer_coder.yaml to understand where things stand.
-2. Decide what to try: Pick ONE change based on results so far. Use the diagnostic signals from the last iteration to guide your choice (see "How to use signals for decisions" above). Prioritize structural changes (flow, timing, what agents see) over prompt tweaks — the SlopCodeBench paper shows prompts alone don't fix erosion.
+1. Read state: Check optimization_log.md, your previous reports in autoresearch/runs/$RUN_ID/, and other agents' latest reports to understand where things stand.
+2. Decide what to try: Pick ONE change based on results so far. Use the diagnostic signals from the last iteration to guide your choice (see "How to use signals for decisions" above). Prioritize structural changes (flow, timing, what agents see) over prompt tweaks — the SlopCodeBench paper shows prompts alone don't fix erosion. Check other agents' runs to avoid duplicating their work.
 3. Make the change in reviewer_coder.py or reviewer_coder.yaml.
-4. Git commit: [optloop] iter N: <description>
+4. Git commit: [optloop/$RUN_ID] iter N: <description>
 5. Run the experiment: Launch on 1-3 problems in parallel using nohup. Redirect all output to log files.
 6. Wait for completion: Poll with grep "Run Summary" /tmp/optloop_*.log every few minutes. A run is done when "Run Summary" appears. If a run takes >60 minutes, something is wrong —
 kill it and treat as failure.
-7. Parse results: Extract pass_rate, erosion, verbosity from the output directory. Compute composite score.
+7. Parse results: Extract metrics from the output directory using the parsing snippet above.
 8. Keep or discard:
   - If composite improved over best-so-far: KEEP. Update best score.
-  - If composite worsened or unchanged: REVERT with git revert HEAD. Commit: [optloop] iter N: REVERT — <reason>
+  - If composite worsened or unchanged: REVERT with git revert HEAD. Commit: [optloop/$RUN_ID] iter N: REVERT — <reason>
   - BEFORE deciding, check the diagnostic signals to understand WHY. A revert without a diagnosis teaches you nothing. Check: Did step_utilization hit 1.0? Did import_errors spike? Did mid_phase_delta show review helping? Did churn_ratio explode?
-9. Log everything to optimization_log.md, including the Diagnostics line.
-10. Push to origin: git push origin main
-11. Check budget: If cumulative spend > $500, stop.
+9. Save artifacts and write the iteration report:
+  - Copy agent.py and config.yaml to autoresearch/runs/$RUN_ID/iter_NN/
+  - Write report.md using the template above
+  - Append summary to optimization_log.md (prefixed with [$RUN_ID])
+10. Push to origin: git push origin optloop/$RUN_ID
+11. Check budget: If cumulative spend > $500, stop. Update manifest.yaml status to "completed".
 
 ## Key research insights to guide experiments
 
@@ -229,10 +388,10 @@ kill it and treat as failure.
 
 ## Budget
 
-Hard ceiling: $500. Track cumulative spend in every log entry. Stop when exceeded.
+Hard ceiling: $500 per run. Track cumulative spend in every log entry and in your manifest. Stop when exceeded.
 
 ## NEVER STOP
 
 Once the loop begins, do NOT pause to ask the human anything. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human is likely asleep. You are autonomous. If
- you run out of ideas, re-read the research insights above, look at what's worked and what hasn't in the log, try combining near-misses, try more radical structural changes. The loop
+ you run out of ideas, re-read the research insights above, look at what's worked and what hasn't in the log, read other agents' reports for inspiration, try combining near-misses, try more radical structural changes. The loop
 runs until the budget is exhausted or the human interrupts you.
