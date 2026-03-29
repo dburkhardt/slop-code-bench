@@ -239,15 +239,17 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
     def _build_reviewer_args(self) -> list[str]:
         """Build ``claude`` CLI args for a reviewer invocation.
 
-        Uses --max-turns 1 so the reviewer produces only text output.
-        Context (source code, test results) is injected into the prompt.
+        Uses --max-turns 3 so the reviewer can use tools if needed
+        while still having turns to produce its review text.
+        Context (source code, test results) is injected into the prompt
+        to minimize unnecessary tool use.
         """
         args = [
             self.binary,
             "--output-format", "stream-json",
             "--verbose",
             "--model", shlex.quote(self.model),
-            "--max-turns", "1",
+            "--max-turns", "3",
             "--append-system-prompt",
             shlex.quote(REVIEWER_SYSTEM_PROMPT),
         ]
@@ -681,37 +683,39 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         Only searches steps from ``review_start_idx`` onwards to avoid
         returning coder output from a previous batch.
         """
-        # First try: look for result payload with text
+        # First try: look for result payload with text.
+        # With --print, the result payload's "result" field contains
+        # the final text output. This is the most reliable source.
         for payload in reversed(self.steps[review_start_idx:]):
             if payload.get("type") == "result":
                 text = payload.get("result", "")
                 if text and len(text) > 10:
                     return text[:6000]
 
-        # Fallback: find the last assistant message that is pure text
-        # (no tool_use blocks), which is the actual review response.
-        for payload in reversed(self.steps[review_start_idx:]):
+        # Fallback: the result payload may be empty when stop_reason
+        # is "tool_use" (reviewer hit max-turns while trying to use
+        # a tool). In that case, find the longest assistant text
+        # message, which is most likely the actual review content
+        # rather than a short preamble.
+        best_text = ""
+        for payload in self.steps[review_start_idx:]:
             msg = payload.get("message", {})
             if not isinstance(msg, dict) or msg.get("role") != "assistant":
                 continue
             content = msg.get("content", [])
             if isinstance(content, list):
-                has_tool_use = any(
-                    isinstance(c, dict) and c.get("type") == "tool_use"
-                    for c in content
-                )
-                if has_tool_use:
-                    continue
                 texts = [
                     c.get("text", "")
                     for c in content
                     if isinstance(c, dict) and c.get("type") == "text"
                 ]
                 combined = "\n".join(t for t in texts if t)
-                if len(combined) > 10:
-                    return combined[:6000]
-            elif isinstance(content, str) and len(content) > 10:
-                return content[:6000]
+                if len(combined) > len(best_text):
+                    best_text = combined
+            elif isinstance(content, str) and len(content) > len(best_text):
+                best_text = content
+        if len(best_text) > 10:
+            return best_text[:6000]
         return None
 
     # ------------------------------------------------------------------
