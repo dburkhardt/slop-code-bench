@@ -265,10 +265,12 @@ autoresearch/
   runs/
     <run_id>/                   # e.g., "a3f2c1"
       manifest.yaml             # run metadata (branch, focus, budget, status)
+      baseline.yaml             # one-time baseline results
       iter_00/
         agent.py                # snapshot of reviewer_coder/agent.py
         config.yaml             # snapshot of reviewer_coder.yaml
         report.md               # structured reflection (see template below)
+        results.json            # machine-readable scores (for meta-analysis)
         output_dir.txt          # path to outputs/sonnet-4.5/... for this iteration
       iter_01/
         ...
@@ -291,6 +293,27 @@ cp configs/agents/reviewer_coder.yaml "$ITER_DIR/config.yaml"
 # Record which output directory has the benchmark results
 echo "<output_dir_path>" > "$ITER_DIR/output_dir.txt"
 ```
+
+Then write `$ITER_DIR/results.json` (machine-readable, for meta-analysis):
+```json
+{
+  "run_id": "<RUN_ID>",
+  "iteration": 0,
+  "decision": "keep",
+  "composite": 0.231,
+  "pass_rate": 0.447,
+  "erosion": 0.668,
+  "verbosity": 0.053,
+  "cost": 6.23,
+  "wall_clock_seconds": 1823,
+  "step_utilization_mean": 0.95,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": ["dag_execution"],
+  "output_dir": "<path>"
+}
+```
+
+`wall_clock_seconds` is the elapsed time from launching the experiment to having parsed results. Track this by recording timestamps before and after the run.
 
 Then write `$ITER_DIR/report.md` using the template below.
 
@@ -340,7 +363,7 @@ Multiple autoresearch agents can run simultaneously. Each agent works on its own
 
 The package is installed in **editable mode** (`uv sync` creates a link from `.venv` to `src/`). If two agents share the same `.venv`, edits to `reviewer_coder/agent.py` in one agent's branch are immediately visible to the other's benchmark runs. This silently corrupts experiments. Each concurrent agent MUST use a separate worktree with its own `uv sync`.
 
-For **config-only** experiments (changing YAML parameters, not Python code), agents CAN share a worktree since different YAML files don't conflict. Create per-run config files like `configs/agents/reviewer_coder_${RUN_ID}.yaml` and pass `--agent reviewer_coder_${RUN_ID}`.
+For **config-only** experiments (changing YAML parameters, not Python code), agents CAN share a worktree since different YAML files don't conflict. Always namespace variant configs with your run ID: `configs/agents/reviewer_coder_${RUN_ID}.yaml` and pass `--agent reviewer_coder_${RUN_ID}`. Never create generic names like `reviewer_coder_v2.yaml` that could collide with another agent.
 
 ### Isolation rules
 
