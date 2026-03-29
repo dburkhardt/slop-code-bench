@@ -122,10 +122,16 @@ Results across 4 problems (test-aware reviewer + erosion-aware coder, 3 review c
 | file_merger (4cp) | 0.734 | 0.673 | 0.097 | 0.503 | $9.98 |
 | code_search (6cp) | 0.646 | 0.492 | 0.043 | 0.486 | $21.22 |
 | dag_execution (3cp) | 0.074 | 0.732 | 0.067 | -0.166 | $9.77 |
-| circuit_eval (8cp) | *running* | | | | |
+| circuit_eval (8cp) | 0.788 | 0.591 | 0.102 | 0.580 | $37.71 |
 
-**Mean composite (4 problems): 0.379**
+**Mean composite (5 problems): 0.419 | excl dag_execution: 0.565**
 
-Strong results on 3/4 problems. dag_execution is an outlier (0.074 pass rate). The approach works well on problems with clear test suites.
+Strong results on 4/5 problems. dag_execution is an outlier (0.074 pass rate). Best results: file_backup (0.917 pass, 100% core, 0.693 composite) and circuit_eval (0.788 pass, 64.7% core, 0.580 composite).
 
-**Cumulative cost: ~$142 / $500**
+**Cumulative cost: ~$160 / $500**
+
+---
+
+## Next: Autoresearch framework
+
+Switching to the autoresearch framework (autoresearch/program.md) for more structured experimentation with isolated worktrees and run manifests.
