@@ -17,6 +17,7 @@ paper is that prompt-based mitigations don't prevent code erosion — only struc
   - configs/agents/reviewer_coder.yaml — numeric parameters (turns per batch, review cycles, step limit).
   - optimization_log.md — running log of all experiments and results.
   - src/slop_code/agent_runner/agents/claude_code/agent.py — parent class (modifiable if needed).
+  - src/slop_code/agent_runner/agent.py — base Agent class. Has `self.telemetry` dict that flows to checkpoint_results.jsonl automatically. Write `self.telemetry["key"] = value` to add new signals.
 2. Verify the environment:
   - uv sync has been run
   - Docker is running
@@ -61,7 +62,7 @@ Some dimensions to explore (not exhaustive, not required):
 ## What you CANNOT modify
 
 - The benchmark harness, evaluation pipeline, test suites, and problem specifications are all read-only
-- src/slop_code/agent_runner/agent.py (the Agent ABC)
+- src/slop_code/agent_runner/agent.py — avoid modifying (the telemetry dict is already there for you to use)
 - Do not install new packages
 - Both personas must use the `claude` CLI binary
 
@@ -144,6 +145,43 @@ with open(os.path.join(outdir, 'checkpoint_results.jsonl')) as f:
 
 If checkpoint_results.jsonl doesn't exist, the run didn't complete — check the log file for errors.
 
+## Understanding the signals
+
+Every run produces rich telemetry. Use these signals to diagnose WHY an experiment succeeded or failed, not just whether the composite score moved.
+
+**Core metrics (always present):**
+- `pass_rate` / `core_pass_rate`: Overall and core-only test pass rates. Core tests are the minimum bar.
+- `erosion`: Fraction of cyclomatic complexity mass in functions with CC>10. Higher = more complexity concentrated in monster functions.
+- `verbosity`: Fraction of LOC that is duplicated or AST-grep flagged. Higher = more bloat.
+- `loc`: Total logical lines. Watch for monotonic growth across checkpoints (bloat signal).
+- `steps` / `step_utilization`: How many inference steps used vs the limit. `util=1.0` means the agent hit the wall every time and probably needed more budget.
+- `cost`: Dollar cost per checkpoint.
+
+**Failure diagnostics (always present):**
+- `import_errors`: Tests failed because the code doesn't even import. The agent likely broke the file structure.
+- `assertion_errors`: Tests ran but produced wrong output. Logic bugs.
+- `timeout_errors`: Tests hung. Infinite loops or pathological algorithms.
+- `other_errors`: Catch-all. Check `evaluation/report.json` for details.
+
+**Regression tracking (checkpoints 2+):**
+- `regression_passed / regression_total`: Prior checkpoint tests re-run. If this drops, the agent is breaking old functionality while adding new.
+- `delta.churn_ratio`: (lines_added + lines_removed) / prior_loc. High churn means the agent is rewriting instead of extending. Review may cause destructive rewrites.
+
+**Reviewer telemetry (reviewer_coder only):**
+- `phase_count`: Total invocations (coder batches + reviewer passes). 7 = 3 coder + 3 reviewer + 1 final.
+- `reviewer_cost_fraction`: What fraction of the checkpoint's cost went to reviewer passes. If >20%, review is eating too much budget.
+- `reviewer_num_cycles`: How many review cycles produced extractable suggestions. If this is 0 when num_review_cycles>0, the reviewer's output isn't being parsed correctly.
+- `reviewer_suggestion_chars`: Total chars of reviewer suggestions. Low chars = reviewer isn't finding much. Very high chars = reviewer is verbose.
+- `mid_phase_pass_rate_first / last / delta`: Pass rate after the first coder batch vs after the final batch. If delta>0, the review cycles are helping correctness. If delta=0, review isn't translating to test improvement.
+
+**How to use signals for decisions:**
+- `step_utilization=1.0` everywhere? Increase `step_limit` or reduce review cycles to free up turns.
+- `import_errors>0`? The agent isn't producing valid Python. Focus on the coder prompt, not review.
+- `mid_phase_pass_rate_delta=0`? Reviews aren't improving correctness. Try test-driven review or skip reviews.
+- `regression_passed` dropping across checkpoints? The agent is breaking prior work. Add regression awareness to the coder prompt.
+- `reviewer_cost_fraction>0.2`? Reviews are expensive relative to coding. Reduce reviewer max_turns or cycle count.
+- High `churn_ratio` after review? The coder is doing destructive rewrites based on suggestions. Tell the reviewer to suggest smaller, targeted changes.
+
 ## Logging results
 
 Append every experiment to optimization_log.md with this format:
@@ -154,10 +192,11 @@ Append every experiment to optimization_log.md with this format:
 **Change:** <exactly what you modified>
 **Git commit:** <short hash>
 
-| Problem | pass_rate | erosion | verbosity | composite | cost |
-|---------|-----------|---------|-----------|-----------|------|
-| <name>  | X.XXX     | X.XXX   | X.XXX     | X.XXX     | $X.XX|
+| Problem | pass_rate | erosion | verbosity | composite | cost | step_util | mid_delta |
+|---------|-----------|---------|-----------|-----------|------|-----------|-----------|
+| <name>  | X.XXX     | X.XXX   | X.XXX     | X.XXX     | $X.XX| X.XX      | X.XXX     |
 
+**Diagnostics:** <1-2 sentences using signals to explain WHY composite moved. E.g., "pass_rate dropped because import_errors=5 — agent broke file structure. Reviews cost 18% of budget but mid_phase_delta=0, no correctness improvement.">
 **Decision:** KEEP / REVERT
 **Cumulative spend:** $XX.XX
 
@@ -166,8 +205,7 @@ Append every experiment to optimization_log.md with this format:
 LOOP FOREVER:
 
 1. Read state: Check optimization_log.md and the current reviewer_coder.py / reviewer_coder.yaml to understand where things stand.
-2. Decide what to try: Pick ONE change based on results so far. Prioritize structural changes (flow, timing, what agents see) over prompt tweaks — the SlopCodeBench paper shows
-prompts alone don't fix erosion.
+2. Decide what to try: Pick ONE change based on results so far. Use the diagnostic signals from the last iteration to guide your choice (see "How to use signals for decisions" above). Prioritize structural changes (flow, timing, what agents see) over prompt tweaks — the SlopCodeBench paper shows prompts alone don't fix erosion.
 3. Make the change in reviewer_coder.py or reviewer_coder.yaml.
 4. Git commit: [optloop] iter N: <description>
 5. Run the experiment: Launch on 1-3 problems in parallel using nohup. Redirect all output to log files.
@@ -177,7 +215,8 @@ kill it and treat as failure.
 8. Keep or discard:
   - If composite improved over best-so-far: KEEP. Update best score.
   - If composite worsened or unchanged: REVERT with git revert HEAD. Commit: [optloop] iter N: REVERT — <reason>
-9. Log everything to optimization_log.md.
+  - BEFORE deciding, check the diagnostic signals to understand WHY. A revert without a diagnosis teaches you nothing. Check: Did step_utilization hit 1.0? Did import_errors spike? Did mid_phase_delta show review helping? Did churn_ratio explode?
+9. Log everything to optimization_log.md, including the Diagnostics line.
 10. Push to origin: git push origin main
 11. Check budget: If cumulative spend > $500, stop.
 
