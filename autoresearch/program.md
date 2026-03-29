@@ -378,9 +378,11 @@ done
 
 If another agent is exploring the same dimension (e.g., both doing prompt tuning), pivot to a different dimension. The value of multiple agents is exploring different parts of the search space simultaneously.
 
-### Merging results
+### Completion and merge-back
 
-When an agent finishes (budget exhausted or interrupted), update `manifest.yaml` with completion fields:
+When an agent finishes (budget exhausted or interrupted), it must merge its work back and clean up:
+
+**Step 1: Update manifest** (`autoresearch/runs/$RUN_ID/manifest.yaml`):
 ```yaml
 status: completed
 best_composite: X.XXX
@@ -391,7 +393,37 @@ ended: <ISO 8601 timestamp>
 summary: <1-2 sentence summary of what this run discovered>
 ```
 
-The human merges promising branches into main. Agents should NOT merge each other's work.
+**Step 2: Commit and push your final state:**
+```bash
+git add -A
+git commit -m "[optloop/$RUN_ID] final: <summary of best result>"
+git push origin optloop/$RUN_ID
+```
+
+**Step 3: Merge to main.** Copy your run artifacts and best agent code to main:
+```bash
+# Switch to main
+git checkout main
+git pull origin main
+
+# Merge your branch (artifacts + best code)
+git merge optloop/$RUN_ID --no-ff -m "Merge autoresearch run $RUN_ID: <summary>"
+git push origin main
+```
+
+If the merge has conflicts (another agent merged first), resolve them:
+- `autoresearch/runs/` — keep both directories, no conflict possible (different run IDs)
+- `optimization_log.md` — keep both agents' entries (append-only)
+- `reviewer_coder/agent.py` — pick the version with the better composite score, or keep main's version and let the human decide
+
+**Step 4: Clean up the worktree** (if using one):
+```bash
+cd /path/to/original/repo
+git worktree remove .claude-worktrees/$RUN_ID
+git branch -d optloop/$RUN_ID  # safe delete (already merged)
+```
+
+If another agent is still running, do NOT remove its worktree or branch.
 
 ## Logging results
 
@@ -432,7 +464,7 @@ kill it and treat as failure.
   - Write report.md using the template above
   - Append summary to optimization_log.md (prefixed with [$RUN_ID])
 10. Push to origin: git push origin optloop/$RUN_ID
-11. Check budget: If cumulative spend > $500, stop. Update manifest.yaml status to "completed".
+11. Check budget: If cumulative spend > $500, stop. Run the full "Completion and merge-back" procedure (update manifest, merge to main, clean up worktree).
 
 ## Key research insights to guide experiments
 
