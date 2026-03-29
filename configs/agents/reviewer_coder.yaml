@@ -1,6 +1,5 @@
-# Multi-agent: Claude Code with periodic code quality reviewer
-# Alternates coding batches (coder_turns_per_batch turns) with
-# reviewer passes (num_review_cycles total), then a final coding batch.
+# Multi-agent: Claude Code with planning + code quality reviewer
+# Flow: plan -> code batch -> review -> code batch -> final code batch
 type: reviewer_coder
 binary: claude
 permission_mode: bypassPermissions
@@ -9,5 +8,7 @@ cost_limits:
   cost_limit: 0
   step_limit: 100
   net_cost_limit: 0
-coder_turns_per_batch: 10
-num_review_cycles: 3
+coder_turns_per_batch: 20
+num_review_cycles: 1
+enable_planning: true
+planner_max_turns: 2

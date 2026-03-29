@@ -32,13 +32,30 @@ from slop_code.common.llms import ThinkingPreset
 from slop_code.execution.runtime import RuntimeResult
 
 # ---------------------------------------------------------------------------
-# Reviewer prompt
+# Prompts
 # ---------------------------------------------------------------------------
 
+PLANNER_SYSTEM_PROMPT = """\
+You are a software architect. Read the specification and produce a \
+concise implementation plan. Output ONLY the plan, no code.
+
+Structure your plan as:
+1. MODULES: List each file/module to create and its responsibility.
+2. KEY FUNCTIONS: For each module, list function signatures with \
+one-line descriptions. Keep functions small (< 30 lines each).
+3. DATA FLOW: How data moves through the system in 2-3 sentences.
+4. EDGE CASES: List 3-5 edge cases the implementation must handle.
+
+Rules:
+- Prefer modifying existing files over creating new ones.
+- Prefer flat module structure over deep nesting.
+- Each function should have cyclomatic complexity under 10.
+- Do NOT write any code. Plan only."""
+
 REVIEWER_SYSTEM_PROMPT = """\
-You are a senior code quality reviewer. First, run the test suite to \
-understand which tests pass and fail. Then read the source files and \
-provide specific, actionable suggestions.
+You are a senior code quality reviewer. You will receive the current \
+source code and optionally test results. Provide specific, actionable \
+suggestions as plain text.
 
 Focus on:
 1. CODE THAT CAUSES TEST FAILURES: prioritize fixes that help failing \
@@ -49,10 +66,11 @@ tests pass without breaking passing tests.
 
 Rules:
 - Reference exact function names and file paths.
-- For each suggestion, show the exact code to change and the replacement.
+- For each suggestion, show a BEFORE and AFTER code snippet.
 - Limit to 3-5 highest-impact suggestions.
 - Do NOT suggest adding error handling, logging, types, or docs.
 - Do NOT suggest changes that would alter external behaviour.
+- Do NOT suggest rewriting entire files or functions from scratch.
 - Be concise. Each suggestion: 2-3 sentences max."""
 
 CODER_APPEND_PROMPT = """\
@@ -61,7 +79,11 @@ Write clean, minimal code. Rules: \
 (2) Never create single-use helper functions. \
 (3) Keep cyclomatic complexity per function under 10. \
 (4) Extract genuinely shared logic into helpers, but only if used 3+ times. \
-(5) If a reviewer provides suggestions, implement them before continuing."""
+(5) If a reviewer provides suggestions, implement ONLY the suggested \
+changes. Do not refactor beyond what was suggested. \
+(6) NEVER rewrite entire files. Make targeted edits only. If your \
+change would touch more than 30 lines, break it into smaller steps. \
+(7) If a plan is provided, follow its module structure exactly."""
 
 
 # ---------------------------------------------------------------------------
@@ -81,6 +103,8 @@ class ReviewerCoderConfig(ClaudeCodeConfig, agent_type="reviewer_coder"):
     # Reviewer settings
     coder_turns_per_batch: int = 10
     num_review_cycles: int = 3
+    enable_planning: bool = False
+    planner_max_turns: int = 2
 
 
 # ---------------------------------------------------------------------------
@@ -92,20 +116,16 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
     """Multi-agent that alternates Claude Code coding batches with
     reviewer passes, all via the ``claude`` CLI binary.
 
-    Within a single ``run()`` call for one checkpoint:
+    Flow per checkpoint:
 
-    1.  Run ``claude --print --max-turns <coder_turns_per_batch>``
-        with the task prompt  ->  coder writes code.
-    2.  Run ``claude --print`` with the reviewer system prompt
-        ->  reviewer reads workspace and returns suggestions.
-    3.  Run ``claude --print --max-turns <coder_turns_per_batch>``
-        with the suggestions + "continue with the spec"
-        ->  coder refactors and continues.
+    0.  (Optional) Run planner to produce an implementation plan.
+    1.  Run coder batch with plan + spec.
+    2.  Run reviewer (text-only, max-turns=1) with source context.
+    3.  Run coder batch with reviewer suggestions + spec.
     4.  Repeat for ``num_review_cycles``.
-    5.  Final coding batch without a turns cap to finish.
+    5.  Final coding batch with remaining turns.
 
-    All invocations share the same Docker workspace, so file
-    changes persist across calls.
+    All invocations share the same workspace, so file changes persist.
     """
 
     def __init__(
@@ -133,6 +153,8 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         # Reviewer config
         coder_turns_per_batch: int,
         num_review_cycles: int,
+        enable_planning: bool = False,
+        planner_max_turns: int = 2,
         *,
         append_system_prompt: str | None = None,
     ) -> None:
@@ -161,8 +183,11 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         )
         self.coder_turns_per_batch = coder_turns_per_batch
         self.num_review_cycles = num_review_cycles
+        self.enable_planning = enable_planning
+        self.planner_max_turns = planner_max_turns
         self._cost_before_invocation: float = 0.0
         self._review_suggestions: list[tuple[int, str]] = []
+        self._plan_text: str | None = None
         self._mid_phase_enabled: bool = False
         self._mid_phase_entrypoint: str = "python main.py"
         self._mid_phase_checkpoint: str = "checkpoint_1"
@@ -226,20 +251,42 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             max_output_tokens=config.max_output_tokens,
             coder_turns_per_batch=config.coder_turns_per_batch,
             num_review_cycles=config.num_review_cycles,
+            enable_planning=config.enable_planning,
+            planner_max_turns=config.planner_max_turns,
         )
 
     # ------------------------------------------------------------------
     # CLI helpers
     # ------------------------------------------------------------------
 
-    def _build_reviewer_args(self) -> list[str]:
-        """Build ``claude`` CLI args for a reviewer invocation."""
+    def _build_planner_args(self) -> list[str]:
+        """Build ``claude`` CLI args for a text-only planner."""
         args = [
             self.binary,
             "--output-format", "stream-json",
             "--verbose",
             "--model", shlex.quote(self.model),
-            "--max-turns", "3",
+            "--max-turns", str(self.planner_max_turns),
+            "--append-system-prompt",
+            shlex.quote(PLANNER_SYSTEM_PROMPT),
+        ]
+        if self.permission_mode:
+            args.extend([
+                "--permission-mode",
+                shlex.quote(self.permission_mode),
+            ])
+        args.append("--print")
+        args.append("--")
+        return args
+
+    def _build_reviewer_args(self) -> list[str]:
+        """Build ``claude`` CLI args for a text-only reviewer."""
+        args = [
+            self.binary,
+            "--output-format", "stream-json",
+            "--verbose",
+            "--model", shlex.quote(self.model),
+            "--max-turns", "1",
             "--append-system-prompt",
             shlex.quote(REVIEWER_SYSTEM_PROMPT),
         ]
@@ -279,41 +326,55 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         try:
             problem_tests = problem.path / "tests"
             if not problem_tests.exists():
-                self.log.debug("reviewer_coder.mid_phase.no_tests", path=str(problem_tests))
+                self.log.debug(
+                    "reviewer_coder.mid_phase.no_tests",
+                    path=str(problem_tests),
+                )
                 return
 
             workspace_tests = self.workspace / ".evaluation_tests"
             workspace_tests.mkdir(parents=True, exist_ok=True)
 
-            # Copy test files for current and prior checkpoints
             for item in problem_tests.iterdir():
                 if item.is_file() and item.suffix == ".py":
                     shutil.copy2(item, workspace_tests / item.name)
                 elif item.is_dir():
-                    shutil.copytree(item, workspace_tests / item.name, dirs_exist_ok=True)
+                    shutil.copytree(
+                        item,
+                        workspace_tests / item.name,
+                        dirs_exist_ok=True,
+                    )
 
-            # Store entrypoint and checkpoint for pytest args
-            self._mid_phase_entrypoint = f"python {problem.entry_file}"
+            self._mid_phase_entrypoint = (
+                f"python {problem.entry_file}"
+            )
             self._mid_phase_checkpoint = checkpoint.name
-
             self._mid_phase_enabled = True
-            self.log.info("reviewer_coder.mid_phase.setup", test_dir=str(workspace_tests))
+            self.log.info(
+                "reviewer_coder.mid_phase.setup",
+                test_dir=str(workspace_tests),
+            )
         except Exception as e:
-            self.log.warning("reviewer_coder.mid_phase.setup_failed", error=str(e))
+            self.log.warning(
+                "reviewer_coder.mid_phase.setup_failed",
+                error=str(e),
+            )
             self._mid_phase_enabled = False
 
     def _run_mid_phase_pytest(self, label: str) -> dict | None:
-        """Run a quick pytest inside the workspace for progress tracking."""
+        """Run a quick pytest for progress tracking."""
         if not self._mid_phase_enabled:
             return None
 
         try:
             proc = subprocess.run(
-                ["uvx", "--from", "pytest", "pytest",
-                 ".evaluation_tests/",
-                 f"--entrypoint={self._mid_phase_entrypoint}",
-                 f"--checkpoint={self._mid_phase_checkpoint}",
-                 "--tb=no", "--no-header", "-q"],
+                [
+                    "uvx", "--from", "pytest", "pytest",
+                    ".evaluation_tests/",
+                    f"--entrypoint={self._mid_phase_entrypoint}",
+                    f"--checkpoint={self._mid_phase_checkpoint}",
+                    "--tb=no", "--no-header", "-q",
+                ],
                 cwd=str(self.workspace),
                 capture_output=True,
                 text=True,
@@ -351,8 +412,48 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             )
             return mid_result
         except Exception as e:
-            self.log.warning("reviewer_coder.mid_phase_eval.failed", error=str(e))
+            self.log.warning(
+                "reviewer_coder.mid_phase_eval.failed",
+                error=str(e),
+            )
             return None
+
+    # ------------------------------------------------------------------
+    # Source context for reviewer
+    # ------------------------------------------------------------------
+
+    def _gather_source_context(self, max_chars: int = 20000) -> str:
+        """Read source files from workspace for reviewer context."""
+        source_files = []
+        for ext in ("*.py",):
+            source_files.extend(self.workspace.glob(ext))
+            source_files.extend(self.workspace.rglob(ext))
+        source_files = sorted(set(source_files))
+
+        # Exclude hidden dirs and test dirs
+        source_files = [
+            f for f in source_files
+            if not any(
+                p.startswith(".") for p in f.relative_to(
+                    self.workspace
+                ).parts
+            )
+        ]
+
+        context_parts = []
+        total_chars = 0
+        for fpath in source_files:
+            try:
+                content = fpath.read_text()
+                rel = fpath.relative_to(self.workspace)
+                chunk = f"=== {rel} ===\n{content}\n"
+                if total_chars + len(chunk) > max_chars:
+                    break
+                context_parts.append(chunk)
+                total_chars += len(chunk)
+            except Exception:
+                continue
+        return "\n".join(context_parts)
 
     # ------------------------------------------------------------------
     # Running a single claude invocation
@@ -370,7 +471,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         """
         command = " ".join(cli_args) + " " + shlex.quote(prompt)
 
-        # Save cost before this invocation so we can accumulate
         self._cost_before_invocation = self.usage.cost
 
         self.log.info(
@@ -400,7 +500,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             if payload is None:
                 continue
 
-            # Track error state
             self._process_payload_for_error(payload)
 
             msg_id = (
@@ -408,8 +507,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             )
 
             if cost is not None:
-                # "result" payload: total_cost_usd for THIS
-                # invocation.  Add to prior-invocation total.
                 self.usage.cost = (
                     self._cost_before_invocation + cost
                 )
@@ -438,6 +535,48 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         return result
 
     # ------------------------------------------------------------------
+    # Planning phase
+    # ------------------------------------------------------------------
+
+    def _run_planning_phase(
+        self,
+        task: str,
+        env_overrides: dict[str, str],
+    ) -> str | None:
+        """Run a planner invocation to produce an implementation plan."""
+        if not self.enable_planning:
+            return None
+
+        self.log.info("reviewer_coder.planner.start")
+
+        planner_args = self._build_planner_args()
+        planner_prompt = (
+            "Read the following specification and produce an "
+            "implementation plan. Do NOT write code.\n\n"
+            f"<specification>\n{task}\n</specification>"
+        )
+
+        plan_start = len(self.steps)
+        result = self._invoke_claude(
+            planner_args, planner_prompt, env_overrides,
+            label="planner",
+        )
+        self._record_phase("planner", "planner", 0)
+
+        plan_text = self._extract_review_text(result, plan_start)
+
+        if plan_text:
+            self._plan_text = plan_text
+            self.log.info(
+                "reviewer_coder.planner.done",
+                plan_chars=len(plan_text),
+            )
+        else:
+            self.log.warning("reviewer_coder.planner.no_output")
+
+        return plan_text
+
+    # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
 
@@ -446,24 +585,27 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             "reviewer_coder.run.start",
             coder_turns=self.coder_turns_per_batch,
             review_cycles=self.num_review_cycles,
+            planning=self.enable_planning,
         )
 
         env_overrides = self._build_env_overrides()
         last_suggestions: str | None = None
 
+        # --- Planning phase (optional) ---
+        plan_text = self._run_planning_phase(task, env_overrides)
+
+        if self.cost_limits.is_above_limits(
+            self.usage, prior_cost=self.prior_cost
+        ):
+            self.log.info("Hit cost limits after planning")
+            self._finalize_telemetry()
+            return
+
         for cycle in range(self.num_review_cycles):
-            # --- Coding batch ---
-            if last_suggestions:
-                coder_prompt = (
-                    f"A code reviewer has suggested improvements. "
-                    f"Implement them, then continue with the spec.\n\n"
-                    f"<reviewer_suggestions>\n"
-                    f"{last_suggestions}\n"
-                    f"</reviewer_suggestions>\n\n"
-                    f"The original specification:\n{task}"
-                )
-            else:
-                coder_prompt = task
+            # --- Build coder prompt ---
+            coder_prompt = self._build_coder_prompt(
+                task, last_suggestions, plan_text,
+            )
 
             coder_args = self._build_cli_args(
                 max_turns=self.coder_turns_per_batch,
@@ -473,80 +615,86 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 coder_args, coder_prompt, env_overrides,
                 label=f"coder_batch_{cycle}",
             )
-            self._record_phase(f"coder_batch_{cycle}", "coder", cycle)
+            self._record_phase(
+                f"coder_batch_{cycle}", "coder", cycle,
+            )
 
-            # Mid-phase eval after coder batch
             if self._mid_phase_enabled:
-                mid_result = self._run_mid_phase_pytest(f"after_coder_batch_{cycle}")
+                mid_result = self._run_mid_phase_pytest(
+                    f"after_coder_batch_{cycle}",
+                )
                 if mid_result:
-                    self.telemetry.setdefault("mid_phase_evals", []).append(mid_result)
+                    self.telemetry.setdefault(
+                        "mid_phase_evals", [],
+                    ).append(mid_result)
 
             if result is not None and result.timed_out:
                 self.log.error("Coder timed out")
                 self.final_result = result
+                self._finalize_telemetry()
                 return
 
-            # Check cost limits
             if self.cost_limits.is_above_limits(
                 self.usage, prior_cost=self.prior_cost
             ):
                 self.log.info("Hit cost limits, stopping")
                 self.final_result = result
+                self._finalize_telemetry()
                 return
 
-            # --- Review pass ---
-            reviewer_args = self._build_reviewer_args()
+            # --- Review pass (text-only, context-injected) ---
+            source_context = self._gather_source_context(
+                max_chars=20000,
+            )
             reviewer_prompt = (
-                "Read all source files in the current working "
-                "directory and provide your code quality review. "
-                "Focus on reducing duplication and complexity."
+                "Review the following source code. Provide 3-5 "
+                "specific, actionable suggestions as plain text. "
+                "Focus on reducing duplication, complexity, and "
+                "fixing any obvious bugs.\n\n"
+                f"<source_code>\n{source_context}\n</source_code>"
             )
 
             review_start = len(self.steps)
+            reviewer_args = self._build_reviewer_args()
             review_result = self._invoke_claude(
                 reviewer_args, reviewer_prompt, env_overrides,
                 label=f"reviewer_{cycle}",
             )
-            self._record_phase(f"reviewer_{cycle}", "reviewer", cycle)
+            self._record_phase(
+                f"reviewer_{cycle}", "reviewer", cycle,
+            )
 
-            # Extract suggestions from reviewer steps only
             last_suggestions = self._extract_review_text(
-                review_result, review_start
+                review_result, review_start,
             )
 
             if last_suggestions:
-                self._review_suggestions.append((cycle, last_suggestions))
-                self.log.info("reviewer_coder.review.captured", cycle=cycle, chars=len(last_suggestions))
+                self._review_suggestions.append(
+                    (cycle, last_suggestions),
+                )
+                self.log.info(
+                    "reviewer_coder.review.captured",
+                    cycle=cycle,
+                    chars=len(last_suggestions),
+                )
 
             if self.cost_limits.is_above_limits(
                 self.usage, prior_cost=self.prior_cost
             ):
-                self.log.info(
-                    "Hit cost limits after review, stopping"
-                )
+                self.log.info("Hit cost limits after review")
                 self.final_result = review_result
+                self._finalize_telemetry()
                 return
 
         # --- Final coding batch ---
-        if last_suggestions:
-            final_prompt = (
-                f"A code reviewer has suggested improvements. "
-                f"Implement them, then finish the specification.\n\n"
-                f"<reviewer_suggestions>\n"
-                f"{last_suggestions}\n"
-                f"</reviewer_suggestions>\n\n"
-                f"The specification:\n{task}"
-            )
-        else:
-            final_prompt = task
+        final_prompt = self._build_coder_prompt(
+            task, last_suggestions, plan_text, final=True,
+        )
 
-        # Calculate remaining turns from budget instead of using
-        # step_limit directly (which is the overall budget, not a
-        # per-invocation cap).
         remaining_turns: int | None = None
         if self.cost_limits.step_limit > 0:
             remaining_turns = max(
-                1, self.cost_limits.step_limit - self.usage.steps
+                1, self.cost_limits.step_limit - self.usage.steps,
             )
 
         final_args = self._build_cli_args(
@@ -557,13 +705,18 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             final_args, final_prompt, env_overrides,
             label="coder_final",
         )
-        self._record_phase("coder_final", "coder", self.num_review_cycles)
+        self._record_phase(
+            "coder_final", "coder", self.num_review_cycles,
+        )
 
-        # Mid-phase eval after final coder batch
         if self._mid_phase_enabled:
-            mid_result = self._run_mid_phase_pytest("after_coder_final")
+            mid_result = self._run_mid_phase_pytest(
+                "after_coder_final",
+            )
             if mid_result:
-                self.telemetry.setdefault("mid_phase_evals", []).append(mid_result)
+                self.telemetry.setdefault(
+                    "mid_phase_evals", [],
+                ).append(mid_result)
 
         self.final_result = result
         self._finalize_telemetry()
@@ -574,31 +727,86 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             total_steps=self.usage.steps,
         )
 
+    def _build_coder_prompt(
+        self,
+        task: str,
+        suggestions: str | None,
+        plan: str | None,
+        *,
+        final: bool = False,
+    ) -> str:
+        """Assemble the coder prompt from spec, plan, and suggestions."""
+        parts = []
+
+        if suggestions:
+            action = "finish" if final else "continue with"
+            parts.append(
+                f"A code reviewer has suggested improvements. "
+                f"Implement them, then {action} the spec.\n\n"
+                f"<reviewer_suggestions>\n"
+                f"{suggestions}\n"
+                f"</reviewer_suggestions>"
+            )
+
+        if plan:
+            parts.append(
+                f"<implementation_plan>\n{plan}\n"
+                f"</implementation_plan>"
+            )
+
+        parts.append(
+            f"The specification:\n{task}"
+        )
+
+        return "\n\n".join(parts)
+
     def _finalize_telemetry(self) -> None:
         """Compute summary telemetry and clean up workspace artifacts."""
         phases = self.telemetry.get("phases", [])
-        reviewer_phases = [p for p in phases if p["role"] == "reviewer"]
+        reviewer_phases = [
+            p for p in phases if p["role"] == "reviewer"
+        ]
+        planner_phases = [
+            p for p in phases if p["role"] == "planner"
+        ]
         self.telemetry["phase_count"] = len(phases)
         self.telemetry["reviewer_cost"] = round(
-            sum(p["phase_cost"] for p in reviewer_phases), 6
+            sum(p["phase_cost"] for p in reviewer_phases), 6,
+        )
+        self.telemetry["planner_cost"] = round(
+            sum(p["phase_cost"] for p in planner_phases), 6,
         )
         self.telemetry["reviewer_cost_fraction"] = round(
             self.telemetry["reviewer_cost"] / self.usage.cost
-            if self.usage.cost > 0 else 0.0, 4
+            if self.usage.cost > 0 else 0.0, 4,
+        )
+        self.telemetry["planner_cost_fraction"] = round(
+            self.telemetry["planner_cost"] / self.usage.cost
+            if self.usage.cost > 0 else 0.0, 4,
         )
         self.telemetry.pop("_last_cost", None)
 
-        self.telemetry["reviewer_num_cycles"] = len(self._review_suggestions)
+        self.telemetry["reviewer_num_cycles"] = len(
+            self._review_suggestions,
+        )
         self.telemetry["reviewer_suggestion_chars"] = sum(
             len(s) for _, s in self._review_suggestions
+        )
+        self.telemetry["plan_chars"] = (
+            len(self._plan_text) if self._plan_text else 0
         )
 
         evals = self.telemetry.get("mid_phase_evals", [])
         if evals:
-            self.telemetry["mid_phase_pass_rate_first"] = evals[0]["pass_rate"]
-            self.telemetry["mid_phase_pass_rate_last"] = evals[-1]["pass_rate"]
+            self.telemetry["mid_phase_pass_rate_first"] = (
+                evals[0]["pass_rate"]
+            )
+            self.telemetry["mid_phase_pass_rate_last"] = (
+                evals[-1]["pass_rate"]
+            )
             self.telemetry["mid_phase_pass_rate_delta"] = round(
-                evals[-1]["pass_rate"] - evals[0]["pass_rate"], 4
+                evals[-1]["pass_rate"] - evals[0]["pass_rate"],
+                4,
             )
 
         test_dir = self.workspace / ".evaluation_tests"
@@ -613,16 +821,34 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         result: RuntimeResult | None,
         review_start_idx: int = 0,
     ) -> str | None:
-        """Pull the reviewer's text output from the accumulated steps.
+        """Pull text output from accumulated steps.
 
-        Only searches steps from ``review_start_idx`` onwards to avoid
-        returning coder output from a previous batch.
+        Searches steps from ``review_start_idx`` onwards. Uses the
+        result payload's text first, then falls back to the longest
+        assistant text block.
         """
+        # Try result payload first
         for payload in reversed(self.steps[review_start_idx:]):
             if payload.get("type") == "result":
                 text = payload.get("result", "")
                 if text and len(text) > 10:
                     return text[:6000]
+
+        # Fallback: longest assistant text block
+        longest = ""
+        for payload in self.steps[review_start_idx:]:
+            msg = payload.get("message", {})
+            if msg.get("role") != "assistant":
+                continue
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict):
+                        text = block.get("text", "")
+                        if len(text) > len(longest):
+                            longest = text
+        if len(longest) > 10:
+            return longest[:6000]
         return None
 
     # ------------------------------------------------------------------
@@ -633,6 +859,8 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         super().save_artifacts(path)
         for cycle, text in self._review_suggestions:
             (path / f"reviewer_cycle_{cycle}.md").write_text(text)
+        if self._plan_text:
+            (path / "plan.md").write_text(self._plan_text)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -642,6 +870,7 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         super().reset()
         self._cost_before_invocation = 0.0
         self._review_suggestions = []
+        self._plan_text = None
         self._mid_phase_enabled = False
         self._mid_phase_entrypoint = "python main.py"
         self._mid_phase_checkpoint = "checkpoint_1"
