@@ -167,54 +167,16 @@ Results land in outputs/sonnet-4.5/<agent>-<version>_<prompt>_<thinking>_<timest
 Find the latest run:
 ls -td outputs/sonnet-4.5/reviewer_coder-* | head -1
 
-Parse results:
-python3 -c "
-import json, os, sys
-outdir = sys.argv[1]
-with open(os.path.join(outdir, 'checkpoint_results.jsonl')) as f:
-    for line in f:
-        d = json.loads(line)
-        total = d.get('total_tests', 0)
-        passed = d.get('passed_tests', 0)
-        pr = passed/total if total else 0
-        er = d.get('erosion') or 0
-        vb = d.get('verbosity') or 0
-        loc = d.get('loc', 0)
-        steps = d.get('steps', 0)
-        step_util = d.get('step_utilization') or 0
-        cost = d.get('cost', 0)
-        core_pr = d.get('core_pass_rate') or 0
-        reg_p = d.get('regression_passed', 0)
-        reg_t = d.get('regression_total', 0)
-        churn = d.get('delta.churn_ratio') or 0
-        la = d.get('lines_added', 0)
-        lr = d.get('lines_removed', 0)
-        imp_err = d.get('import_errors', 0)
-        assert_err = d.get('assertion_errors', 0)
-        timeout_err = d.get('timeout_errors', 0)
-        other_err = d.get('other_errors', 0)
-        # Agent telemetry (reviewer_coder only)
-        phase_ct = d.get('phase_count', '')
-        rev_frac = d.get('reviewer_cost_fraction', '')
-        rev_cycles = d.get('reviewer_num_cycles', '')
-        rev_chars = d.get('reviewer_suggestion_chars', '')
-        mid_first = d.get('mid_phase_pass_rate_first', '')
-        mid_last = d.get('mid_phase_pass_rate_last', '')
-        mid_delta = d.get('mid_phase_pass_rate_delta', '')
-        # Core metrics line
-        print(f\"{d['problem']}/{d['checkpoint']}: pass={pr:.3f} core={core_pr:.3f} erosion={er:.3f} verb={vb:.3f} loc={loc} steps={steps} util={step_util:.2f} cost=\${cost:.2f}\")
-        # Failure breakdown
-        if imp_err or assert_err or timeout_err or other_err:
-            print(f\"  failures: import={imp_err} assert={assert_err} timeout={timeout_err} other={other_err}\")
-        # Regression and churn
-        if reg_t:
-            print(f\"  regression: {reg_p}/{reg_t} churn={churn:.3f} +{la}/-{lr}\")
-        # Agent telemetry (reviewer_coder)
-        if phase_ct:
-            print(f\"  phases={phase_ct} rev_frac={rev_frac} rev_cycles={rev_cycles} rev_chars={rev_chars}\")
-        if mid_first != '':
-            print(f\"  mid_phase: first={mid_first} last={mid_last} delta={mid_delta}\")
-" <output_dir>
+Parse results (human-readable):
+```bash
+OUTPUT_DIR=$(ls -td outputs/sonnet-4.5/reviewer_coder-* | head -1)
+python3 autoresearch/parse_results.py "$OUTPUT_DIR"
+```
+
+Parse results (machine-readable JSON, for results.json):
+```bash
+python3 autoresearch/parse_results.py "$OUTPUT_DIR" --json
+```
 
 If checkpoint_results.jsonl doesn't exist, the run didn't complete — check the log file for errors.
 
