@@ -23,8 +23,19 @@ paper is that prompt-based mitigations don't prevent code erosion — only struc
    mkdir -p autoresearch/runs/$RUN_ID
    ```
 
-3. **Create your git branch and worktree** (required if other autoresearch agents may be running):
+3. **Create your worktree** (required if other autoresearch agents may be running concurrently):
+   ```bash
+   # Create an isolated worktree with its own branch
+   git worktree add .claude-worktrees/$RUN_ID -b optloop/$RUN_ID
+   cd .claude-worktrees/$RUN_ID
+
+   # Each worktree needs its own venv since the package is installed in editable mode.
+   # Without this, all agents share one venv and edits to agent.py in one worktree
+   # silently affect benchmark runs in every other worktree.
+   uv sync
    ```
+   If you are the ONLY autoresearch agent, you can skip the worktree and just work on a branch:
+   ```bash
    git checkout -b optloop/$RUN_ID
    ```
    If running in a worktree (launched by another agent), you are already isolated.
@@ -99,6 +110,34 @@ Some dimensions to explore (not exhaustive, not required):
 - src/slop_code/agent_runner/agent.py — avoid modifying (the telemetry dict is already there for you to use)
 - Do not install new packages
 - Both personas must use the `claude` CLI binary
+
+## Baseline policy
+
+The `claude_code` baseline (no review) is the control. Run it **once in iteration 0** on each problem you plan to use. Record the results in your run artifacts and in `optimization_log.md`. Do NOT re-run the baseline every iteration — it wastes budget and the baseline doesn't change.
+
+```bash
+# Iteration 0 only: run baseline for comparison
+nohup uv run slop-code run \
+  --agent claude_code \
+  --model claude_code_local/sonnet-4.5 \
+  --environment local-py \
+  --prompt just-solve \
+  --problem dag_execution \
+  > /tmp/optloop_${RUN_ID}_baseline.log 2>&1 &
+```
+
+Save baseline results in `autoresearch/runs/$RUN_ID/baseline.yaml`:
+```yaml
+problem: dag_execution
+pass_rate: X.XXX
+erosion: X.XXX
+verbosity: X.XXX
+composite: X.XXX
+cost: $X.XX
+output_dir: <path>
+```
+
+All subsequent iterations compare against this fixed baseline. If you switch to a new problem, run the baseline once for that problem too.
 
 ## Running an experiment
 
@@ -297,11 +336,17 @@ KEEP / REVERT — <reason>
 
 Multiple autoresearch agents can run simultaneously. Each agent works on its own branch and writes to its own `autoresearch/runs/<run_id>/` directory.
 
+### Why isolation matters
+
+The package is installed in **editable mode** (`uv sync` creates a link from `.venv` to `src/`). If two agents share the same `.venv`, edits to `reviewer_coder/agent.py` in one agent's branch are immediately visible to the other's benchmark runs. This silently corrupts experiments. Each concurrent agent MUST use a separate worktree with its own `uv sync`.
+
+For **config-only** experiments (changing YAML parameters, not Python code), agents CAN share a worktree since different YAML files don't conflict. Create per-run config files like `configs/agents/reviewer_coder_${RUN_ID}.yaml` and pass `--agent reviewer_coder_${RUN_ID}`.
+
 ### Isolation rules
 
-1. **Branch isolation.** Each agent works on `optloop/<run_id>`. Never push directly to main. Merge via PR or fast-forward after human review.
+1. **Worktree isolation.** Each concurrent agent works in `.claude-worktrees/<run_id>` with its own `.venv`. Each pushes to branch `optloop/<run_id>`. Never push directly to main.
 
-2. **Shared read, isolated write.** All agents can READ `optimization_log.md` and other agents' `autoresearch/runs/` directories. Only write to your own `autoresearch/runs/<run_id>/`.
+2. **Shared read, isolated write.** All agents can READ `optimization_log.md` and other agents' `autoresearch/runs/` directories (these are on the main worktree). Only write to your own `autoresearch/runs/<run_id>/`.
 
 3. **Append-only shared log.** When logging to `optimization_log.md`, prefix your iteration header with your run ID:
    ```
@@ -372,9 +417,9 @@ LOOP FOREVER:
 
 1. Read state: Check optimization_log.md, your previous reports in autoresearch/runs/$RUN_ID/, and other agents' latest reports to understand where things stand.
 2. Decide what to try: Pick ONE change based on results so far. Use the diagnostic signals from the last iteration to guide your choice (see "How to use signals for decisions" above). Prioritize structural changes (flow, timing, what agents see) over prompt tweaks — the SlopCodeBench paper shows prompts alone don't fix erosion. Check other agents' runs to avoid duplicating their work.
-3. Make the change in reviewer_coder.py or reviewer_coder.yaml.
+3. Make the change in reviewer_coder/agent.py or reviewer_coder.yaml (in your worktree if using one).
 4. Git commit: [optloop/$RUN_ID] iter N: <description>
-5. Run the experiment: Launch on 1-3 problems in parallel using nohup. Redirect all output to log files.
+5. Run the experiment: Launch reviewer_coder on 1-3 problems in parallel using nohup. Do NOT re-run the claude_code baseline (see Baseline policy).
 6. Wait for completion: Poll with grep "Run Summary" /tmp/optloop_*.log every few minutes. A run is done when "Run Summary" appears. If a run takes >60 minutes, something is wrong —
 kill it and treat as failure.
 7. Parse results: Extract metrics from the output directory using the parsing snippet above.
