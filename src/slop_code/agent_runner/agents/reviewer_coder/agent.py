@@ -623,12 +623,45 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
 
         Only searches steps from ``review_start_idx`` onwards to avoid
         returning coder output from a previous batch.
+
+        Looks for (in order of preference):
+        1. A ``result`` payload with text
+        2. An assistant message with text content blocks
         """
-        for payload in reversed(self.steps[review_start_idx:]):
+        review_steps = self.steps[review_start_idx:]
+
+        # First pass: look for result payloads
+        for payload in reversed(review_steps):
             if payload.get("type") == "result":
                 text = payload.get("result", "")
                 if text and len(text) > 10:
                     return text[:6000]
+
+        # Second pass: extract text from assistant messages
+        texts: list[str] = []
+        for payload in review_steps:
+            msg = payload.get("message", {})
+            if not isinstance(msg, dict):
+                continue
+            if msg.get("role") != "assistant":
+                continue
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if (
+                        isinstance(block, dict)
+                        and block.get("type") == "text"
+                    ):
+                        texts.append(block["text"])
+            elif isinstance(content, str) and content:
+                texts.append(content)
+
+        if texts:
+            combined = "\n".join(texts)
+            if len(combined) > 10:
+                return combined[:6000]
+
+        return None
         return None
 
     # ------------------------------------------------------------------

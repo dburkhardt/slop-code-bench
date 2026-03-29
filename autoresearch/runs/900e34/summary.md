@@ -2,23 +2,26 @@
 
 ## Current state
 - **Best composite:** 0.603 mean across 2 problems (iteration 1)
-- **Current config:** Test-aware reviewer + erosion-aware coder. **1 review cycle, 20 turns/batch, 150 step limit, reviewer max_turns=1.**
-- **Iterations completed:** 1
-- **Budget remaining:** ~$565 of $750
+- **Current config:** Test-aware reviewer + erosion-aware coder with plan-first. 1 review cycle, 20 turns/batch, 150 step limit, reviewer max_turns=1.
+- **Iterations completed:** 3 (0=baseline, 1=KEEP single cycle, 2=REVERT cleanup pass, 3=running plan-first)
+- **Budget remaining:** ~$540 of $750
 - **Provisional keeps pending:** none
 
+## CRITICAL BUG
+**rev_cycles=0 in all recent runs!** The reviewer runs but `_extract_review_text()` returns None — reviewer suggestions are NOT being fed back to the coder. The iter 1 improvement (0.603 composite) came from config changes (more turns + higher step limit), NOT from review. Must fix `_extract_review_text` or the review is useless overhead.
+
 ## Top findings
-1. Test-aware reviewer + erosion-aware coder massively improves file_backup (0.917 pass, 100% core) and circuit_eval (0.788 pass, 64.7% core)
-2. 3 review cycles hurt dag_execution badly (0.074 pass vs 0.447 baseline) — review overhead eats turns on harder/shorter problems
-3. 0 review cycles has worst erosion (0.803) — review does help code quality
+1. **Single review cycle is optimal.** 3 cycles eats 30% of step budget. 0 cycles has worst erosion. 1 cycle = sweet spot.
+2. Test-aware reviewer + erosion-aware coder: strong across most problems (0.917 pass on file_backup, 0.788 on circuit_eval)
+3. Post-coding cleanup/refactoring breaks tests — the refactoring agent doesn't understand the spec constraints
 
 ## Dead ends (don't revisit)
 - 0 review cycles: worst erosion, no quality benefit
-- 3 review cycles on dag_execution: cripples pass rate
+- 3 review cycles: cripples pass rate on hard/short problems
+- Post-coding cleanup pass (iter 2): refactoring breaks tests, composite dropped from 0.603 to 0.373
 
 ## Promising directions not yet tried
-- 1 review cycle (single early review to catch structural issues, then coder gets all remaining turns)
-- Adaptive review: skip review if pass rate is already high from mid-phase eval
-- Reviewer max_turns=1 instead of 3 (read + respond is enough)
-- Front-loaded review timing (review early, skip late)
-- Increasing step_limit to 150+ to give more headroom
+- Adaptive review: skip review if mid-phase eval shows pass rate already high
+- Tournament coding: run 2 coder batches with different strategies, reviewer picks the better
+- Reviewer as gatekeeper: REJECT/APPROVE signal instead of suggestions
+- Different review timing: review after LAST batch instead of first
