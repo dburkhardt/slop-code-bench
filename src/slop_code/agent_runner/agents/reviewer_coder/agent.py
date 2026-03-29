@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import shlex
 import shutil
+import subprocess
 import typing as tp
 from pathlib import Path
 
@@ -163,6 +164,8 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         self._cost_before_invocation: float = 0.0
         self._review_suggestions: list[tuple[int, str]] = []
         self._mid_phase_enabled: bool = False
+        self._mid_phase_entrypoint: str = "python main.py"
+        self._mid_phase_checkpoint: str = "checkpoint_1"
 
     # ------------------------------------------------------------------
     # Factory
@@ -305,15 +308,11 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             return None
 
         try:
-            import subprocess as _sp
-
-            entrypoint = getattr(self, "_mid_phase_entrypoint", "python main.py")
-            checkpoint_name = getattr(self, "_mid_phase_checkpoint", "checkpoint_1")
-            proc = _sp.run(
+            proc = subprocess.run(
                 ["uvx", "--from", "pytest", "pytest",
                  ".evaluation_tests/",
-                 f"--entrypoint={entrypoint}",
-                 f"--checkpoint={checkpoint_name}",
+                 f"--entrypoint={self._mid_phase_entrypoint}",
+                 f"--checkpoint={self._mid_phase_checkpoint}",
                  "--tb=no", "--no-header", "-q"],
                 cwd=str(self.workspace),
                 capture_output=True,
@@ -567,8 +566,16 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 self.telemetry.setdefault("mid_phase_evals", []).append(mid_result)
 
         self.final_result = result
+        self._finalize_telemetry()
 
-        # Compute phase cost summaries
+        self.log.info(
+            "reviewer_coder.run.done",
+            total_cost=self.usage.cost,
+            total_steps=self.usage.steps,
+        )
+
+    def _finalize_telemetry(self) -> None:
+        """Compute summary telemetry and clean up workspace artifacts."""
         phases = self.telemetry.get("phases", [])
         reviewer_phases = [p for p in phases if p["role"] == "reviewer"]
         self.telemetry["phase_count"] = len(phases)
@@ -581,13 +588,11 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         )
         self.telemetry.pop("_last_cost", None)
 
-        # Reviewer suggestion summary
         self.telemetry["reviewer_num_cycles"] = len(self._review_suggestions)
         self.telemetry["reviewer_suggestion_chars"] = sum(
             len(s) for _, s in self._review_suggestions
         )
 
-        # Mid-phase eval summary
         evals = self.telemetry.get("mid_phase_evals", [])
         if evals:
             self.telemetry["mid_phase_pass_rate_first"] = evals[0]["pass_rate"]
@@ -596,19 +601,12 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 evals[-1]["pass_rate"] - evals[0]["pass_rate"], 4
             )
 
-        # Clean up test artifacts before final snapshot
         test_dir = self.workspace / ".evaluation_tests"
         if test_dir.exists():
             shutil.rmtree(test_dir, ignore_errors=True)
         pytest_ini = self.workspace / "pytest.ini"
         if pytest_ini.exists():
             pytest_ini.unlink(missing_ok=True)
-
-        self.log.info(
-            "reviewer_coder.run.done",
-            total_cost=self.usage.cost,
-            total_steps=self.usage.steps,
-        )
 
     def _extract_review_text(
         self,
@@ -645,6 +643,8 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         self._cost_before_invocation = 0.0
         self._review_suggestions = []
         self._mid_phase_enabled = False
+        self._mid_phase_entrypoint = "python main.py"
+        self._mid_phase_checkpoint = "checkpoint_1"
 
 
 register_agent("reviewer_coder", ReviewerCoderAgent)

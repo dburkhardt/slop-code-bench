@@ -274,7 +274,7 @@ def get_evaluation_metrics(
                     combined = f"{msg} {longrepr}"
                     if "ImportError" in combined or "ModuleNotFoundError" in combined:
                         failure_cats["import_errors"] += 1
-                    elif "AssertionError" in combined or "AssertionError" in combined:
+                    elif "AssertionError" in combined:
                         failure_cats["assertion_errors"] += 1
                     elif "timeout" in combined.lower() or "TimeoutError" in combined:
                         failure_cats["timeout_errors"] += 1
