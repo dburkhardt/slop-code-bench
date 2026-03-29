@@ -1,0 +1,16 @@
+problem: dag_execution
+pass_rate: 0.447
+erosion: 0.668
+verbosity: 0.053
+composite: 0.231
+cost: $6.23
+output_dir: outputs/sonnet-4.5/claude_code-2.0.51_just-solve_none_20260328T2318
+
+# Additional baselines from prior experiments
+additional_baselines:
+  file_backup:
+    pass_rate: 0.606
+    erosion: 0.532
+    verbosity: 0.054
+    composite: 0.430
+    cost: $4.92

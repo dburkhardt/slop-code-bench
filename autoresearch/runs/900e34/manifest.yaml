@@ -1,0 +1,13 @@
+run_id: 900e34
+branch: optloop/900e34
+started: "2026-03-29T13:00:00-04:00"
+focus: "Optimize review timing and coder prompt for best composite across multiple problems"
+budget: 750
+status: running
+
+researcher:
+  model: "Claude Opus 4.6 (claude-opus-4-6)"
+  harness: "Claude Code CLI"
+  context_window: "1M tokens"
+
+benchmark_model: claude_code_local/sonnet-4.5

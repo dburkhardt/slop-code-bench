@@ -1,0 +1,22 @@
+{
+  "run_id": "900e34",
+  "iteration": 0,
+  "decision": "keep",
+  "composite": 0.419,
+  "pass_rate": 0.617,
+  "erosion": 0.640,
+  "verbosity": 0.068,
+  "cost": 88.44,
+  "wall_clock_seconds": 14400,
+  "step_utilization_mean": 0.85,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": ["file_backup", "circuit_eval", "file_merger", "code_search", "dag_execution"],
+  "per_problem": {
+    "file_backup": {"pass_rate": 0.917, "erosion": 0.711, "verbosity": 0.035, "composite": 0.693},
+    "circuit_eval": {"pass_rate": 0.788, "erosion": 0.591, "verbosity": 0.102, "composite": 0.580},
+    "file_merger": {"pass_rate": 0.734, "erosion": 0.673, "verbosity": 0.097, "composite": 0.503},
+    "code_search": {"pass_rate": 0.646, "erosion": 0.492, "verbosity": 0.043, "composite": 0.486},
+    "dag_execution": {"pass_rate": 0.074, "erosion": 0.732, "verbosity": 0.067, "composite": -0.166}
+  },
+  "note": "Baseline state from prior ad-hoc optimization (iters 0-4 before autoresearch framework)"
+}
