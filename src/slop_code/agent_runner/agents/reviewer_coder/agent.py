@@ -63,7 +63,9 @@ Write clean, minimal code. Rules: \
 (4) Extract genuinely shared logic into helpers, but only if used 3+ times. \
 (5) If a reviewer provides suggestions, apply them with MINIMAL changes. \
 Do NOT rewrite or restructure code beyond what the suggestion requires. \
-(6) Never duplicate existing logic. Reuse existing functions."""
+(6) Never duplicate existing logic. Reuse existing functions. \
+(7) NEVER rewrite entire files. Make targeted edits only. If your change \
+would touch more than 30 lines, break it into smaller steps."""
 
 
 # ---------------------------------------------------------------------------
