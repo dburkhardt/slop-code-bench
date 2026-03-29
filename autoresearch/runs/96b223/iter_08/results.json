@@ -1,0 +1,13 @@
+{
+  "run_id": "96b223",
+  "iteration": 8,
+  "decision": "revert",
+  "composite": 0.561,
+  "pass_rate": 0.661,
+  "erosion": 0.334,
+  "verbosity": 0.000,
+  "cost": 7.31,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260329T2238",
+  "notes": "Reviewer fix (max-turns 3) hurt performance. Reviewer used tools instead of text-only response. LOC explosion at cp4. Reverted to max-turns 1."
+}

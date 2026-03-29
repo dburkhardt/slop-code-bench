@@ -1,0 +1,14 @@
+{
+  "run_id": "96b223",
+  "iteration": 7,
+  "decision": "revert",
+  "composite": 0.640,
+  "pass_rate": 0.778,
+  "erosion": 0.459,
+  "verbosity": 0.001,
+  "cost": 8.54,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260329T2146",
+  "notes": "30-turn variant, launched before reviewer fix. LOC explosion at cp3. Worse than 20-turn (iter 6).",
+  "cross_validation": {"dag_execution": {"composite": 0.255, "pass_rate": 0.494, "cost": 5.51}}
+}
