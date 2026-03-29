@@ -53,7 +53,9 @@ Rules:
 - Limit to 3-5 highest-impact suggestions.
 - Do NOT suggest adding error handling, logging, types, or docs.
 - Do NOT suggest changes that would alter external behaviour.
-- Be concise. Each suggestion: 2-3 sentences max."""
+- Be concise. Each suggestion: 2-3 sentences max.
+- IMPORTANT: Your final response MUST be a plain text summary of \
+your suggestions. Do NOT end with a tool call."""
 
 CODER_APPEND_PROMPT = """\
 Write clean, minimal code. Rules: \
@@ -239,7 +241,7 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             "--output-format", "stream-json",
             "--verbose",
             "--model", shlex.quote(self.model),
-            "--max-turns", "3",
+            "--max-turns", "5",
             "--append-system-prompt",
             shlex.quote(REVIEWER_SYSTEM_PROMPT),
         ]
@@ -618,11 +620,30 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         Only searches steps from ``review_start_idx`` onwards to avoid
         returning coder output from a previous batch.
         """
+        # First try: look for result payload with text
         for payload in reversed(self.steps[review_start_idx:]):
             if payload.get("type") == "result":
                 text = payload.get("result", "")
                 if text and len(text) > 10:
                     return text[:6000]
+
+        # Fallback: extract text from the last assistant message
+        for payload in reversed(self.steps[review_start_idx:]):
+            msg = payload.get("message", {})
+            if not isinstance(msg, dict) or msg.get("role") != "assistant":
+                continue
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                texts = [
+                    c.get("text", "")
+                    for c in content
+                    if isinstance(c, dict) and c.get("type") == "text"
+                ]
+                combined = "\n".join(t for t in texts if t)
+                if len(combined) > 10:
+                    return combined[:6000]
+            elif isinstance(content, str) and len(content) > 10:
+                return content[:6000]
         return None
 
     # ------------------------------------------------------------------
