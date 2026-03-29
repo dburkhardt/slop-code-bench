@@ -1,0 +1,31 @@
+{
+  "run_id": "900e34",
+  "iteration": 1,
+  "decision": "keep",
+  "composite": 0.603,
+  "pass_rate": 0.842,
+  "erosion": 0.758,
+  "verbosity": 0.039,
+  "cost": 24.14,
+  "wall_clock_seconds": 4800,
+  "step_utilization_mean": 0.9,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": [
+    "dag_execution",
+    "file_backup"
+  ],
+  "per_problem": {
+    "dag_execution": {
+      "pass_rate": 0.761,
+      "erosion": 0.738,
+      "verbosity": 0.042,
+      "composite": 0.527
+    },
+    "file_backup": {
+      "pass_rate": 0.923,
+      "erosion": 0.778,
+      "verbosity": 0.036,
+      "composite": 0.679
+    }
+  }
+}

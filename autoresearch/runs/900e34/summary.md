@@ -1,10 +1,10 @@
 # Run 900e34 Summary
 
 ## Current state
-- **Best composite:** 0.419 mean across 5 problems (0.565 excl dag_execution outlier) (iteration 0)
-- **Current config:** Test-aware reviewer (runs tests first, focuses on failures) + erosion-aware coder (CC<10, no wrappers, modify in-place). 3 review cycles, 10 turns/batch, 100 step limit.
-- **Iterations completed:** 0 (baseline from prior ad-hoc experiments)
-- **Budget remaining:** ~$590 of $750
+- **Best composite:** 0.603 mean across 2 problems (iteration 1)
+- **Current config:** Test-aware reviewer + erosion-aware coder. **1 review cycle, 20 turns/batch, 150 step limit, reviewer max_turns=1.**
+- **Iterations completed:** 1
+- **Budget remaining:** ~$565 of $750
 - **Provisional keeps pending:** none
 
 ## Top findings
