@@ -103,3 +103,8 @@ providers:
     type: file
     file_path: ~/.gemini/oauth_creds.json
     description: Gemini CLI OAuth credentials file
+
+  claude_code_local:
+    type: file
+    file_path: ~/.claude/settings.json
+    description: Local Claude Code auth (uses CLI's own OAuth login)
