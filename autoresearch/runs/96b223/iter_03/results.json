@@ -1,0 +1,16 @@
+{
+  "run_id": "96b223",
+  "iteration": 3,
+  "decision": "revert",
+  "composite": 0.644,
+  "pass_rate": 0.843,
+  "erosion": 0.655,
+  "verbosity": 0.009,
+  "cost": 8.09,
+  "wall_clock_seconds": 2700,
+  "step_utilization_mean": 0.76,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260329T1854",
+  "notes": "File-based review extraction failed (reviewer didn't write the file). Still extracting preamble text. Checkpoint 4 regression (pass=0.652, 37/68)."
+}

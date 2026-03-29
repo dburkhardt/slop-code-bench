@@ -36,8 +36,9 @@ from slop_code.execution.runtime import RuntimeResult
 # ---------------------------------------------------------------------------
 
 REVIEWER_SYSTEM_PROMPT = """\
-You are a senior code quality reviewer. You will receive source code \
-and test results. Provide specific, actionable suggestions.
+You are a senior code quality reviewer. First, run the test suite to \
+understand which tests pass and fail. Then read the source files and \
+provide specific, actionable suggestions.
 
 Focus on:
 1. CODE THAT CAUSES TEST FAILURES: prioritize fixes that help failing \
@@ -53,7 +54,9 @@ Rules:
 - Do NOT suggest adding error handling, logging, types, or docs.
 - Do NOT suggest changes that would alter external behaviour.
 - Be concise. Each suggestion: 2-3 sentences max.
-- Respond ONLY with your suggestions. No preamble."""
+- CRITICAL: After your analysis, write ALL suggestions to a file \
+called .review_suggestions.md in the working directory using the \
+Write tool. This file is how your suggestions get delivered."""
 
 CODER_APPEND_PROMPT = """\
 Write clean, minimal code. Rules: \
@@ -235,17 +238,13 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
     # ------------------------------------------------------------------
 
     def _build_reviewer_args(self) -> list[str]:
-        """Build ``claude`` CLI args for a reviewer invocation.
-
-        Uses --max-turns 1 so the reviewer produces only text output.
-        Context (source code, test results) is injected into the prompt.
-        """
+        """Build ``claude`` CLI args for a reviewer invocation."""
         args = [
             self.binary,
             "--output-format", "stream-json",
             "--verbose",
             "--model", shlex.quote(self.model),
-            "--max-turns", "1",
+            "--max-turns", "5",
             "--append-system-prompt",
             shlex.quote(REVIEWER_SYSTEM_PROMPT),
         ]
@@ -257,39 +256,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         args.append("--print")
         args.append("--")
         return args
-
-    # ------------------------------------------------------------------
-    # Workspace context gathering
-    # ------------------------------------------------------------------
-
-    def _gather_workspace_context(self) -> str:
-        """Read source files from workspace to build reviewer context.
-
-        Prioritizes the main source files and caps total context at
-        ~20K characters to fit in the reviewer's context window.
-        """
-        parts = []
-        total_chars = 0
-        max_total = 20000
-
-        try:
-            py_files = sorted(self.workspace.glob("*.py"))
-            for py_file in py_files[:10]:
-                if py_file.name.startswith("."):
-                    continue
-                content = py_file.read_text()
-                if len(content) > 0 and total_chars < max_total:
-                    truncated = content[:max_total - total_chars]
-                    parts.append(
-                        f"### {py_file.name}\n```python\n{truncated}\n```"
-                    )
-                    total_chars += len(truncated)
-        except Exception:
-            pass
-
-        if not parts:
-            return ""
-        return "<source_code>\n" + "\n\n".join(parts) + "\n</source_code>"
 
     # ------------------------------------------------------------------
     # Phase tracking
@@ -534,14 +500,17 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 return
 
             # --- Review pass ---
-            # Gather context from workspace for the reviewer
-            context = self._gather_workspace_context()
+            # Clean up previous review file
+            review_file = self.workspace / ".review_suggestions.md"
+            if review_file.exists():
+                review_file.unlink()
 
             reviewer_args = self._build_reviewer_args()
             reviewer_prompt = (
-                "Review the following code and test results. "
-                "Provide your top 3-5 suggestions for improvements.\n\n"
-                + context
+                "Read all source files in the current working "
+                "directory and provide your code quality review. "
+                "Focus on reducing duplication and complexity. "
+                "Write your suggestions to .review_suggestions.md."
             )
 
             review_start = len(self.steps)

@@ -1,0 +1,16 @@
+{
+  "run_id": "96b223",
+  "iteration": 4,
+  "decision": "revert",
+  "composite": 0.690,
+  "pass_rate": 0.909,
+  "erosion": 0.679,
+  "verbosity": 0.050,
+  "cost": 6.28,
+  "wall_clock_seconds": 2400,
+  "step_utilization_mean": 0.56,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260329T1938",
+  "notes": "Text-only reviewer works for extraction (rev_chars=122-536) but source code truncated at 4000 chars. Reviewer says 'provide complete code' instead of reviewing. Cheap ($6.28) but not improving composite."
+}
