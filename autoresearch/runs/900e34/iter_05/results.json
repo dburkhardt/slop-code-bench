@@ -1,0 +1,30 @@
+{
+  "run_id": "900e34",
+  "iteration": 5,
+  "decision": "keep",
+  "composite": 0.588,
+  "pass_rate": 0.777,
+  "erosion": 0.613,
+  "verbosity": 0.018,
+  "cost": 17.19,
+  "wall_clock_seconds": 5400,
+  "problems": [
+    "dag_execution",
+    "file_backup"
+  ],
+  "per_problem": {
+    "dag_execution": {
+      "pass_rate": 0.599,
+      "erosion": 0.615,
+      "verbosity": 0.034,
+      "composite": 0.404
+    },
+    "file_backup": {
+      "pass_rate": 0.91,
+      "erosion": 0.611,
+      "verbosity": 0.006,
+      "composite": 0.725
+    }
+  },
+  "note": "No plan-first, review fix working. Erosion improved 0.758\u21920.613 vs iter1. Pass rate 0.842\u21920.777."
+}
