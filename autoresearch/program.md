@@ -46,7 +46,7 @@ paper is that prompt-based mitigations don't prevent code erosion — only struc
    branch: optloop/<RUN_ID>
    started: <ISO 8601 timestamp>
    focus: <1-sentence description of what this run is exploring>
-   budget: 500
+   budget: 750
    status: running
 
    # Who is running this autoresearch loop
@@ -337,7 +337,11 @@ Every iteration MUST produce `report.md` with this structure:
 | ...     | ...       | ...     | ...       | ...       | ...  | ...       | ...       |
 
 ## Signal analysis
-<Interpret the diagnostic signals. What do import_errors, step_utilization, mid_phase_delta, churn_ratio, etc. tell you about WHY results moved?>
+<Interpret the diagnostic signals. What do import_errors, step_utilization, mid_phase_delta, churn_ratio, etc. tell you about WHY results moved? When signals are ambiguous, read the benchmark agent's actual output to diagnose:
+- Read snapshot/ files to see the generated code
+- Read agent/reviewer_cycle_*.md to see what the reviewer suggested
+- Read evaluation/report.json to see test failure tracebacks
+Cite specific evidence from these files.>
 
 ## What I learned
 <The non-obvious insight from this iteration. Not just "it worked/didn't work" but WHY. What does this teach about the problem structure?>
@@ -346,7 +350,8 @@ Every iteration MUST produce `report.md` with this structure:
 <Concrete plan for the next iteration, informed by the signal analysis. If reverting, explain what alternative approach the signals suggest.>
 
 ## Decision
-KEEP / REVERT — <reason>
+KEEP / PROVISIONAL_KEEP / REVERT — <reason>
+(PROVISIONAL_KEEP: composite dipped but signals are encouraging. N iterations remaining before mandatory revert.)
 
 ## Metadata
 - Git commit: <hash>
@@ -471,23 +476,90 @@ done
 
 LOOP FOREVER:
 
-1. Read state: Check your previous reports in autoresearch/runs/$RUN_ID/ and other agents' latest reports to understand where things stand.
-2. Decide what to try: Pick ONE change based on results so far. Use the diagnostic signals from the last iteration to guide your choice (see "How to use signals for decisions" above). Prioritize structural changes (flow, timing, what agents see) over prompt tweaks — the SlopCodeBench paper shows prompts alone don't fix erosion. Check other agents' runs to avoid duplicating their work.
-3. Make the change in reviewer_coder/agent.py or reviewer_coder.yaml (in your worktree if using one).
-4. Git commit: [optloop/$RUN_ID] iter N: <description>
-5. Run the experiment: Launch reviewer_coder on 1-3 problems in parallel using nohup. Do NOT re-run the claude_code baseline (see Baseline policy).
-6. Wait for completion: Poll with grep "Run Summary" /tmp/optloop_*.log every few minutes. A run is done when "Run Summary" appears. If a run takes >60 minutes, something is wrong —
-kill it and treat as failure.
-7. Parse results: Extract metrics from the output directory using the parsing snippet above.
-8. Keep or discard:
-  - If composite improved over best-so-far: KEEP. Update best score.
-  - If composite worsened or unchanged: REVERT with git revert HEAD. Commit: [optloop/$RUN_ID] iter N: REVERT — <reason>
-  - BEFORE deciding, check the diagnostic signals to understand WHY. A revert without a diagnosis teaches you nothing. Check: Did step_utilization hit 1.0? Did import_errors spike? Did mid_phase_delta show review helping? Did churn_ratio explode?
-9. Save artifacts and write the iteration report:
-  - Copy agent.py and config.yaml to autoresearch/runs/$RUN_ID/iter_NN/
-  - Write report.md using the template above
-10. Push to origin: git push origin optloop/$RUN_ID
-11. Check budget: If cumulative spend > $500, stop. Run the full "Completion and merge-back" procedure (update manifest, merge to main, clean up worktree).
+1. **Read state.** Start each iteration by reading:
+   - `autoresearch/runs/$RUN_ID/summary.md` (your running summary, see below)
+   - The previous iteration's `report.md` for detailed context
+   - Other agents' latest manifests/reports (to avoid duplicate work)
+
+2. **Decide what to try.** Pick ONE change based on results so far. Use the diagnostic signals from the last iteration to guide your choice (see "How to use signals for decisions" above). Prioritize structural changes (flow, timing, what agents see) over prompt tweaks — the SlopCodeBench paper shows prompts alone don't fix erosion.
+
+3. **Make the change** in reviewer_coder/agent.py or reviewer_coder.yaml (in your worktree if using one).
+
+4. **Git commit:** `[optloop/$RUN_ID] iter N: <description>`
+
+5. **Run the experiment.** Launch reviewer_coder on your primary problem. Run 2 replicates in parallel (same problem twice, or two different problems) to reduce noise. Do NOT re-run the baseline (see Baseline policy).
+   ```bash
+   nohup uv run slop-code run --agent reviewer_coder ... --problem dag_execution > /tmp/optloop_${RUN_ID}_iter${N}_rep1.log 2>&1 &
+   nohup uv run slop-code run --agent reviewer_coder ... --problem dag_execution > /tmp/optloop_${RUN_ID}_iter${N}_rep2.log 2>&1 &
+   ```
+
+6. **Wait for completion.** Poll with `grep "Saved run summary" /tmp/optloop_${RUN_ID}_*.log` every few minutes. If a run takes >60 minutes, something is wrong — kill it and treat as failure.
+
+7. **Parse results and diagnose.** Extract metrics from the output directory using the parsing snippet. Then **read the benchmark agent's actual output** to understand why:
+   - Read `<output_dir>/<problem>/checkpoint_N/snapshot/` — the code the benchmark agent wrote. If erosion spiked, look at the code to see if it's a reviewer-induced rewrite or coder bloat.
+   - Read `<output_dir>/<problem>/checkpoint_N/agent/reviewer_cycle_*.md` — what the reviewer suggested and whether it was sensible.
+   - Read `<output_dir>/<problem>/checkpoint_N/evaluation/report.json` — full test failure details with tracebacks.
+   - If you ran 2 replicates, average the composite scores. Only act on differences that are consistent across both.
+
+8. **Keep, provisionally keep, or revert:**
+   - **KEEP** if composite improved over best-so-far (averaged across replicates). Update best score.
+   - **PROVISIONAL KEEP** if composite dipped but diagnostic signals are encouraging (e.g., failure type shifted from import_errors to assertion_errors, mid_phase_delta is positive, or the structural change needs budget tuning). You get 2 more iterations to show improvement before mandatory revert. Mark the iteration as `decision: provisional_keep` in results.json.
+   - **REVERT** if composite worsened and signals don't suggest a path forward. Revert only the agent code and config, NOT the artifacts (see revert procedure below).
+
+9. **Save artifacts, write report, update summary:**
+   - Copy agent.py and config.yaml to `autoresearch/runs/$RUN_ID/iter_NN/`
+   - Write `results.json` (machine-readable scores)
+   - Write `report.md` using the template
+   - **Update `summary.md`** (see "Running summary" below)
+
+10. **Push:** `git push origin optloop/$RUN_ID`
+
+11. **Cross-validate** every 3-4 iterations: run your current best config on a second problem (e.g., `eve_jump_planner` if you've been optimizing on `dag_execution`). If it doesn't transfer, log that finding and consider whether you're overfitting to the primary problem's structure.
+
+12. **Check budget.** If cumulative spend > $750, stop. Run the "Completion and merge-back" procedure.
+
+### Revert procedure
+
+When reverting, only revert the agent code and config. Do NOT revert artifacts or reports.
+
+```bash
+# Revert only the source files, not the run artifacts
+git checkout HEAD~1 -- src/slop_code/agent_runner/agents/reviewer_coder/agent.py
+git checkout HEAD~1 -- configs/agents/reviewer_coder.yaml
+git commit -m "[optloop/$RUN_ID] iter N: REVERT — <reason>"
+```
+
+This preserves your iteration reports and artifacts while restoring the code to the pre-experiment state.
+
+### Running summary
+
+Maintain `autoresearch/runs/$RUN_ID/summary.md` as a living document. Update it at the end of every iteration. This is your external memory — it prevents context decay over long runs.
+
+```markdown
+# Run <RUN_ID> Summary
+
+## Current state
+- **Best composite:** X.XXX (iteration N)
+- **Current config:** <1-sentence description of what's active>
+- **Iterations completed:** N
+- **Budget remaining:** $XXX
+- **Provisional keeps pending:** <list any, with iterations remaining>
+
+## Top findings
+1. <Most important thing learned so far>
+2. <Second most important>
+3. <Third>
+
+## Dead ends (don't revisit)
+- <Approach X failed because Y>
+- <Approach Z failed because W>
+
+## Promising directions not yet tried
+- <Idea A, based on finding from iter N>
+- <Idea B>
+```
+
+Keep this concise. The detail lives in individual `report.md` files; the summary is for orientation at the start of each iteration.
 
 ## Key research insights to guide experiments
 
@@ -498,7 +570,7 @@ kill it and treat as failure.
 
 ## Budget
 
-Hard ceiling: $500 per run. Track cumulative spend in every log entry and in your manifest. Stop when exceeded.
+Hard ceiling: $750 per run (budget allows for replications). Track cumulative spend in results.json and in your manifest. Stop when exceeded.
 
 ## NEVER STOP
 
