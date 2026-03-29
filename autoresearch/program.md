@@ -62,7 +62,7 @@ paper is that prompt-based mitigations don't prevent code erosion — only struc
 5. Read the in-scope files for full context:
    - src/slop_code/agent_runner/agents/reviewer_coder/agent.py — the agent you modify
    - configs/agents/reviewer_coder.yaml — numeric parameters
-   - optimization_log.md — shared log of all experiments across all runs
+   - autoresearch/runs/*/manifest.yaml — other runs' metadata (for coordination)
    - src/slop_code/agent_runner/agents/claude_code/agent.py — parent class (modifiable if needed)
    - src/slop_code/agent_runner/agent.py — base Agent class with `self.telemetry` dict
    - autoresearch/runs/ — other autoresearch runs (read these to avoid duplicate work)
@@ -113,7 +113,7 @@ Some dimensions to explore (not exhaustive, not required):
 
 ## Baseline policy
 
-The `claude_code` baseline (no review) is the control. Run it **once in iteration 0** on each problem you plan to use. Record the results in your run artifacts and in `optimization_log.md`. Do NOT re-run the baseline every iteration — it wastes budget and the baseline doesn't change.
+The `claude_code` baseline (no review) is the control. Run it **once in iteration 0** on each problem you plan to use. Record the results in your run's `baseline.yaml`. Do NOT re-run the baseline every iteration — it wastes budget and the baseline doesn't change.
 
 ```bash
 # Iteration 0 only: run baseline for comparison
@@ -346,15 +346,9 @@ For **config-only** experiments (changing YAML parameters, not Python code), age
 
 1. **Worktree isolation.** Each concurrent agent works in `.claude-worktrees/<run_id>` with its own `.venv`. Each pushes to branch `optloop/<run_id>`. Never push directly to main.
 
-2. **Shared read, isolated write.** All agents can READ `optimization_log.md` and other agents' `autoresearch/runs/` directories (these are on the main worktree). Only write to your own `autoresearch/runs/<run_id>/`.
+2. **Shared read, isolated write.** All agents can READ other agents' `autoresearch/runs/` directories (on the main worktree or via `git fetch`). Only write to your own `autoresearch/runs/<run_id>/`.
 
-3. **Append-only shared log.** When logging to `optimization_log.md`, prefix your iteration header with your run ID:
-   ```
-   ## [a3f2c1] Iteration N: <description>
-   ```
-   This prevents confusion when multiple agents append to the same file.
-
-4. **Check for conflicts before starting.** At the start of each iteration, read other agents' latest `report.md` files to see what they're working on. Avoid duplicate experiments. If another agent already tested your hypothesis, build on their results instead.
+3. **Check for conflicts before starting.** At the start of each iteration, read other agents' latest `report.md` files to see what they're working on. Avoid duplicate experiments. If another agent already tested your hypothesis, build on their results instead.
 
 ### Coordination workflow
 
@@ -422,8 +416,7 @@ git push origin main
 
 If the merge has conflicts (another agent merged first), resolve them:
 - `autoresearch/runs/` — keep both directories, no conflict possible (different run IDs)
-- `optimization_log.md` — keep both agents' entries (append-only)
-- `reviewer_coder/agent.py` — pick the version with the better composite score, or keep main's version and let the human decide
+- `reviewer_coder/agent.py` or `reviewer_coder.yaml` — pick the version with the better composite score, or keep main's version and let the human decide
 
 **Step 5: Clean up the worktree** (if using one):
 ```bash
@@ -436,27 +429,26 @@ If another agent is still running, do NOT remove its worktree or branch.
 
 ## Logging results
 
-Append every experiment to optimization_log.md with this format (prefix with your run ID):
+All results live in your run directory. There is no shared `optimization_log.md`. Each run is self-contained:
 
-## [RUN_ID] Iteration N: <short description>
+- **Per-iteration detail:** `autoresearch/runs/$RUN_ID/iter_NN/report.md` (the full template from "Artifact structure" above)
+- **Run summary:** `autoresearch/runs/$RUN_ID/manifest.yaml` (metadata + final stats)
+- **Baseline reference:** `autoresearch/runs/$RUN_ID/baseline.yaml`
 
-**Hypothesis:** <what you expect and why>
-**Change:** <exactly what you modified>
-**Git commit:** <short hash>
-
-| Problem | pass_rate | erosion | verbosity | composite | cost | step_util | mid_delta |
-|---------|-----------|---------|-----------|-----------|------|-----------|-----------|
-| <name>  | X.XXX     | X.XXX   | X.XXX     | X.XXX     | $X.XX| X.XX      | X.XXX     |
-
-**Diagnostics:** <1-2 sentences using signals to explain WHY composite moved.>
-**Decision:** KEEP / REVERT
-**Cumulative spend:** $XX.XX
+For cross-run comparison, read all manifests:
+```bash
+for f in autoresearch/runs/*/manifest.yaml; do
+  echo "=== $(basename $(dirname $f)) ==="
+  grep -E "focus|best_composite|status|total_cost|summary" "$f"
+  echo
+done
+```
 
 ## The experiment loop
 
 LOOP FOREVER:
 
-1. Read state: Check optimization_log.md, your previous reports in autoresearch/runs/$RUN_ID/, and other agents' latest reports to understand where things stand.
+1. Read state: Check your previous reports in autoresearch/runs/$RUN_ID/ and other agents' latest reports to understand where things stand.
 2. Decide what to try: Pick ONE change based on results so far. Use the diagnostic signals from the last iteration to guide your choice (see "How to use signals for decisions" above). Prioritize structural changes (flow, timing, what agents see) over prompt tweaks — the SlopCodeBench paper shows prompts alone don't fix erosion. Check other agents' runs to avoid duplicating their work.
 3. Make the change in reviewer_coder/agent.py or reviewer_coder.yaml (in your worktree if using one).
 4. Git commit: [optloop/$RUN_ID] iter N: <description>
@@ -471,7 +463,6 @@ kill it and treat as failure.
 9. Save artifacts and write the iteration report:
   - Copy agent.py and config.yaml to autoresearch/runs/$RUN_ID/iter_NN/
   - Write report.md using the template above
-  - Append summary to optimization_log.md (prefixed with [$RUN_ID])
 10. Push to origin: git push origin optloop/$RUN_ID
 11. Check budget: If cumulative spend > $500, stop. Run the full "Completion and merge-back" procedure (update manifest, merge to main, clean up worktree).
 
