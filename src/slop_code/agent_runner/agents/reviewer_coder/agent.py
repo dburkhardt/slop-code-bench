@@ -68,7 +68,7 @@ class ReviewerCoderConfig(ClaudeCodeConfig, agent_type="reviewer_coder"):
     model_config = ConfigDict(extra="allow")
     type: tp.Literal["reviewer_coder"] = "reviewer_coder"
     docker_template: Path = (
-        Path(__file__).parent / "claude_code" / "docker.j2"
+        Path(__file__).parent.parent / "claude_code" / "docker.j2"
     )
 
     # Reviewer settings
