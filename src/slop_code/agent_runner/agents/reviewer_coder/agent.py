@@ -56,12 +56,18 @@ Rules:
 - Be concise. Each suggestion: 2-3 sentences max."""
 
 CODER_APPEND_PROMPT = """\
-Write clean, minimal code. Rules: \
+Before writing ANY code, read all existing source files and the \
+specification. Then create a brief plan: list the functions you will \
+modify, any new functions needed, and the changes for each. Only \
+after planning, start implementing.
+
+Code quality rules: \
 (1) Modify existing functions in-place instead of creating wrappers. \
 (2) Never create single-use helper functions. \
 (3) Keep cyclomatic complexity per function under 10. \
 (4) Extract genuinely shared logic into helpers, but only if used 3+ times. \
-(5) If a reviewer provides suggestions, implement them before continuing."""
+(5) If a reviewer provides suggestions, implement them before continuing. \
+(6) Run the tests after each significant change to catch regressions early."""
 
 
 # ---------------------------------------------------------------------------
