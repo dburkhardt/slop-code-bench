@@ -1,3 +1,13 @@
 {
-  "plugins": [".claude-plugins/autoresearch"]
+  "extraKnownMarketplaces": {
+    "autoresearch": {
+      "source": {
+        "source": "directory",
+        "path": ".claude-plugins/autoresearch"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "autoresearch@autoresearch": true
+  }
 }
