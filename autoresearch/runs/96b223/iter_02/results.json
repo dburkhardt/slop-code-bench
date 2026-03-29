@@ -1,0 +1,24 @@
+{
+  "run_id": "96b223",
+  "iteration": 2,
+  "decision": "keep",
+  "composite": 0.730,
+  "pass_rate": 0.911,
+  "erosion": 0.556,
+  "verbosity": 0.045,
+  "cost": 8.12,
+  "wall_clock_seconds": 2880,
+  "step_utilization_mean": 0.74,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260329T1809",
+  "cross_validation": {
+    "dag_execution": {
+      "composite": 0.248,
+      "pass_rate": 0.481,
+      "erosion": 0.729,
+      "verbosity": 0.048,
+      "cost": 7.62
+    }
+  }
+}
