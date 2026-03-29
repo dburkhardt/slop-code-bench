@@ -29,15 +29,23 @@ paper is that prompt-based mitigations don't prevent code erosion — only struc
    ```
    If running in a worktree (launched by another agent), you are already isolated.
 
-4. **Write your manifest** (`autoresearch/runs/$RUN_ID/manifest.yaml`):
+4. **Write your manifest** (`autoresearch/runs/$RUN_ID/manifest.yaml`). You know who you are from your system prompt — record it:
    ```yaml
    run_id: <RUN_ID>
    branch: optloop/<RUN_ID>
    started: <ISO 8601 timestamp>
-   model: claude_code_local/sonnet-4.5
    focus: <1-sentence description of what this run is exploring>
    budget: 500
    status: running
+
+   # Who is running this autoresearch loop
+   researcher:
+     model: <your model name and ID, e.g., "Claude Opus 4.6 (claude-opus-4-6)">
+     harness: <how you're running, e.g., "Claude Code CLI v2.0.51">
+     context_window: <your context window, e.g., "1M tokens">
+
+   # What model the benchmark agent under test uses
+   benchmark_model: claude_code_local/sonnet-4.5
    ```
 
 5. Read the in-scope files for full context:
@@ -327,13 +335,15 @@ If another agent is exploring the same dimension (e.g., both doing prompt tuning
 
 ### Merging results
 
-When an agent finishes (budget exhausted or interrupted), update `manifest.yaml`:
+When an agent finishes (budget exhausted or interrupted), update `manifest.yaml` with completion fields:
 ```yaml
 status: completed
 best_composite: X.XXX
+best_iteration: N
 iterations: N
 total_cost: $XX.XX
 ended: <ISO 8601 timestamp>
+summary: <1-2 sentence summary of what this run discovered>
 ```
 
 The human merges promising branches into main. Agents should NOT merge each other's work.
