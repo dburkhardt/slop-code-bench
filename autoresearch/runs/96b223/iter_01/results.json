@@ -1,0 +1,16 @@
+{
+  "run_id": "96b223",
+  "iteration": 1,
+  "decision": "revert",
+  "composite": 0.584,
+  "pass_rate": 0.769,
+  "erosion": 0.614,
+  "verbosity": 0.002,
+  "cost": 9.55,
+  "wall_clock_seconds": 3120,
+  "step_utilization_mean": 0.945,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260329T1713",
+  "notes": "Replicates corrupted (same output dir). Reviewer extraction working but extracting preamble text, not actual suggestions. Checkpoint 3 had LOC explosion (366->7381). Second replicate overwrote checkpoint 4 results."
+}

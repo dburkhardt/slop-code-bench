@@ -10,4 +10,4 @@ cost_limits:
   step_limit: 100
   net_cost_limit: 0
 coder_turns_per_batch: 10
-num_review_cycles: 1
+num_review_cycles: 3

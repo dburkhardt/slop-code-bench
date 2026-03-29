@@ -63,9 +63,7 @@ Write clean, minimal code. Rules: \
 (2) Never create single-use helper functions. \
 (3) Keep cyclomatic complexity per function under 10. \
 (4) Extract genuinely shared logic into helpers, but only if used 3+ times. \
-(5) If a reviewer provides suggestions, apply them with MINIMAL changes. \
-Do NOT rewrite or restructure code beyond what the suggestion requires. \
-(6) Never duplicate existing logic. Reuse existing functions."""
+(5) If a reviewer provides suggestions, implement them before continuing."""
 
 
 # ---------------------------------------------------------------------------
