@@ -633,6 +633,13 @@ class AgentRunner:
         is_first_checkpoint: bool,
     ) -> AgentCheckpointSummary:
         self._setup_for_checkpoint(checkpoint)
+
+        # Enable mid-phase evaluation for agents that support it
+        if hasattr(self.agent, 'setup_mid_phase_eval'):
+            self.agent.setup_mid_phase_eval(
+                self.run_spec.problem, checkpoint
+            )
+
         self.metrics_tracker.state = AgentStateEnum.RUNNING
         compress = self.run_spec.compress_artifacts
         snapshot_dir, result, diff = run_checkpoint(

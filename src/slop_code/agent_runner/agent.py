@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import (
+    Any,
     ClassVar,
     Literal,
     Protocol,
@@ -177,6 +178,7 @@ class CheckpointInferenceResult(BaseModel):
     checkpoint_path: Path | None = None
     snapshot_dir: Path | None = None
     artifacts_dir: Path | None = None
+    telemetry: dict[str, Any] = Field(default_factory=dict)
 
 
 class Agent(ABC):
@@ -220,6 +222,7 @@ class Agent(ABC):
         self.pricing = pricing
         self.verbose = verbose
         self.prior_cost = 0.0
+        self.telemetry: dict[str, Any] = {}
 
     @classmethod
     def from_config(
@@ -420,6 +423,7 @@ class Agent(ABC):
             usage=self.usage,
             had_error=had_error,
             error_message=error,
+            telemetry=self.telemetry,
         )
 
     def finish_checkpoint(self, reset_context: bool = True) -> None:
@@ -432,6 +436,7 @@ class Agent(ABC):
             self.reset()
         self.prior_cost += self.usage.cost
         self.usage = UsageTracker()  # type: ignore[arg-type]
+        self.telemetry = {}
 
 
 class StreamParser(Protocol):

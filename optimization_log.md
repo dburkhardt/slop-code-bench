@@ -66,4 +66,31 @@ Results (dag_execution only — eve problems had 0/0 test evaluation issues):
 
 **Hypothesis:** 1 review cycle gives enough cleanup to improve erosion without eating too many coding turns.
 
-Running: reviewer_coder_1cycle on dag_execution
+Multiple runs completed (all dag_execution unless noted):
+
+| Variant | pass_rate | erosion | verbosity | composite | cost |
+|---------|-----------|---------|-----------|-----------|------|
+| reviewer_coder file_backup* | **0.701** | 0.573 | 0.090 | **0.502** | $3.80 |
+| claude_code file_backup* | 0.606 | 0.532 | 0.054 | 0.430 | $4.92 |
+| reviewer_coder 3cyc (0811) | 0.428 | 0.602 | 0.055 | 0.231 | $7.64 |
+| claude_code (2318) | 0.447 | 0.668 | 0.053 | 0.231 | $6.23 |
+| reviewer_coder 0cyc (0009) | 0.424 | 0.803 | 0.103 | 0.152 | $7.32 |
+| claude_code (0839) | 0.338 | 0.590 | 0.069 | 0.140 | $7.71 |
+| reviewer_coder 3cyc (0839) | 0.242 | 0.558 | 0.048 | 0.061 | $9.94 |
+
+*file_backup is a different problem (4 checkpoints) — not directly comparable.
+
+**Insights:**
+- reviewer_coder with 3 cycles ties baseline on composite (0.231 each) on dag_execution
+- High variance between runs of the same config (0.231 vs 0.061 for reviewer_coder 3cyc)
+- 0 review cycles has worst erosion (0.803) — review does help with code quality
+- On file_backup, reviewer_coder clearly outperforms baseline (0.502 vs 0.430)
+- The reviewer_coder's advantage may be problem-dependent
+
+**Cumulative cost: $71.21 / $500**
+
+---
+
+## Iteration 3: Test-aware reviewer + erosion-aware coder
+
+**Hypothesis:** The reviewer should run tests and focus suggestions on code that causes failures. The coder should be explicitly told to keep CC<10 and modify in-place.

@@ -236,7 +236,7 @@ def get_evaluation_metrics(
     if "Core" not in total_counts:
         print(checkpoint_dir)
 
-    return {
+    result = {
         "strict_pass_rate": total_passed / total_total,
         "core_pass_rate": pass_counts.get("Core", 0) / total_counts["Core"],
         "isolated_pass_rate": checkpoint_passed / checkpoint_total,
@@ -252,6 +252,38 @@ def get_evaluation_metrics(
         "regression_total": total_counts.get("Regression", 0),
         "regression_passed": pass_counts.get("Regression", 0),
     }
+
+    # Categorize test failures from pytest report
+    report_file = checkpoint_dir / "evaluation" / "report.json"
+    failure_cats: dict[str, int] = {
+        "import_errors": 0,
+        "assertion_errors": 0,
+        "timeout_errors": 0,
+        "other_errors": 0,
+    }
+    if report_file.exists():
+        try:
+            with report_file.open() as f:
+                report_data = json.load(f)
+            for test in report_data.get("tests", []):
+                if test.get("outcome") in ("failed", "error"):
+                    call = test.get("call", {})
+                    crash = call.get("crash", {})
+                    msg = crash.get("message", "") if isinstance(crash, dict) else ""
+                    longrepr = call.get("longreprtext", "")
+                    combined = f"{msg} {longrepr}"
+                    if "ImportError" in combined or "ModuleNotFoundError" in combined:
+                        failure_cats["import_errors"] += 1
+                    elif "AssertionError" in combined or "AssertionError" in combined:
+                        failure_cats["assertion_errors"] += 1
+                    elif "timeout" in combined.lower() or "TimeoutError" in combined:
+                        failure_cats["timeout_errors"] += 1
+                    else:
+                        failure_cats["other_errors"] += 1
+        except (json.JSONDecodeError, OSError, KeyError):
+            pass
+
+    return {**result, **failure_cats}
 
 
 def get_inference_metrics(
@@ -274,6 +306,12 @@ def get_inference_metrics(
             "duration": duration,
             "cost": metrics["usage"]["cost"],
             "steps": metrics["usage"]["steps"],
+            "step_limit": metrics.get("step_limit", 0),
+            "step_utilization": (
+                metrics["usage"]["steps"] / metrics["step_limit"]
+                if metrics.get("step_limit", 0) > 0
+                else None
+            ),
             **metrics["usage"]["net_tokens"],
         }
     except (KeyError, ValueError) as e:
@@ -416,4 +454,31 @@ def get_rubric_metrics(
         "rubric_carried_over": carried_over_count,
         "rubric_verbosity_flags": verbosity_count,
         "rubric_erosion_flags": erosion_count,
+    }
+
+
+def get_agent_telemetry(
+    checkpoint_dir: Path, inference_file_name: str = INFERENCE_RESULT_FILENAME
+) -> dict:
+    """Extract agent-emitted telemetry from inference_result.json.
+
+    Agents can write arbitrary structured telemetry to self.telemetry during
+    run(). This data is persisted in inference_result.json under the
+    "telemetry" key and automatically flows into checkpoint_results.jsonl.
+
+    Nested dicts/lists are excluded to keep checkpoint_results.jsonl flat;
+    only scalar values are promoted to top-level metrics.
+    """
+    inference_file = checkpoint_dir / inference_file_name
+    if not inference_file.exists():
+        return {}
+    try:
+        metrics = _load_json_file(inference_file, checkpoint_dir, "inference")
+    except Exception:
+        return {}
+    telemetry = metrics.get("telemetry", {})
+    # Only promote scalar values to top-level metrics
+    return {
+        k: v for k, v in telemetry.items()
+        if isinstance(v, (int, float, str, bool, type(None)))
     }

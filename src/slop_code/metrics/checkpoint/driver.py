@@ -15,6 +15,7 @@ from slop_code.metrics.checkpoint.extractors import get_evaluation_metrics
 from slop_code.metrics.checkpoint.extractors import get_inference_metrics
 from slop_code.metrics.checkpoint.extractors import get_quality_metrics
 from slop_code.metrics.checkpoint.extractors import get_rubric_metrics
+from slop_code.metrics.checkpoint.extractors import get_agent_telemetry
 
 
 def get_checkpoint_metrics(
@@ -45,6 +46,7 @@ def get_checkpoint_metrics(
         **get_inference_metrics(checkpoint_dir),
         **get_quality_metrics(checkpoint_dir),
         **get_rubric_metrics(checkpoint_dir),
+        **get_agent_telemetry(checkpoint_dir),
     }
 
     # Add rubric density metric if applicable

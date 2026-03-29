@@ -8,7 +8,9 @@ the next coding invocation so the coder can act on them.
 
 from __future__ import annotations
 
+import re
 import shlex
+import shutil
 import typing as tp
 from pathlib import Path
 
@@ -33,28 +35,32 @@ from slop_code.execution.runtime import RuntimeResult
 # ---------------------------------------------------------------------------
 
 REVIEWER_SYSTEM_PROMPT = """\
-You are a senior code quality reviewer. Read all the source files in \
-the current working directory, then provide specific, actionable \
-suggestions to improve code quality.
+You are a senior code quality reviewer. First, run the test suite to \
+understand which tests pass and fail. Then read the source files and \
+provide specific, actionable suggestions.
 
 Focus on:
-1. DUPLICATION: repeated code blocks that should be shared functions.
-2. COMPLEXITY: deeply nested or many-branch functions to simplify/split.
-3. DEAD CODE: unused imports, unreachable code, unused variables.
-4. STRUCTURE: better file/function organization.
+1. CODE THAT CAUSES TEST FAILURES: prioritize fixes that help failing \
+tests pass without breaking passing tests.
+2. DUPLICATION: repeated code blocks that should be shared functions.
+3. COMPLEXITY: functions with cyclomatic complexity >10 should be split.
+4. DEAD CODE: unused imports, unreachable code, unused variables.
 
 Rules:
 - Reference exact function names and file paths.
-- Say exactly what to change and how.
+- For each suggestion, show the exact code to change and the replacement.
 - Limit to 3-5 highest-impact suggestions.
 - Do NOT suggest adding error handling, logging, types, or docs.
 - Do NOT suggest changes that would alter external behaviour.
 - Be concise. Each suggestion: 2-3 sentences max."""
 
 CODER_APPEND_PROMPT = """\
-Keep your code clean and well-structured. Avoid duplication: extract \
-shared logic into helper functions. Keep functions short and focused. \
-If a reviewer provides improvement suggestions, implement them."""
+Write clean, minimal code. Rules: \
+(1) Modify existing functions in-place instead of creating wrappers. \
+(2) Never create single-use helper functions. \
+(3) Keep cyclomatic complexity per function under 10. \
+(4) Extract genuinely shared logic into helpers, but only if used 3+ times. \
+(5) If a reviewer provides suggestions, implement them before continuing."""
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +161,8 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         self.coder_turns_per_batch = coder_turns_per_batch
         self.num_review_cycles = num_review_cycles
         self._cost_before_invocation: float = 0.0
+        self._review_suggestions: list[tuple[int, str]] = []
+        self._mid_phase_enabled: bool = False
 
     # ------------------------------------------------------------------
     # Factory
@@ -240,6 +248,112 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         args.append("--print")
         args.append("--")
         return args
+
+    # ------------------------------------------------------------------
+    # Phase tracking
+    # ------------------------------------------------------------------
+
+    def _record_phase(self, label: str, role: str, cycle: int) -> None:
+        """Record cost/step data for a completed phase."""
+        prev_cost = self.telemetry.get("_last_cost", 0.0)
+        phase_cost = self.usage.cost - prev_cost
+        self.telemetry.setdefault("phases", []).append({
+            "label": label,
+            "role": role,
+            "cycle": cycle,
+            "phase_cost": round(phase_cost, 6),
+            "cumulative_cost": round(self.usage.cost, 6),
+            "cumulative_steps": self.usage.steps,
+        })
+        self.telemetry["_last_cost"] = self.usage.cost
+
+    # ------------------------------------------------------------------
+    # Mid-phase evaluation
+    # ------------------------------------------------------------------
+
+    def setup_mid_phase_eval(self, problem, checkpoint) -> None:
+        """Copy test files into workspace for mid-phase evaluation."""
+        try:
+            problem_tests = problem.path / "tests"
+            if not problem_tests.exists():
+                self.log.debug("reviewer_coder.mid_phase.no_tests", path=str(problem_tests))
+                return
+
+            workspace_tests = self.workspace / ".evaluation_tests"
+            workspace_tests.mkdir(parents=True, exist_ok=True)
+
+            # Copy test files for current and prior checkpoints
+            for item in problem_tests.iterdir():
+                if item.is_file() and item.suffix == ".py":
+                    shutil.copy2(item, workspace_tests / item.name)
+                elif item.is_dir():
+                    shutil.copytree(item, workspace_tests / item.name, dirs_exist_ok=True)
+
+            # Store entrypoint and checkpoint for pytest args
+            self._mid_phase_entrypoint = f"python {problem.entry_file}"
+            self._mid_phase_checkpoint = checkpoint.name
+
+            self._mid_phase_enabled = True
+            self.log.info("reviewer_coder.mid_phase.setup", test_dir=str(workspace_tests))
+        except Exception as e:
+            self.log.warning("reviewer_coder.mid_phase.setup_failed", error=str(e))
+            self._mid_phase_enabled = False
+
+    def _run_mid_phase_pytest(self, label: str) -> dict | None:
+        """Run a quick pytest inside the workspace for progress tracking."""
+        if not self._mid_phase_enabled:
+            return None
+
+        try:
+            import subprocess as _sp
+
+            entrypoint = getattr(self, "_mid_phase_entrypoint", "python main.py")
+            checkpoint_name = getattr(self, "_mid_phase_checkpoint", "checkpoint_1")
+            proc = _sp.run(
+                ["uvx", "--from", "pytest", "pytest",
+                 ".evaluation_tests/",
+                 f"--entrypoint={entrypoint}",
+                 f"--checkpoint={checkpoint_name}",
+                 "--tb=no", "--no-header", "-q"],
+                cwd=str(self.workspace),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            output = proc.stdout + proc.stderr
+
+            passed = 0
+            failed = 0
+            match = re.search(r"(\d+) passed", output)
+            if match:
+                passed = int(match.group(1))
+            match = re.search(r"(\d+) failed", output)
+            if match:
+                failed = int(match.group(1))
+            match = re.search(r"(\d+) error", output)
+            if match:
+                failed += int(match.group(1))
+            total = passed + failed
+            pass_rate = passed / total if total > 0 else 0.0
+
+            mid_result = {
+                "label": label,
+                "passed": passed,
+                "total": total,
+                "pass_rate": round(pass_rate, 4),
+            }
+
+            self.log.info(
+                "reviewer_coder.mid_phase_eval",
+                label=label,
+                pass_rate=pass_rate,
+                passed=passed,
+                total=total,
+            )
+            return mid_result
+        except Exception as e:
+            self.log.warning("reviewer_coder.mid_phase_eval.failed", error=str(e))
+            return None
 
     # ------------------------------------------------------------------
     # Running a single claude invocation
@@ -360,6 +474,13 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 coder_args, coder_prompt, env_overrides,
                 label=f"coder_batch_{cycle}",
             )
+            self._record_phase(f"coder_batch_{cycle}", "coder", cycle)
+
+            # Mid-phase eval after coder batch
+            if self._mid_phase_enabled:
+                mid_result = self._run_mid_phase_pytest(f"after_coder_batch_{cycle}")
+                if mid_result:
+                    self.telemetry.setdefault("mid_phase_evals", []).append(mid_result)
 
             if result is not None and result.timed_out:
                 self.log.error("Coder timed out")
@@ -387,11 +508,16 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 reviewer_args, reviewer_prompt, env_overrides,
                 label=f"reviewer_{cycle}",
             )
+            self._record_phase(f"reviewer_{cycle}", "reviewer", cycle)
 
             # Extract suggestions from reviewer steps only
             last_suggestions = self._extract_review_text(
                 review_result, review_start
             )
+
+            if last_suggestions:
+                self._review_suggestions.append((cycle, last_suggestions))
+                self.log.info("reviewer_coder.review.captured", cycle=cycle, chars=len(last_suggestions))
 
             if self.cost_limits.is_above_limits(
                 self.usage, prior_cost=self.prior_cost
@@ -432,7 +558,51 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             final_args, final_prompt, env_overrides,
             label="coder_final",
         )
+        self._record_phase("coder_final", "coder", self.num_review_cycles)
+
+        # Mid-phase eval after final coder batch
+        if self._mid_phase_enabled:
+            mid_result = self._run_mid_phase_pytest("after_coder_final")
+            if mid_result:
+                self.telemetry.setdefault("mid_phase_evals", []).append(mid_result)
+
         self.final_result = result
+
+        # Compute phase cost summaries
+        phases = self.telemetry.get("phases", [])
+        reviewer_phases = [p for p in phases if p["role"] == "reviewer"]
+        self.telemetry["phase_count"] = len(phases)
+        self.telemetry["reviewer_cost"] = round(
+            sum(p["phase_cost"] for p in reviewer_phases), 6
+        )
+        self.telemetry["reviewer_cost_fraction"] = round(
+            self.telemetry["reviewer_cost"] / self.usage.cost
+            if self.usage.cost > 0 else 0.0, 4
+        )
+        self.telemetry.pop("_last_cost", None)
+
+        # Reviewer suggestion summary
+        self.telemetry["reviewer_num_cycles"] = len(self._review_suggestions)
+        self.telemetry["reviewer_suggestion_chars"] = sum(
+            len(s) for _, s in self._review_suggestions
+        )
+
+        # Mid-phase eval summary
+        evals = self.telemetry.get("mid_phase_evals", [])
+        if evals:
+            self.telemetry["mid_phase_pass_rate_first"] = evals[0]["pass_rate"]
+            self.telemetry["mid_phase_pass_rate_last"] = evals[-1]["pass_rate"]
+            self.telemetry["mid_phase_pass_rate_delta"] = round(
+                evals[-1]["pass_rate"] - evals[0]["pass_rate"], 4
+            )
+
+        # Clean up test artifacts before final snapshot
+        test_dir = self.workspace / ".evaluation_tests"
+        if test_dir.exists():
+            shutil.rmtree(test_dir, ignore_errors=True)
+        pytest_ini = self.workspace / "pytest.ini"
+        if pytest_ini.exists():
+            pytest_ini.unlink(missing_ok=True)
 
         self.log.info(
             "reviewer_coder.run.done",
@@ -458,12 +628,23 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         return None
 
     # ------------------------------------------------------------------
+    # Artifacts
+    # ------------------------------------------------------------------
+
+    def save_artifacts(self, path: Path) -> None:
+        super().save_artifacts(path)
+        for cycle, text in self._review_suggestions:
+            (path / f"reviewer_cycle_{cycle}.md").write_text(text)
+
+    # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
     def reset(self) -> None:
         super().reset()
         self._cost_before_invocation = 0.0
+        self._review_suggestions = []
+        self._mid_phase_enabled = False
 
 
 register_agent("reviewer_coder", ReviewerCoderAgent)

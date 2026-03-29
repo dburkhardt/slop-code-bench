@@ -468,12 +468,18 @@ def save_agent_checkpoint_info(
         }
     )
 
+    result_dict = common.serialize_path_dict(
+        result_with_paths.model_dump(mode="json")
+    )
+    try:
+        result_dict["step_limit"] = int(agent.cost_limits.step_limit)
+    except (TypeError, ValueError, AttributeError):
+        result_dict["step_limit"] = 0
+
     with (output_path / common.INFERENCE_RESULT_FILENAME).open("w") as f:
         f.write(
             json.dumps(
-                common.serialize_path_dict(
-                    result_with_paths.model_dump(mode="json")
-                ),
+                result_dict,
                 indent=2,
                 sort_keys=True,
             )
