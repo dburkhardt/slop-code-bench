@@ -239,7 +239,7 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             "--output-format", "stream-json",
             "--verbose",
             "--model", shlex.quote(self.model),
-            "--max-turns", "3",
+            "--max-turns", "1",
             "--append-system-prompt",
             shlex.quote(REVIEWER_SYSTEM_PROMPT),
         ]
