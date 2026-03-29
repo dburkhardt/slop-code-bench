@@ -93,4 +93,25 @@ Multiple runs completed (all dag_execution unless noted):
 
 ## Iteration 3: Test-aware reviewer + erosion-aware coder
 
-**Hypothesis:** The reviewer should run tests and focus suggestions on code that causes failures. The coder should be explicitly told to keep CC<10 and modify in-place.
+**Changes:** Reviewer runs tests first, focuses on code causing failures, provides exact code replacements. Coder explicitly prevents wrappers, enforces CC<10, requires 3+ uses for helpers.
+
+Results:
+
+| Problem | pass_rate | erosion | verbosity | composite | cost |
+|---------|-----------|---------|-----------|-----------|------|
+| dag_execution | 0.074 | 0.732 | 0.067 | -0.166 | $9.77 |
+| **file_backup** | **0.917** | 0.711 | 0.035 | **0.693** | $9.76 |
+
+**file_backup: 0.917 pass rate, 100% core solved!** Massive improvement over baseline (0.606) and previous best (0.701). Composite 0.693 vs 0.502 previous best.
+
+dag_execution got worse — the prompt changes are problem-dependent. Test-aware review helps when tests are well-structured (file_backup) but may confuse the reviewer on harder problems (dag_execution).
+
+**KEEP: test-aware reviewer + erosion-aware coder prompts.** The file_backup result is our best by far.
+
+**Cumulative cost: ~$91 / $500**
+
+---
+
+## Iteration 4: Next experiment
+
+**Hypothesis:** TBD — need to test on more problems with the improved prompts.
