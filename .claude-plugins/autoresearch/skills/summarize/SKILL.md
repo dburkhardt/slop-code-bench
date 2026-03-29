@@ -1,5 +1,4 @@
 ---
-name: autoresearch:summarize
 description: >-
   Generate a cross-run comparison of all autoresearch runs. Reads manifests,
   results, and summaries to produce a ranked table and identify the best

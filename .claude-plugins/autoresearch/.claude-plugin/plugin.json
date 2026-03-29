@@ -1,0 +1,5 @@
+{
+  "name": "autoresearch",
+  "description": "Autonomous optimization loop for the reviewer-coder agent on SlopCodeBench.",
+  "version": "1.0.0"
+}

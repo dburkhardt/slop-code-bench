@@ -1,5 +1,4 @@
 ---
-name: autoresearch:status
 description: >-
   Check the status of all autoresearch runs. Shows active processes,
   current iterations, budget remaining, and what each agent is working on.
