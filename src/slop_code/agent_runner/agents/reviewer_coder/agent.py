@@ -56,12 +56,7 @@ Rules:
 - Be concise. Each suggestion: 2-3 sentences max."""
 
 CODER_APPEND_PROMPT = """\
-Before writing ANY code, read all existing source files and the \
-specification. Then create a brief plan: list the functions you will \
-modify, any new functions needed, and the changes for each. Only \
-after planning, start implementing.
-
-Code quality rules: \
+Write clean, minimal code. Rules: \
 (1) Modify existing functions in-place instead of creating wrappers. \
 (2) Never create single-use helper functions. \
 (3) Keep cyclomatic complexity per function under 10. \
