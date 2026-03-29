@@ -1,0 +1,15 @@
+{
+  "run_id": "96b223",
+  "iteration": 0,
+  "decision": "keep",
+  "composite": 0.690,
+  "pass_rate": 0.879,
+  "erosion": 0.622,
+  "verbosity": 0.007,
+  "cost": 9.01,
+  "wall_clock_seconds": 3127,
+  "step_utilization_mean": 0.88,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260329T1611"
+}
