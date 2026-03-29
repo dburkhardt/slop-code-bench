@@ -393,14 +393,23 @@ ended: <ISO 8601 timestamp>
 summary: <1-2 sentence summary of what this run discovered>
 ```
 
-**Step 2: Commit and push your final state:**
+**Step 2: Restore the best iteration's code.** The current branch may not have the best code (later iterations may have kept a worse-than-best result). Copy the best iteration's snapshot back into the package directory:
+```bash
+BEST_ITER=<best_iteration number from manifest, zero-padded>
+cp autoresearch/runs/$RUN_ID/iter_${BEST_ITER}/agent.py \
+   src/slop_code/agent_runner/agents/reviewer_coder/agent.py
+cp autoresearch/runs/$RUN_ID/iter_${BEST_ITER}/config.yaml \
+   configs/agents/reviewer_coder.yaml
+```
+
+**Step 3: Commit and push your final state:**
 ```bash
 git add -A
-git commit -m "[optloop/$RUN_ID] final: <summary of best result>"
+git commit -m "[optloop/$RUN_ID] final: restore best iteration (iter $BEST_ITER, composite $BEST_COMPOSITE)"
 git push origin optloop/$RUN_ID
 ```
 
-**Step 3: Merge to main.** Copy your run artifacts and best agent code to main:
+**Step 4: Merge to main:**
 ```bash
 # Switch to main
 git checkout main
@@ -416,7 +425,7 @@ If the merge has conflicts (another agent merged first), resolve them:
 - `optimization_log.md` — keep both agents' entries (append-only)
 - `reviewer_coder/agent.py` — pick the version with the better composite score, or keep main's version and let the human decide
 
-**Step 4: Clean up the worktree** (if using one):
+**Step 5: Clean up the worktree** (if using one):
 ```bash
 cd /path/to/original/repo
 git worktree remove .claude-worktrees/$RUN_ID
