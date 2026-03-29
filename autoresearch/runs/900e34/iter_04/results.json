@@ -1,0 +1,30 @@
+{
+  "run_id": "900e34",
+  "iteration": 4,
+  "decision": "provisional_keep",
+  "composite": 0.561,
+  "pass_rate": 0.732,
+  "erosion": 0.549,
+  "verbosity": 0.022,
+  "cost": 15.49,
+  "wall_clock_seconds": 5400,
+  "problems": [
+    "dag_execution",
+    "file_backup"
+  ],
+  "per_problem": {
+    "dag_execution": {
+      "pass_rate": 0.541,
+      "erosion": 0.73,
+      "verbosity": 0.036,
+      "composite": 0.311
+    },
+    "file_backup": {
+      "pass_rate": 0.923,
+      "erosion": 0.368,
+      "verbosity": 0.007,
+      "composite": 0.81
+    }
+  },
+  "note": "Review extraction fix working (rev_cycles=1). file_backup 0.810 is best ever. dag_execution regressed."
+}
