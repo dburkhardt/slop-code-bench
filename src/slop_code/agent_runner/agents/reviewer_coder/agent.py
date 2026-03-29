@@ -565,43 +565,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             if mid_result:
                 self.telemetry.setdefault("mid_phase_evals", []).append(mid_result)
 
-        # --- Cleanup pass: reduce complexity ---
-        # Only run if we have step budget remaining
-        if (
-            self.cost_limits.step_limit <= 0
-            or self.usage.steps < self.cost_limits.step_limit - 5
-        ):
-            cleanup_prompt = (
-                "Run the tests to make sure everything passes. "
-                "Then review the code for functions with high "
-                "cyclomatic complexity (many if/elif/else branches, "
-                "nested loops). Split any function with more than 10 "
-                "branches into smaller helper functions. Do NOT change "
-                "any external behavior. Do NOT break any tests."
-            )
-            cleanup_remaining: int | None = None
-            if self.cost_limits.step_limit > 0:
-                cleanup_remaining = max(
-                    1,
-                    self.cost_limits.step_limit - self.usage.steps,
-                )
-            cleanup_args = self._build_cli_args(
-                max_turns=min(cleanup_remaining or 5, 5),
-                append_system_prompt=(
-                    "You are refactoring code to reduce complexity. "
-                    "Do not change behavior. Keep all tests passing."
-                ),
-            )
-            result = self._invoke_claude(
-                cleanup_args,
-                cleanup_prompt,
-                env_overrides,
-                label="cleanup",
-            )
-            self._record_phase(
-                "cleanup", "coder", self.num_review_cycles + 1,
-            )
-
         self.final_result = result
         self._finalize_telemetry()
 
