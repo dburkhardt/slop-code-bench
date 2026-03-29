@@ -1,0 +1,13 @@
+run_id: 96b223
+branch: optloop/96b223
+started: 2026-03-29T16:10:00Z
+focus: Optimize reviewer-coder composite score on file_backup (primary) with dag_execution cross-validation
+budget: 750
+status: running
+
+researcher:
+  model: "Claude Opus 4.6 (claude-opus-4-6)"
+  harness: "Claude Code CLI v2.1.87"
+  context_window: "1M tokens"
+
+benchmark_model: claude_code_local/sonnet-4.5
