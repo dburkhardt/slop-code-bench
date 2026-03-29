@@ -114,4 +114,18 @@ dag_execution got worse — the prompt changes are problem-dependent. Test-aware
 
 ## Iteration 4: Next experiment
 
-**Hypothesis:** TBD — need to test on more problems with the improved prompts.
+Results across 4 problems (test-aware reviewer + erosion-aware coder, 3 review cycles):
+
+| Problem | pass_rate | erosion | verbosity | composite | cost |
+|---------|-----------|---------|-----------|-----------|------|
+| **file_backup (4cp)** | **0.917** | 0.711 | 0.035 | **0.693** | $9.76 |
+| file_merger (4cp) | 0.734 | 0.673 | 0.097 | 0.503 | $9.98 |
+| code_search (6cp) | 0.646 | 0.492 | 0.043 | 0.486 | $21.22 |
+| dag_execution (3cp) | 0.074 | 0.732 | 0.067 | -0.166 | $9.77 |
+| circuit_eval (8cp) | *running* | | | | |
+
+**Mean composite (4 problems): 0.379**
+
+Strong results on 3/4 problems. dag_execution is an outlier (0.074 pass rate). The approach works well on problems with clear test suites.
+
+**Cumulative cost: ~$142 / $500**
