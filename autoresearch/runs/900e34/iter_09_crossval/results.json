@@ -1,0 +1,15 @@
+{
+  "run_id": "900e34",
+  "iteration": 9,
+  "decision": "keep",
+  "composite": 0.764,
+  "pass_rate": 0.896,
+  "erosion": 0.404,
+  "verbosity": 0.035,
+  "cost": 21.21,
+  "problems": [
+    "code_search",
+    "file_merger"
+  ],
+  "note": "Cross-validation on unseen problems. Best composite yet (0.764)."
+}
