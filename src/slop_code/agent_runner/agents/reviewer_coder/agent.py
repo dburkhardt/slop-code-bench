@@ -456,16 +456,12 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             # --- Coding batch ---
             if last_suggestions:
                 coder_prompt = (
-                    f"IMPORTANT: First run the test suite to see current "
-                    f"pass/fail status. Then implement the reviewer's "
-                    f"suggestions below. After implementing each suggestion, "
-                    f"run the tests again to confirm nothing broke. If a "
-                    f"suggestion breaks tests, revert that change.\n\n"
+                    f"A code reviewer has suggested improvements. "
+                    f"Implement them, then continue with the spec.\n\n"
                     f"<reviewer_suggestions>\n"
                     f"{last_suggestions}\n"
                     f"</reviewer_suggestions>\n\n"
-                    f"After implementing suggestions, continue with the "
-                    f"specification:\n{task}"
+                    f"The original specification:\n{task}"
                 )
             else:
                 coder_prompt = task
