@@ -1,0 +1,1 @@
+{"run_id":"96b223","iteration":19,"decision":"keep","composite_fb_rep1":0.712,"composite_fb_rep2":0.677,"composite_dag":0.351,"problems":["file_backup","dag_execution"],"notes":"Final config validation. file_backup mean 0.694, dag_execution 0.351 (best dag yet, 2.5x baseline)."}

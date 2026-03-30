@@ -6,14 +6,14 @@ budget: 750
 status: paused
 best_composite: 0.791
 best_iteration: 11
-iterations: 16
-total_cost: $183
+iterations: 19
+total_cost: $240
+ended: 2026-03-30T15:00:00Z
 summary: >
-  Multi-batch coder structure is the primary driver (0.343->0.690).
-  Reducing to 1 review cycle, text-only reviewer, anti-rewrite prompt,
-  and 20 turns/batch gives mean composite 0.718 (range 0.645-0.791).
-  LOC explosion guard eliminates the main failure mode but doesn't
-  improve mean (0.701 guarded vs 0.718 unguarded).
+  Multi-batch coder structure is the entire win (0.343->~0.70).
+  1 review cycle, 20 turns/batch, reviewer max-turns=3, longest-text
+  fallback. Clean agent, no LOC guards or context injection.
+  file_backup mean ~0.70 (range 0.61-0.79), dag_execution 0.35.
 
 researcher:
   model: "Claude Opus 4.6 (claude-opus-4-6)"
