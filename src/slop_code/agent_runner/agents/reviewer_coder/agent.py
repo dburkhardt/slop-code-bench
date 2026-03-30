@@ -693,9 +693,11 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
 
         remaining_turns: int | None = None
         if self.cost_limits.step_limit > 0:
-            remaining_turns = max(
+            budget_remaining = max(
                 1, self.cost_limits.step_limit - self.usage.steps,
             )
+            max_final = self.coder_turns_per_batch + 5
+            remaining_turns = min(budget_remaining, max_final)
 
         final_args = self._build_cli_args(
             max_turns=remaining_turns,
