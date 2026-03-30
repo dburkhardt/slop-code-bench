@@ -1,0 +1,1 @@
+{"run_id":"96b223","iteration":9,"decision":"revert","composite":0.670,"pass_rate":0.781,"erosion":0.369,"verbosity":0.000,"cost":7.39,"problems":["file_backup"],"output_dir":"outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260329T2325"}
