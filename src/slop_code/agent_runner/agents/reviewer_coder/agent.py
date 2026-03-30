@@ -55,22 +55,6 @@ Rules:
 - Be concise. Each suggestion: 2-3 sentences max.
 - Respond ONLY with your suggestions. No preamble."""
 
-PLANNER_SYSTEM_PROMPT = """\
-You are an implementation planner. You will receive a specification and \
-possibly existing source code. Produce a concise implementation plan.
-
-Output format:
-1. List the key functions/classes needed and their responsibilities.
-2. For each function, note the core algorithm in 1-2 sentences.
-3. If extending existing code, identify which functions to modify vs add.
-4. Flag potential complexity hotspots (functions likely to exceed CC 10).
-
-Rules:
-- Be concise. The plan should fit in ~500 words.
-- Do NOT write code. Just describe the approach.
-- If existing code is provided, reuse it. Do not suggest rewrites.
-- Respond ONLY with the plan. No preamble."""
-
 CODER_APPEND_PROMPT = """\
 Write clean, minimal code. Rules: \
 (1) Modify existing functions in-place instead of creating wrappers. \
@@ -255,9 +239,8 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
     def _build_reviewer_args(self) -> list[str]:
         """Build ``claude`` CLI args for a reviewer invocation.
 
-        Uses --max-turns 1 so the reviewer produces text-only output.
-        Context (source code) is injected into the prompt, so the
-        reviewer does not need tools.
+        Uses --max-turns 1 so the reviewer produces only text output.
+        Context (source code, test results) is injected into the prompt.
         """
         args = [
             self.binary,
@@ -509,42 +492,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         env_overrides = self._build_env_overrides()
         last_suggestions: str | None = None
 
-        # --- Planning phase ---
-        context = self._gather_workspace_context()
-        planner_args = self._build_reviewer_args()  # reuse text-only args
-        planner_prompt = (
-            f"Create an implementation plan for this specification.\n\n"
-            f"<specification>\n{task}\n</specification>\n\n"
-        )
-        if context:
-            planner_prompt += (
-                f"Existing code in the workspace:\n{context}\n\n"
-                f"Extend the existing code. Do NOT rewrite it."
-            )
-        # Override system prompt for planning
-        planner_args_patched = []
-        for i, arg in enumerate(planner_args):
-            if arg == "--append-system-prompt" and i + 1 < len(planner_args):
-                planner_args_patched.append(arg)
-                planner_args_patched.append(
-                    shlex.quote(PLANNER_SYSTEM_PROMPT)
-                )
-                continue
-            if i > 0 and planner_args[i - 1] == "--append-system-prompt":
-                continue
-            planner_args_patched.append(arg)
-
-        plan_start = len(self.steps)
-        self._invoke_claude(
-            planner_args_patched, planner_prompt, env_overrides,
-            label="planner",
-        )
-        self._record_phase("planner", "planner", -1)
-
-        # Extract plan text
-        plan_text = self._extract_review_text(None, plan_start)
-        self.telemetry["plan_chars"] = len(plan_text) if plan_text else 0
-
         for cycle in range(self.num_review_cycles):
             # --- Coding batch ---
             if last_suggestions:
@@ -555,14 +502,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                     f"{last_suggestions}\n"
                     f"</reviewer_suggestions>\n\n"
                     f"The original specification:\n{task}"
-                )
-            elif plan_text:
-                coder_prompt = (
-                    f"An architect has prepared an implementation plan. "
-                    f"Follow this plan while implementing the spec.\n\n"
-                    f"<implementation_plan>\n{plan_text}\n"
-                    f"</implementation_plan>\n\n"
-                    f"The specification:\n{task}"
                 )
             else:
                 coder_prompt = task
@@ -742,20 +681,15 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         Only searches steps from ``review_start_idx`` onwards to avoid
         returning coder output from a previous batch.
         """
-        # First try: look for result payload with text.
-        # With --print, the result payload's "result" field contains
-        # the final text output. This is the most reliable source.
+        # First try: look for result payload with text
         for payload in reversed(self.steps[review_start_idx:]):
             if payload.get("type") == "result":
                 text = payload.get("result", "")
                 if text and len(text) > 10:
                     return text[:6000]
 
-        # Fallback: the result payload may be empty when stop_reason
-        # is "tool_use" (reviewer hit max-turns while trying to use
-        # a tool). In that case, find the longest assistant text
-        # message, which is most likely the actual review content
-        # rather than a short preamble.
+        # Fallback: find the longest assistant text message, which is
+        # most likely the actual review content rather than preamble.
         best_text = ""
         for payload in self.steps[review_start_idx:]:
             msg = payload.get("message", {})
