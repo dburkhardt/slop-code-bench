@@ -538,13 +538,50 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
     # Planning phase
     # ------------------------------------------------------------------
 
+    def _has_existing_code(self) -> bool:
+        """Check if workspace already has source files (checkpoint 2+)."""
+        for f in self.workspace.glob("*.py"):
+            if not f.name.startswith("."):
+                return True
+        return False
+
+    def _count_workspace_loc(self) -> int:
+        """Count logical lines of code in workspace source files."""
+        total = 0
+        for fpath in self.workspace.rglob("*.py"):
+            if any(
+                p.startswith(".") for p in
+                fpath.relative_to(self.workspace).parts
+            ):
+                continue
+            try:
+                lines = fpath.read_text().splitlines()
+                total += sum(
+                    1 for ln in lines
+                    if ln.strip()
+                    and not ln.strip().startswith("#")
+                )
+            except Exception:
+                continue
+        return total
+
     def _run_planning_phase(
         self,
         task: str,
         env_overrides: dict[str, str],
     ) -> str | None:
-        """Run a planner invocation to produce an implementation plan."""
+        """Run a planner invocation to produce an implementation plan.
+
+        Skips planning if workspace already has code (checkpoint 2+).
+        """
         if not self.enable_planning:
+            return None
+
+        if self._has_existing_code():
+            self.log.info(
+                "reviewer_coder.planner.skipped",
+                reason="existing_code",
+            )
             return None
 
         self.log.info("reviewer_coder.planner.start")
@@ -591,7 +628,11 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         env_overrides = self._build_env_overrides()
         last_suggestions: str | None = None
 
-        # --- Planning phase (optional) ---
+        # Capture prior LOC for anchoring
+        prior_loc = self._count_workspace_loc()
+        self.telemetry["prior_loc"] = prior_loc
+
+        # --- Planning phase (optional, cp1 only) ---
         plan_text = self._run_planning_phase(task, env_overrides)
 
         if self.cost_limits.is_above_limits(
@@ -605,6 +646,7 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             # --- Build coder prompt ---
             coder_prompt = self._build_coder_prompt(
                 task, last_suggestions, plan_text,
+                prior_loc=prior_loc,
             )
 
             coder_args = self._build_cli_args(
@@ -689,6 +731,7 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         # --- Final coding batch ---
         final_prompt = self._build_coder_prompt(
             task, last_suggestions, plan_text, final=True,
+            prior_loc=prior_loc,
         )
 
         remaining_turns: int | None = None
@@ -734,6 +777,7 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         plan: str | None,
         *,
         final: bool = False,
+        prior_loc: int = 0,
     ) -> str:
         """Assemble the coder prompt from spec, plan, and suggestions."""
         parts = []
@@ -752,6 +796,15 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             parts.append(
                 f"<implementation_plan>\n{plan}\n"
                 f"</implementation_plan>"
+            )
+
+        if prior_loc > 0:
+            max_loc = int(prior_loc * 1.5) + 200
+            parts.append(
+                f"<loc_budget>The codebase currently has "
+                f"{prior_loc} lines of code. Keep your total "
+                f"under {max_loc} lines. Add only what the "
+                f"specification requires.</loc_budget>"
             )
 
         parts.append(
