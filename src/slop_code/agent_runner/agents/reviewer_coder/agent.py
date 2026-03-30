@@ -293,6 +293,23 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             return ""
         return "<source_code>\n" + "\n\n".join(parts) + "\n</source_code>"
 
+    def _snapshot_workspace(self) -> dict[str, str]:
+        """Snapshot all .py files in the workspace."""
+        snapshot = {}
+        try:
+            for py_file in self.workspace.glob("*.py"):
+                if py_file.name.startswith("."):
+                    continue
+                snapshot[str(py_file)] = py_file.read_text()
+        except Exception:
+            pass
+        return snapshot
+
+    def _restore_workspace(self, snapshot: dict[str, str]) -> None:
+        """Restore workspace from a snapshot."""
+        for path, content in snapshot.items():
+            Path(path).write_text(content)
+
     def _count_workspace_loc(self) -> int:
         """Count total lines of Python code in the workspace."""
         total = 0
@@ -532,6 +549,10 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             else:
                 coder_prompt = task + loc_warning
 
+            # Snapshot before coder invocation for LOC explosion protection
+            pre_snapshot = self._snapshot_workspace()
+            pre_loc = current_loc
+
             coder_args = self._build_cli_args(
                 max_turns=self.coder_turns_per_batch,
                 append_system_prompt=CODER_APPEND_PROMPT,
@@ -541,6 +562,18 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 label=f"coder_batch_{cycle}",
             )
             self._record_phase(f"coder_batch_{cycle}", "coder", cycle)
+
+            # LOC explosion guard: revert if code size more than doubled
+            post_loc = self._count_workspace_loc()
+            if pre_loc > 50 and post_loc > pre_loc * 2:
+                self.log.info(
+                    "reviewer_coder.loc_explosion.revert",
+                    pre_loc=pre_loc, post_loc=post_loc,
+                )
+                self._restore_workspace(pre_snapshot)
+                self.telemetry.setdefault("loc_reverts", []).append({
+                    "cycle": cycle, "pre": pre_loc, "post": post_loc,
+                })
 
             # Mid-phase eval after coder batch
             if self._mid_phase_enabled:
@@ -632,6 +665,9 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 1, self.cost_limits.step_limit - self.usage.steps
             )
 
+        # Snapshot before final coder invocation
+        final_pre_snapshot = self._snapshot_workspace()
+
         final_args = self._build_cli_args(
             max_turns=remaining_turns,
             append_system_prompt=CODER_APPEND_PROMPT,
@@ -641,6 +677,18 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             label="coder_final",
         )
         self._record_phase("coder_final", "coder", self.num_review_cycles)
+
+        # LOC explosion guard for final batch
+        final_post_loc = self._count_workspace_loc()
+        if final_loc > 50 and final_post_loc > final_loc * 2:
+            self.log.info(
+                "reviewer_coder.loc_explosion.revert_final",
+                pre_loc=final_loc, post_loc=final_post_loc,
+            )
+            self._restore_workspace(final_pre_snapshot)
+            self.telemetry.setdefault("loc_reverts", []).append({
+                "cycle": "final", "pre": final_loc, "post": final_post_loc,
+            })
 
         # Mid-phase eval after final coder batch
         if self._mid_phase_enabled:
