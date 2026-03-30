@@ -1,0 +1,16 @@
+{
+  "run_id": "900e34",
+  "iteration": 6,
+  "decision": "revert",
+  "composite": 0.506,
+  "pass_rate": 0.742,
+  "erosion": 0.745,
+  "verbosity": 0.04,
+  "cost": 17.17,
+  "wall_clock_seconds": 5400,
+  "problems": [
+    "dag_execution",
+    "file_backup"
+  ],
+  "note": "step_limit 200 did not help. Utilization was 0.33-0.52 (agent finishes well under limit). Reverted to 150."
+}
