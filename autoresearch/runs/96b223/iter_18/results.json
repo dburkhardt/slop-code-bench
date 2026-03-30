@@ -1,0 +1,1 @@
+{"run_id":"96b223","iteration":18,"decision":"revert","composite":0.597,"problems":["file_backup"],"notes":"2 review cycles. Worse than 1 cycle (0.597 vs 0.718). Higher reviewer cost (10-14%), higher erosion (0.802)."}

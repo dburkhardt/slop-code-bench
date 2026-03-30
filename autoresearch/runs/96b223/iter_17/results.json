@@ -1,0 +1,1 @@
+{"run_id":"96b223","iteration":17,"decision":"revert","composite_rep1":0.612,"composite_rep2":0.635,"composite_mean":0.623,"problems":["file_backup"],"notes":"Clean rewrite (stripped LOC guard, context injection). 25 turns, max-turns=3 reviewer. Worse than 20-turn config (0.623 vs 0.718)."}
