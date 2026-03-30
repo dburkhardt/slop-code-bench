@@ -1,0 +1,16 @@
+{
+  "run_id": "834ed3",
+  "iteration": 1,
+  "decision": "revert",
+  "composite": 0.699,
+  "pass_rate": 0.724,
+  "erosion": 0.061,
+  "verbosity": 0.022,
+  "cost": 7.80,
+  "wall_clock_seconds": 3120,
+  "step_utilization_mean": 0.71,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260330T0110",
+  "notes": "LOC explosion at cp3 (612->10554). LOC budget prompt ignored. Skip-planning on cp2+ is fine but cp1 pass_rate dropped (variance). dag_execution killed (stuck on cp1 for 40min)."
+}
