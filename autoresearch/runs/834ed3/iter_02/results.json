@@ -1,0 +1,16 @@
+{
+  "run_id": "834ed3",
+  "iteration": 2,
+  "decision": "keep",
+  "composite": 0.718,
+  "pass_rate": 0.846,
+  "erosion": 0.394,
+  "verbosity": 0.034,
+  "cost": 8.42,
+  "wall_clock_seconds": 3600,
+  "step_utilization_mean": 0.75,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260330T0207",
+  "notes": "Variance test. Same config as iter 0. Replicates collided (same output dir). Result 0.718 vs iter 0's 0.770. Confirms high variance. eve_route_planner stuck, killed."
+}
