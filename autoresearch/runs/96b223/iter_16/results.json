@@ -1,0 +1,1 @@
+{"run_id":"96b223","iteration":16,"decision":"keep","composite":0.246,"pass_rate":0.479,"erosion":0.708,"problems":["dag_execution"],"notes":"Final cross-validation on dag_execution. Consistent with prior cross-validations (0.248, 0.255). Improvement transfers from file_backup."}

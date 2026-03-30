@@ -3,7 +3,17 @@ branch: optloop/96b223
 started: 2026-03-29T16:10:00Z
 focus: Optimize reviewer-coder composite score on file_backup (primary) with dag_execution cross-validation
 budget: 750
-status: running
+status: paused
+best_composite: 0.791
+best_iteration: 11
+iterations: 16
+total_cost: $183
+summary: >
+  Multi-batch coder structure is the primary driver (0.343->0.690).
+  Reducing to 1 review cycle, text-only reviewer, anti-rewrite prompt,
+  and 20 turns/batch gives mean composite 0.718 (range 0.645-0.791).
+  LOC explosion guard eliminates the main failure mode but doesn't
+  improve mean (0.701 guarded vs 0.718 unguarded).
 
 researcher:
   model: "Claude Opus 4.6 (claude-opus-4-6)"
