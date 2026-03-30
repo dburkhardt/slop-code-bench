@@ -1,0 +1,1 @@
+{"run_id":"96b223","iteration":13,"decision":"revert","composite":0.634,"problems":["file_backup"],"notes":"LOC guard with non-recursive glob. Explosion still happened because glob only matched root files."}
