@@ -293,6 +293,21 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             return ""
         return "<source_code>\n" + "\n\n".join(parts) + "\n</source_code>"
 
+    def _count_workspace_loc(self) -> int:
+        """Count total lines of Python code in the workspace."""
+        total = 0
+        try:
+            for py_file in self.workspace.glob("*.py"):
+                if py_file.name.startswith("."):
+                    continue
+                total += sum(
+                    1 for line in py_file.read_text().splitlines()
+                    if line.strip() and not line.strip().startswith("#")
+                )
+        except Exception:
+            pass
+        return total
+
     # ------------------------------------------------------------------
     # Phase tracking
     # ------------------------------------------------------------------
@@ -494,6 +509,16 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
 
         for cycle in range(self.num_review_cycles):
             # --- Coding batch ---
+            current_loc = self._count_workspace_loc()
+            loc_warning = ""
+            if current_loc > 0:
+                loc_limit = max(current_loc + 300, int(current_loc * 1.5))
+                loc_warning = (
+                    f"\n\nIMPORTANT: The codebase is currently {current_loc} "
+                    f"lines. Keep it under {loc_limit} lines. Do NOT "
+                    f"rewrite existing code. Add only what is needed."
+                )
+
             if last_suggestions:
                 coder_prompt = (
                     f"A code reviewer has suggested improvements. "
@@ -502,9 +527,10 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                     f"{last_suggestions}\n"
                     f"</reviewer_suggestions>\n\n"
                     f"The original specification:\n{task}"
+                    f"{loc_warning}"
                 )
             else:
-                coder_prompt = task
+                coder_prompt = task + loc_warning
 
             coder_args = self._build_cli_args(
                 max_turns=self.coder_turns_per_batch,
@@ -574,6 +600,16 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 return
 
         # --- Final coding batch ---
+        final_loc = self._count_workspace_loc()
+        final_loc_warning = ""
+        if final_loc > 0:
+            final_loc_limit = max(final_loc + 300, int(final_loc * 1.5))
+            final_loc_warning = (
+                f"\n\nIMPORTANT: The codebase is currently {final_loc} "
+                f"lines. Keep it under {final_loc_limit} lines. Do NOT "
+                f"rewrite existing code. Add only what is needed."
+            )
+
         if last_suggestions:
             final_prompt = (
                 f"A code reviewer has suggested improvements. "
@@ -582,9 +618,10 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 f"{last_suggestions}\n"
                 f"</reviewer_suggestions>\n\n"
                 f"The specification:\n{task}"
+                f"{final_loc_warning}"
             )
         else:
-            final_prompt = task
+            final_prompt = task + final_loc_warning
 
         # Calculate remaining turns from budget instead of using
         # step_limit directly (which is the overall budget, not a
