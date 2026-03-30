@@ -32,40 +32,27 @@ from slop_code.common.llms import ThinkingPreset
 from slop_code.execution.runtime import RuntimeResult
 
 # ---------------------------------------------------------------------------
-# Reviewer prompt
+# Prompts
 # ---------------------------------------------------------------------------
 
 REVIEWER_SYSTEM_PROMPT = """\
-You are a senior code quality reviewer. You will receive source code \
-and test results. Provide specific, actionable suggestions.
+You are a code reviewer. Read the workspace and suggest improvements.
 
-Focus on:
-1. CODE THAT CAUSES TEST FAILURES: prioritize fixes that help failing \
-tests pass without breaking passing tests.
-2. DUPLICATION: repeated code blocks that should be shared functions.
-3. COMPLEXITY: functions with cyclomatic complexity >10 should be split.
-4. DEAD CODE: unused imports, unreachable code, unused variables.
+Focus on: (1) failing tests, (2) duplicated code, (3) functions with \
+cyclomatic complexity >10, (4) dead code.
 
-Rules:
-- Reference exact function names and file paths.
-- For each suggestion, show the exact code to change and the replacement.
-- Limit to 3-5 highest-impact suggestions.
-- Do NOT suggest adding error handling, logging, types, or docs.
-- Do NOT suggest changes that would alter external behaviour.
-- Be concise. Each suggestion: 2-3 sentences max.
-- Respond ONLY with your suggestions. No preamble."""
+Rules: reference exact file paths and function names. Show exact code \
+changes. Limit to 3-5 suggestions. No error handling, logging, or doc \
+suggestions. Be concise."""
 
 CODER_APPEND_PROMPT = """\
-Write clean, minimal code. Rules: \
+Write clean, minimal code. \
 (1) Modify existing functions in-place instead of creating wrappers. \
 (2) Never create single-use helper functions. \
 (3) Keep cyclomatic complexity per function under 10. \
-(4) Extract genuinely shared logic into helpers, but only if used 3+ times. \
-(5) If a reviewer provides suggestions, apply them with MINIMAL changes. \
-Do NOT rewrite or restructure code beyond what the suggestion requires. \
-(6) Never duplicate existing logic. Reuse existing functions. \
-(7) NEVER rewrite entire files. Make targeted edits only. If your change \
-would touch more than 30 lines, break it into smaller steps."""
+(4) Extract shared logic into helpers only if used 3+ times. \
+(5) If reviewer suggestions are provided, apply them with MINIMAL changes. \
+(6) NEVER rewrite entire files. Make targeted edits only."""
 
 
 # ---------------------------------------------------------------------------
@@ -237,17 +224,13 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
     # ------------------------------------------------------------------
 
     def _build_reviewer_args(self) -> list[str]:
-        """Build ``claude`` CLI args for a reviewer invocation.
-
-        Uses --max-turns 1 so the reviewer produces only text output.
-        Context (source code, test results) is injected into the prompt.
-        """
+        """Build ``claude`` CLI args for a reviewer invocation."""
         args = [
             self.binary,
             "--output-format", "stream-json",
             "--verbose",
             "--model", shlex.quote(self.model),
-            "--max-turns", "1",
+            "--max-turns", "3",
             "--append-system-prompt",
             shlex.quote(REVIEWER_SYSTEM_PROMPT),
         ]
@@ -259,86 +242,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         args.append("--print")
         args.append("--")
         return args
-
-    # ------------------------------------------------------------------
-    # Workspace context gathering
-    # ------------------------------------------------------------------
-
-    def _gather_workspace_context(self) -> str:
-        """Read source files from workspace to build reviewer context.
-
-        Prioritizes the main source files and caps total context at
-        ~20K characters to fit in the reviewer's context window.
-        """
-        parts = []
-        total_chars = 0
-        max_total = 20000
-
-        try:
-            py_files = sorted(self.workspace.rglob("*.py"))
-            for py_file in py_files[:10]:
-                if py_file.name.startswith("."):
-                    continue
-                content = py_file.read_text()
-                if len(content) > 0 and total_chars < max_total:
-                    truncated = content[:max_total - total_chars]
-                    parts.append(
-                        f"### {py_file.name}\n```python\n{truncated}\n```"
-                    )
-                    total_chars += len(truncated)
-        except Exception:
-            pass
-
-        if not parts:
-            return ""
-        return "<source_code>\n" + "\n\n".join(parts) + "\n</source_code>"
-
-    def _snapshot_workspace(self) -> dict[str, str]:
-        """Snapshot all .py files in the workspace (recursive)."""
-        snapshot = {}
-        try:
-            for py_file in self.workspace.rglob("*.py"):
-                rel = py_file.relative_to(self.workspace)
-                if any(p.startswith(".") for p in rel.parts):
-                    continue
-                snapshot[str(py_file)] = py_file.read_text()
-        except Exception:
-            pass
-        return snapshot
-
-    def _restore_workspace(self, snapshot: dict[str, str]) -> None:
-        """Restore workspace from a snapshot, removing new files."""
-        # Remove all current .py files not in snapshot
-        try:
-            for py_file in self.workspace.rglob("*.py"):
-                rel = py_file.relative_to(self.workspace)
-                if any(p.startswith(".") for p in rel.parts):
-                    continue
-                if str(py_file) not in snapshot:
-                    py_file.unlink()
-        except Exception:
-            pass
-        # Restore snapshot contents
-        for path, content in snapshot.items():
-            p = Path(path)
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(content)
-
-    def _count_workspace_loc(self) -> int:
-        """Count total lines of Python code in workspace (recursive)."""
-        total = 0
-        try:
-            for py_file in self.workspace.rglob("*.py"):
-                rel = py_file.relative_to(self.workspace)
-                if any(p.startswith(".") for p in rel.parts):
-                    continue
-                total += sum(
-                    1 for line in py_file.read_text().splitlines()
-                    if line.strip() and not line.strip().startswith("#")
-                )
-        except Exception:
-            pass
-        return total
 
     # ------------------------------------------------------------------
     # Phase tracking
@@ -541,16 +444,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
 
         for cycle in range(self.num_review_cycles):
             # --- Coding batch ---
-            current_loc = self._count_workspace_loc()
-            loc_warning = ""
-            if current_loc > 0:
-                loc_limit = max(current_loc + 300, int(current_loc * 1.5))
-                loc_warning = (
-                    f"\n\nIMPORTANT: The codebase is currently {current_loc} "
-                    f"lines. Keep it under {loc_limit} lines. Do NOT "
-                    f"rewrite existing code. Add only what is needed."
-                )
-
             if last_suggestions:
                 coder_prompt = (
                     f"A code reviewer has suggested improvements. "
@@ -559,14 +452,9 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                     f"{last_suggestions}\n"
                     f"</reviewer_suggestions>\n\n"
                     f"The original specification:\n{task}"
-                    f"{loc_warning}"
                 )
             else:
-                coder_prompt = task + loc_warning
-
-            # Snapshot before coder invocation for LOC explosion protection
-            pre_snapshot = self._snapshot_workspace()
-            pre_loc = current_loc
+                coder_prompt = task
 
             coder_args = self._build_cli_args(
                 max_turns=self.coder_turns_per_batch,
@@ -577,18 +465,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 label=f"coder_batch_{cycle}",
             )
             self._record_phase(f"coder_batch_{cycle}", "coder", cycle)
-
-            # LOC explosion guard: revert if code size more than doubled
-            post_loc = self._count_workspace_loc()
-            if pre_loc > 50 and post_loc > pre_loc * 2:
-                self.log.info(
-                    "reviewer_coder.loc_explosion.revert",
-                    pre_loc=pre_loc, post_loc=post_loc,
-                )
-                self._restore_workspace(pre_snapshot)
-                self.telemetry.setdefault("loc_reverts", []).append({
-                    "cycle": cycle, "pre": pre_loc, "post": post_loc,
-                })
 
             # Mid-phase eval after coder batch
             if self._mid_phase_enabled:
@@ -610,14 +486,11 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 return
 
             # --- Review pass ---
-            # Gather context from workspace for the reviewer
-            context = self._gather_workspace_context()
-
             reviewer_args = self._build_reviewer_args()
             reviewer_prompt = (
-                "Review the following code and test results. "
-                "Provide your top 3-5 suggestions for improvements.\n\n"
-                + context
+                "Read all source files in the current working "
+                "directory and provide your code quality review. "
+                "Focus on reducing duplication and complexity."
             )
 
             review_start = len(self.steps)
@@ -627,12 +500,10 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             )
             self._record_phase(f"reviewer_{cycle}", "reviewer", cycle)
 
-            # Extract suggestions: prefer file, fall back to stream
-            last_suggestions = self._extract_review_from_file()
-            if not last_suggestions:
-                last_suggestions = self._extract_review_text(
-                    review_result, review_start
-                )
+            # Extract suggestions from reviewer output
+            last_suggestions = self._extract_review_text(
+                review_result, review_start
+            )
 
             if last_suggestions:
                 self._review_suggestions.append((cycle, last_suggestions))
@@ -648,16 +519,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 return
 
         # --- Final coding batch ---
-        final_loc = self._count_workspace_loc()
-        final_loc_warning = ""
-        if final_loc > 0:
-            final_loc_limit = max(final_loc + 300, int(final_loc * 1.5))
-            final_loc_warning = (
-                f"\n\nIMPORTANT: The codebase is currently {final_loc} "
-                f"lines. Keep it under {final_loc_limit} lines. Do NOT "
-                f"rewrite existing code. Add only what is needed."
-            )
-
         if last_suggestions:
             final_prompt = (
                 f"A code reviewer has suggested improvements. "
@@ -666,10 +527,9 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 f"{last_suggestions}\n"
                 f"</reviewer_suggestions>\n\n"
                 f"The specification:\n{task}"
-                f"{final_loc_warning}"
             )
         else:
-            final_prompt = task + final_loc_warning
+            final_prompt = task
 
         # Calculate remaining turns from budget instead of using
         # step_limit directly (which is the overall budget, not a
@@ -680,9 +540,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
                 1, self.cost_limits.step_limit - self.usage.steps
             )
 
-        # Snapshot before final coder invocation
-        final_pre_snapshot = self._snapshot_workspace()
-
         final_args = self._build_cli_args(
             max_turns=remaining_turns,
             append_system_prompt=CODER_APPEND_PROMPT,
@@ -692,18 +549,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             label="coder_final",
         )
         self._record_phase("coder_final", "coder", self.num_review_cycles)
-
-        # LOC explosion guard for final batch
-        final_post_loc = self._count_workspace_loc()
-        if final_loc > 50 and final_post_loc > final_loc * 2:
-            self.log.info(
-                "reviewer_coder.loc_explosion.revert_final",
-                pre_loc=final_loc, post_loc=final_post_loc,
-            )
-            self._restore_workspace(final_pre_snapshot)
-            self.telemetry.setdefault("loc_reverts", []).append({
-                "cycle": "final", "pre": final_loc, "post": final_post_loc,
-            })
 
         # Mid-phase eval after final coder batch
         if self._mid_phase_enabled:
@@ -753,23 +598,6 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         pytest_ini = self.workspace / "pytest.ini"
         if pytest_ini.exists():
             pytest_ini.unlink(missing_ok=True)
-        review_file = self.workspace / ".review_suggestions.md"
-        if review_file.exists():
-            review_file.unlink(missing_ok=True)
-
-    def _extract_review_from_file(self) -> str | None:
-        """Read suggestions from the .review_suggestions.md file."""
-        review_file = self.workspace / ".review_suggestions.md"
-        if not review_file.exists():
-            return None
-        text = review_file.read_text().strip()
-        if len(text) > 10:
-            self.log.info(
-                "reviewer_coder.review.from_file",
-                chars=len(text),
-            )
-            return text[:6000]
-        return None
 
     def _extract_review_text(
         self,
@@ -781,15 +609,14 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         Only searches steps from ``review_start_idx`` onwards to avoid
         returning coder output from a previous batch.
         """
-        # First try: look for result payload with text
+        # First try: look for result payload with text.
         for payload in reversed(self.steps[review_start_idx:]):
             if payload.get("type") == "result":
                 text = payload.get("result", "")
                 if text and len(text) > 10:
                     return text[:6000]
 
-        # Fallback: find the longest assistant text message, which is
-        # most likely the actual review content rather than preamble.
+        # Fallback: find the longest assistant text message.
         best_text = ""
         for payload in self.steps[review_start_idx:]:
             msg = payload.get("message", {})
