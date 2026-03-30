@@ -1,0 +1,14 @@
+# Multi-agent: Claude Code with planning + code quality reviewer
+# Flow: plan -> code batch -> review -> code batch -> final code batch
+type: reviewer_coder
+binary: claude
+permission_mode: bypassPermissions
+version: 2.0.51
+cost_limits:
+  cost_limit: 0
+  step_limit: 100
+  net_cost_limit: 0
+coder_turns_per_batch: 20
+num_review_cycles: 2
+enable_planning: true
+planner_max_turns: 2

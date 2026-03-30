@@ -1,0 +1,16 @@
+{
+  "run_id": "834ed3",
+  "iteration": 5,
+  "decision": "keep",
+  "composite": 0.767,
+  "pass_rate": 0.871,
+  "erosion": 0.339,
+  "verbosity": 0.009,
+  "cost": 9.78,
+  "wall_clock_seconds": 4800,
+  "step_utilization_mean": 0.98,
+  "mid_phase_pass_rate_delta_mean": 0.0,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260330T0541",
+  "notes": "2 review cycles with text-only reviewer. Composite 0.767, nearly matches iter 0 (0.770). No LOC explosion. Higher cost ($9.78 vs $5.79). Reviewer produced 6615 total chars of suggestions across checkpoints."
+}
