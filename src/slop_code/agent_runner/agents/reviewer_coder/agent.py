@@ -499,8 +499,14 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
             reviewer_args = self._build_reviewer_args()
             reviewer_prompt = (
                 "Read all source files in the current working "
-                "directory and provide your code quality review. "
-                "Focus on reducing duplication and complexity."
+                "directory. Run the test suite. Then provide your "
+                "code quality review focusing on:\n"
+                "1. Code that causes test failures\n"
+                "2. Functions with high cyclomatic complexity (>10 branches)\n"
+                "3. Duplicated code blocks\n"
+                "4. Dead code and unused imports\n\n"
+                "The specification being implemented:\n"
+                f"<spec>\n{task[:3000]}\n</spec>"
             )
 
             review_start = len(self.steps)
