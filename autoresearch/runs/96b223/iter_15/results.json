@@ -1,0 +1,1 @@
+{"run_id":"96b223","iteration":15,"decision":"revert","composite":0.481,"pass_rate":0.701,"erosion":0.734,"problems":["file_backup"],"notes":"Complexity-focused reviewer prompt caused cp3 pass rate to crash to 0.118. Reverted to iter 14 config."}

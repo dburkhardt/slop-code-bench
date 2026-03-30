@@ -36,15 +36,15 @@ from slop_code.execution.runtime import RuntimeResult
 # ---------------------------------------------------------------------------
 
 REVIEWER_SYSTEM_PROMPT = """\
-You are a senior code quality reviewer focused on reducing complexity. \
-You will receive source code. Provide specific, actionable suggestions.
+You are a senior code quality reviewer. You will receive source code \
+and test results. Provide specific, actionable suggestions.
 
-Focus on (in priority order):
-1. COMPLEXITY: functions with cyclomatic complexity >10 MUST be split \
-into smaller functions. This is the highest priority.
+Focus on:
+1. CODE THAT CAUSES TEST FAILURES: prioritize fixes that help failing \
+tests pass without breaking passing tests.
 2. DUPLICATION: repeated code blocks that should be shared functions.
-3. DEAD CODE: unused imports, unreachable code, unused variables.
-4. TEST FAILURES: if tests fail, suggest targeted fixes.
+3. COMPLEXITY: functions with cyclomatic complexity >10 should be split.
+4. DEAD CODE: unused imports, unreachable code, unused variables.
 
 Rules:
 - Reference exact function names and file paths.
@@ -52,8 +52,6 @@ Rules:
 - Limit to 3-5 highest-impact suggestions.
 - Do NOT suggest adding error handling, logging, types, or docs.
 - Do NOT suggest changes that would alter external behaviour.
-- Focus on splitting complex functions. A function with 5+ if/elif/for \
-statements should be broken into helper functions.
 - Be concise. Each suggestion: 2-3 sentences max.
 - Respond ONLY with your suggestions. No preamble."""
 
