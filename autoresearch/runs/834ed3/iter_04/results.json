@@ -1,0 +1,13 @@
+{
+  "run_id": "834ed3",
+  "iteration": 4,
+  "decision": "revert",
+  "composite": 0.550,
+  "pass_rate": 0.763,
+  "erosion": 0.708,
+  "verbosity": 0.000,
+  "cost": 4.45,
+  "problems": ["file_backup"],
+  "output_dir": "outputs/sonnet-4.5/reviewer_coder-2.0.51_just-solve_none_20260330T0454",
+  "notes": "Final batch cap at turns_per_batch+5=25. Prevented LOC explosions but erosion spiked to 0.708 (agent can't refactor in 25 turns). Too aggressive."
+}
