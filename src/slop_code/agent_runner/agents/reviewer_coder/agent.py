@@ -275,7 +275,7 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         max_total = 20000
 
         try:
-            py_files = sorted(self.workspace.glob("*.py"))
+            py_files = sorted(self.workspace.rglob("*.py"))
             for py_file in py_files[:10]:
                 if py_file.name.startswith("."):
                     continue
@@ -294,11 +294,12 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         return "<source_code>\n" + "\n\n".join(parts) + "\n</source_code>"
 
     def _snapshot_workspace(self) -> dict[str, str]:
-        """Snapshot all .py files in the workspace."""
+        """Snapshot all .py files in the workspace (recursive)."""
         snapshot = {}
         try:
-            for py_file in self.workspace.glob("*.py"):
-                if py_file.name.startswith("."):
+            for py_file in self.workspace.rglob("*.py"):
+                rel = py_file.relative_to(self.workspace)
+                if any(p.startswith(".") for p in rel.parts):
                     continue
                 snapshot[str(py_file)] = py_file.read_text()
         except Exception:
@@ -306,16 +307,30 @@ class ReviewerCoderAgent(ClaudeCodeAgent):
         return snapshot
 
     def _restore_workspace(self, snapshot: dict[str, str]) -> None:
-        """Restore workspace from a snapshot."""
+        """Restore workspace from a snapshot, removing new files."""
+        # Remove all current .py files not in snapshot
+        try:
+            for py_file in self.workspace.rglob("*.py"):
+                rel = py_file.relative_to(self.workspace)
+                if any(p.startswith(".") for p in rel.parts):
+                    continue
+                if str(py_file) not in snapshot:
+                    py_file.unlink()
+        except Exception:
+            pass
+        # Restore snapshot contents
         for path, content in snapshot.items():
-            Path(path).write_text(content)
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content)
 
     def _count_workspace_loc(self) -> int:
-        """Count total lines of Python code in the workspace."""
+        """Count total lines of Python code in workspace (recursive)."""
         total = 0
         try:
-            for py_file in self.workspace.glob("*.py"):
-                if py_file.name.startswith("."):
+            for py_file in self.workspace.rglob("*.py"):
+                rel = py_file.relative_to(self.workspace)
+                if any(p.startswith(".") for p in rel.parts):
                     continue
                 total += sum(
                     1 for line in py_file.read_text().splitlines()
