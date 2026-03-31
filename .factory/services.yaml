@@ -1,0 +1,14 @@
+commands:
+  install: cd /home/ubuntu/git-repos/slop-code-bench && uv sync
+  test: cd /home/ubuntu/git-repos/slop-code-bench && uv run pytest -q
+  lint: cd /home/ubuntu/git-repos/slop-code-bench && uv run ruff check .
+  typecheck: cd /home/ubuntu/git-repos/slop-code-bench && uv run ty check src/
+  format_imports: cd /home/ubuntu/git-repos/slop-code-bench && uv run isort .
+
+services:
+  dolt:
+    start: cd ~/gt/.dolt-data/scbench && dolt sql-server --port 3307 &
+    stop: lsof -ti :3307 | xargs kill
+    healthcheck: dolt sql -q "SELECT 1;" --host 127.0.0.1 --port 3307
+    port: 3307
+    depends_on: []

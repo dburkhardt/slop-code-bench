@@ -1,0 +1,49 @@
+# Environment
+
+Environment variables, external dependencies, and setup notes.
+
+**What belongs here:** Required env vars, external API keys/services, dependency quirks, platform-specific notes.
+**What does NOT belong here:** Service ports/commands (use `.factory/services.yaml`).
+
+---
+
+## Required Environment Variables
+
+- `NVIDIA_INFERENCE_KEY` - NVIDIA inference API key for litellm-based components
+- Claude Code uses console billing (no separate API key needed)
+
+## Tool Paths
+
+- Go: `/home/ubuntu/go/bin/go` (GOROOT=/home/ubuntu/go)
+- Go binaries: `/home/ubuntu/gopath/bin/` (gt, bd)
+- Dolt: `/usr/local/bin/dolt`
+- Claude Code: `/home/ubuntu/.local/bin/claude`
+- uv: `/home/ubuntu/.local/bin/uv`
+
+Workers must set: `export PATH=$PATH:/home/ubuntu/gopath/bin:/home/ubuntu/go/bin`
+
+## Gas Town Workspace
+
+- Town root: `~/gt`
+- Rig: `~/gt/scbench`
+- Dolt data: `~/gt/.dolt-data/hq` (town), `~/gt/.dolt-data/scbench` (rig)
+- Rig config: `~/gt/scbench/config.json`
+
+## NVIDIA Inference Endpoint
+
+- Base URL: `https://inference-api.nvidia.com/v1/chat/completions`
+- Format: OpenAI-compatible
+- Available Claude models: Opus 4.6, Sonnet 4.6, Haiku 4.5, and more
+- Auth: Bearer token via NVIDIA_INFERENCE_KEY
+
+## Python
+
+- Python 3.12.13 managed by uv
+- Virtual env at `/home/ubuntu/git-repos/slop-code-bench/.venv/`
+- Dependencies synced via `uv sync`
+
+## Docker
+
+- Docker 29.3.1 available
+- Required for slop-code experiment execution
+- Agent Docker images build automatically on first run
