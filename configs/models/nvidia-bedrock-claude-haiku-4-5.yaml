@@ -1,0 +1,19 @@
+internal_name: aws/anthropic/bedrock-claude-haiku-4-5
+provider: nvidia
+pricing:
+  input: 0.80
+  output: 4
+  cache_read: 0.08
+  cache_write: 1
+aliases:
+  - nvidia/bedrock-claude-haiku-4.5
+  - nvidia-haiku-4.5
+
+agent_specific:
+  claude_code:
+    base_url: https://inference-api.nvidia.com/v1
+
+  mini_swe:
+    model_name: aws/anthropic/bedrock-claude-haiku-4-5
+    model_class: litellm
+    api_base: https://inference-api.nvidia.com/v1

@@ -1,0 +1,19 @@
+internal_name: aws/anthropic/bedrock-claude-sonnet-4-6
+provider: nvidia
+pricing:
+  input: 3
+  output: 15
+  cache_read: 0.30
+  cache_write: 3.75
+aliases:
+  - nvidia/bedrock-claude-sonnet-4.6
+  - nvidia-sonnet-4.6
+
+agent_specific:
+  claude_code:
+    base_url: https://inference-api.nvidia.com/v1
+
+  mini_swe:
+    model_name: aws/anthropic/bedrock-claude-sonnet-4-6
+    model_class: litellm
+    api_base: https://inference-api.nvidia.com/v1

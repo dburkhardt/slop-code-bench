@@ -1,0 +1,19 @@
+internal_name: aws/anthropic/bedrock-claude-opus-4-6
+provider: nvidia
+pricing:
+  input: 5
+  output: 25
+  cache_read: 0.5
+  cache_write: 6.25
+aliases:
+  - nvidia/bedrock-claude-opus-4.6
+  - nvidia-opus-4.6
+
+agent_specific:
+  claude_code:
+    base_url: https://inference-api.nvidia.com/v1
+
+  mini_swe:
+    model_name: aws/anthropic/bedrock-claude-opus-4-6
+    model_class: litellm
+    api_base: https://inference-api.nvidia.com/v1
