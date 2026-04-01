@@ -668,3 +668,40 @@ After applying the primary fix, run a single checkpoint and confirm:
 - Steps complete in 5 to 15 seconds each (no 3-minute gaps)
 - Total per-checkpoint time drops from ~70 minutes to ~7 to 10 minutes
 - The `infer.log` step timing shows no gaps > 30 seconds between consecutive steps
+
+## ROOT CAUSE FOUND (2026-04-01 ~23:10)
+
+### Claude Code v2.0.51 has a ~200s Bash tool delay; v2.1.89 does not
+
+**System Claude (v2.1.89, console auth, no Docker):**
+```
+[  1.3s] SYSTEM init
+[  5.4s] TOOL_USE: Bash
+[ 12.2s] TEXT: Done
+[ 12.2s] RESULT turns=2 cost=$0.0340
+```
+**Total: 12.2 seconds. Bash tool took 7 seconds.**
+
+**Docker Claude (v2.0.51, same task):**
+```
+[  1.1s] SYSTEM init
+[  6.3s] TOOL_USE: Bash
+[207.5s] user (tool result)    ← 201 seconds!
+```
+
+### Fix
+
+Rebuild the Docker image `slop-code:claude_code-2.0.51-python3.12` with Claude Code v2.1.89 (or latest):
+
+```bash
+# In the Dockerfile, change:
+npm install -g @anthropic-ai/claude-code@2.0.51 @musistudio/claude-code-router
+# To:
+npm install -g @anthropic-ai/claude-code@latest
+```
+
+Also remove `@musistudio/claude-code-router` unless actually needed — it's unused.
+
+### Alternative: Use local environment
+
+The `local-py` environment in slop-code runs Claude on the host (no Docker). Combined with the `claude_code_local` provider and model config `local-sonnet-4.6.yaml`, this uses the system-installed Claude v2.1.89 with console auth. This is the fastest path to unblocking experiments.
