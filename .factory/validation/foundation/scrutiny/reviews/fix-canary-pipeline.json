@@ -1,0 +1,40 @@
+{
+  "featureId": "fix-canary-pipeline",
+  "reviewedAt": "2026-04-01T01:19:37Z",
+  "commitId": "1c504b5ec5b65150cd73682b5cea51705973cf83",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The fix resolves checkpoint_1 canary scoping, baseline output-dir determinism, checkpoint parity invocation, and non-zero CLI propagation. However, two previously blocking areas remain unresolved: reviewer-stage canary failures are still not enforced as fatal/component-specific in the actual execution path, and eval parsing still does not consume flattened erosion/verbosity/cost metrics for baseline rows.",
+    "issues": [
+      {
+        "file": "research/runner/two_agent_runner.py",
+        "line": 786,
+        "severity": "blocking",
+        "description": "Reviewer failure is still not enforced as fatal in canary's real execution path. run_slop_code returns reviewer exit_code (line 543), but run_two_agent never checks it for reviewer or implementer phases before continuing, so a non-zero reviewer subprocess exit can be silently tolerated."
+      },
+      {
+        "file": "research/runner/two_agent_runner.py",
+        "line": 1027,
+        "severity": "blocking",
+        "description": "Canary still does not report component-specific reviewer failure. run_canary wraps any SystemExit from run_two_agent as CanaryError(\"Pipeline\", ...), which collapses reviewer-specific failures into a generic pipeline failure."
+      },
+      {
+        "file": "research/runner/experiment_pipeline.py",
+        "line": 354,
+        "severity": "blocking",
+        "description": "Eval parsing remains incomplete against the flattened checkpoint schema for baseline outputs. parse_eval_results now reads strict_pass_rate, but erosion/verbosity/cost are still sourced only from two_agent_metrics.json via _merge_two_agent_metrics, so baseline flattened metrics from checkpoint_results.jsonl are still dropped."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "python-worker verification guidance still conflicts with mission validator scope, which can cause unnecessary failures/churn.",
+      "evidence": ".factory/skills/python-worker/SKILL.md lines 50-54 require `uv run pytest -q` and `uv run ruff check .`, while mission AGENTS.md lines 37-42 require scoped validators under research/tests/. This mismatch was previously flagged and remains."
+    }
+  ],
+  "addressesFailureFrom": ".factory/validation/foundation/scrutiny/reviews/canary-mode.json; .factory/validation/foundation/scrutiny/reviews/baseline-pipeline.json",
+  "summary": "Review result: fail. This fix addresses several previously reported issues, but it does not fully resolve the core canary reviewer-failure requirement and leaves flattened eval metric parsing incomplete for baseline metrics, so both original failure sets are not fully closed."
+}

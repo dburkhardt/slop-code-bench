@@ -1,6 +1,6 @@
 {
   "milestone": "foundation",
-  "round": 1,
+  "round": 2,
   "status": "fail",
   "validatorsRun": {
     "test": {
@@ -20,130 +20,50 @@
     }
   },
   "reviewsSummary": {
-    "total": 6,
-    "passed": 1,
-    "failed": 5,
+    "total": 2,
+    "passed": 0,
+    "failed": 2,
     "failedFeatures": [
-      "model-provider-config",
-      "two-agent-runner-core",
-      "canary-mode",
-      "runner-resilience",
-      "baseline-pipeline"
+      "fix-runner-core-loop",
+      "fix-canary-pipeline"
     ]
   },
   "blockingIssues": [
     {
-      "featureId": "model-provider-config",
+      "featureId": "fix-runner-core-loop",
       "severity": "blocking",
-      "description": "MiniSWE model_name values in NVIDIA model configs use raw aws/... names that LiteLLM rejects without provider-qualified naming."
+      "description": "run_two_agent builds implementer prompt text but discards it, then passes prompt_template=implementer_prompt into run_slop_code. Reviewer suggestions are stored in state but not injected into implementer execution."
     },
     {
-      "featureId": "two-agent-runner-core",
+      "featureId": "fix-canary-pipeline",
       "severity": "blocking",
-      "description": "Core runner loop does not execute implementer and reviewer runs, leaving placeholder metrics and no real two-agent checkpoint workflow."
+      "description": "Reviewer failures are still not enforced as fatal in run_two_agent. Non-zero reviewer subprocess exits can be tolerated because reviewer/implementer phase exit codes are not checked before continuing."
     },
     {
-      "featureId": "two-agent-runner-core",
+      "featureId": "fix-canary-pipeline",
       "severity": "blocking",
-      "description": "Budget split is computed but not enforced in runtime execution."
+      "description": "run_canary maps SystemExit from run_two_agent to a generic Pipeline CanaryError, so reviewer-specific component failures are not reported as component-specific."
     },
     {
-      "featureId": "two-agent-runner-core",
+      "featureId": "fix-canary-pipeline",
       "severity": "blocking",
-      "description": "Reviewer output is not propagated into subsequent implementer iterations."
-    },
-    {
-      "featureId": "two-agent-runner-core",
-      "severity": "blocking",
-      "description": "Produced artifacts are not fully eval-compatible for real runs."
-    },
-    {
-      "featureId": "canary-mode",
-      "severity": "blocking",
-      "description": "Reviewer-stage failures are treated as non-fatal, allowing canary to pass even when reviewer invocation fails."
-    },
-    {
-      "featureId": "canary-mode",
-      "severity": "blocking",
-      "description": "Canary claims checkpoint_1-only behavior but implementer invocation is not checkpoint-scoped."
-    },
-    {
-      "featureId": "runner-resilience",
-      "severity": "blocking",
-      "description": "Resume state is not crash-safe because checkpoint progress is not persisted after each completed checkpoint."
-    },
-    {
-      "featureId": "runner-resilience",
-      "severity": "blocking",
-      "description": "Docker isolation wiring is not active in the runtime execution path because run_two_agent does not call run_slop_code."
-    },
-    {
-      "featureId": "baseline-pipeline",
-      "severity": "blocking",
-      "description": "Baseline output directory detection is unreliable because slop-code default output naming is not aligned with baseline-prefixed lookup logic."
-    },
-    {
-      "featureId": "baseline-pipeline",
-      "severity": "blocking",
-      "description": "Eval parsing assumes pass_counts/total_counts schema and can compute incorrect metrics and budget deltas."
-    },
-    {
-      "featureId": "baseline-pipeline",
-      "severity": "blocking",
-      "description": "Checkpoint parity verification exists but is not called in the pipeline execution path."
-    },
-    {
-      "featureId": "baseline-pipeline",
-      "severity": "blocking",
-      "description": "CLI can exit successfully even when critical eval or Dolt-write errors occurred."
+      "description": "parse_eval_results still does not fully consume flattened baseline metrics for erosion/verbosity/cost, which remain dependent on two_agent_metrics merging."
     }
   ],
-  "appliedUpdates": [
-    {
-      "target": "library",
-      "description": "Added factual note on checkpoint_results.jsonl flattened schema to prevent future parsing assumptions.",
-      "sourceFeature": "baseline-pipeline"
-    }
-  ],
+  "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
       "target": ".factory/skills/python-worker/SKILL.md",
-      "suggestion": "Use mission-scoped validator commands from mission AGENTS.md/.factory/services.yaml when present, instead of defaulting to full-repo pytest and ruff commands.",
-      "evidence": "Same mismatch observed across model-provider-config, prompt-templates, canary-mode, and runner-resilience reviews.",
+      "suggestion": "When mission-scoped validator commands are defined in AGENTS.md or .factory/services.yaml, prefer those over global defaults (`uv run pytest -q`, `uv run ruff check .`).",
+      "evidence": "Both fix feature reviews still observed mismatch between python-worker default verification commands and this mission's scoped validator contract.",
       "isSystemic": true
-    },
-    {
-      "target": "mission spec artifacts (validation-contract.md and features.json)",
-      "suggestion": "Resolve budget-split boundary contract conflict for value 100, and keep one canonical expected behavior across contract and feature definitions.",
-      "evidence": "two-agent-runner-core review found validation-contract requiring 100 implementer-only while feature expected behavior and implementation constrain 1-99.",
-      "isSystemic": true
-    },
-    {
-      "target": ".factory/skills/python-worker/SKILL.md",
-      "suggestion": "Require at least one expectedBehavior-to-runtime acceptance check for runner/pipeline features so scaffold-only implementations cannot pass with helper-only tests.",
-      "evidence": "two-agent-runner-core and baseline-pipeline reviews found major runtime behavior gaps despite passing local unit tests.",
-      "isSystemic": true
-    },
-    {
-      "target": ".factory/services.yaml",
-      "suggestion": "Adjust mission lint command to handle absent tests/analysis paths or use a conditional command so validator runs do not fail on missing directories.",
-      "evidence": "Current lint command failed with E902 on tests/analysis, while mission code lint passed once command was scoped to existing paths.",
-      "isSystemic": false
     }
   ],
   "rejectedObservations": [
     {
-      "observation": "Repeated reports of the same python-worker validator-scope mismatch across multiple feature reviews.",
+      "observation": "Repeated report of python-worker validator scope mismatch from the second fix review.",
       "reason": "duplicate"
-    },
-    {
-      "observation": "Prompt templates do not reference agent_type, agent_version, model_name in text.",
-      "reason": "non-blocking implementation detail, not a shared-state correction"
-    },
-    {
-      "observation": "Single-session claim that skill-required TDD and push were not followed.",
-      "reason": "ambiguous and not independently established as systemic for mission state changes"
     }
   ],
-  "previousRound": null
+  "previousRound": ".factory/validation/foundation/scrutiny/synthesis.round1.json"
 }

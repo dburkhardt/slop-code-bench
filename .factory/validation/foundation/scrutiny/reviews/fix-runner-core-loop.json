@@ -1,0 +1,34 @@
+{
+  "featureId": "fix-runner-core-loop",
+  "reviewedAt": "2026-04-01T01:19:42Z",
+  "commitId": "3429b64f03d2e388b672a7f26c466bf8fbc11db8",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The fix resolves model-provider prefixes, run_slop_code wiring, budget split application, artifact copying, and checkpoint-by-checkpoint persistence. One blocking gap remains. Reviewer output is parsed into state but never injected into the actual implementer execution path.",
+    "issues": [
+      {
+        "file": "research/runner/two_agent_runner.py",
+        "line": 732,
+        "severity": "blocking",
+        "description": "run_two_agent calls build_implementer_prompt(...) but discards its returned text, then calls run_slop_code with prompt_template=implementer_prompt. Because build_implementer_prompt has no side effects, state.last_reviewer_suggestions never reaches the implementer run. This leaves the required reviewer-to-implementer propagation incomplete."
+      },
+      {
+        "file": "tests/runner/test_two_agent_runner.py",
+        "line": 1120,
+        "severity": "non_blocking",
+        "description": "test_reviewer_output_injected checks only that state.last_reviewer_suggestions becomes non-null. It does not assert that checkpoint_2 implementer execution receives reviewer feedback, so the propagation gap above is not detected by tests."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The python-worker skill still conflicts with mission validator scoping, which can push workers toward full-repo validators that are intentionally out of scope for this mission.",
+      "evidence": ".factory/skills/python-worker/SKILL.md step 6 requires `uv run pytest -q` and `uv run ruff check .`, while mission AGENTS.md 'Validator Scope' requires `uv run pytest tests/runner/ tests/analysis/ -q` and `uv run ruff check research/ tests/runner/ tests/analysis/ .factory/`."
+    }
+  ],
+  "addressesFailureFrom": ".factory/validation/foundation/scrutiny/reviews/model-provider-config.json; .factory/validation/foundation/scrutiny/reviews/two-agent-runner-core.json; .factory/validation/foundation/scrutiny/reviews/runner-resilience.json",
+  "summary": "This fix commit addresses the prior model-provider-config and runner-resilience failures, and most two-agent-runner-core failures. It does not fully address reviewer propagation into subsequent implementer execution, so the review status is fail."
+}
