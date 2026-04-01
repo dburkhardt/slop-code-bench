@@ -194,6 +194,36 @@ class TestParseEvalResults:
         assert metrics.total_pass_rate == pytest.approx(0.9)
         assert metrics.checkpoint_count == 3
 
+    def test_parses_flattened_strict_pass_rate(
+        self, tmp_path: Path,
+    ):
+        """Reads pass rates from flattened strict_pass_rate
+        keys (the real slop-code eval schema)."""
+        mod = _load_pipeline()
+        results = tmp_path / "checkpoint_results.jsonl"
+        lines = [
+            json.dumps({
+                "problem": "p",
+                "checkpoint": f"checkpoint_{i}",
+                "strict_pass_rate": pr,
+                "total_tests": 10,
+                "passed_tests": int(pr * 10),
+            })
+            for i, pr in enumerate(
+                [0.8, 0.9, 1.0], start=1,
+            )
+        ]
+        results.write_text("\n".join(lines) + "\n")
+
+        metrics = mod.parse_eval_results(tmp_path, "p")
+        assert len(metrics.pass_rates) == 3
+        assert metrics.pass_rates[0] == pytest.approx(0.8)
+        assert metrics.pass_rates[1] == pytest.approx(0.9)
+        assert metrics.pass_rates[2] == pytest.approx(1.0)
+        assert metrics.total_pass_rate == pytest.approx(
+            0.9,
+        )
+
     def test_handles_missing_file(self, tmp_path: Path):
         """Returns empty metrics when file is absent."""
         mod = _load_pipeline()
@@ -1419,3 +1449,338 @@ class TestPartialResults:
                 if "INSERT INTO experiments" in c[0][0]
             ]
             assert len(inserts) == 2
+
+
+# -------------------------------------------------------------------
+# Checkpoint parity check invoked (fix-canary-pipeline)
+# -------------------------------------------------------------------
+
+
+class TestCheckpointParityInvoked:
+    """verify_matching_checkpoints is called in pipeline."""
+
+    def test_parity_check_runs(self, tmp_path: Path):
+        """Pipeline calls verify_matching_checkpoints
+        before Dolt insert."""
+        mod = _load_pipeline()
+
+        base_out = tmp_path / "baseline"
+        ta_out = tmp_path / "two_agent"
+        for d in [base_out, ta_out]:
+            prob = d / "test_prob"
+            for i in range(1, 3):
+                (prob / f"checkpoint_{i}").mkdir(
+                    parents=True,
+                )
+            (d / "checkpoint_results.jsonl").write_text(
+                json.dumps({
+                    "strict_pass_rate": 0.8,
+                    "total_tests": 10,
+                    "passed_tests": 8,
+                }) + "\n",
+            )
+
+        with (
+            patch.object(
+                mod, "run_baseline",
+                return_value=(base_out, 0),
+            ),
+            patch.object(
+                mod, "run_two_agent",
+                return_value=(ta_out, 0),
+            ),
+            patch.object(
+                mod, "run_eval",
+                return_value=0,
+            ),
+            patch.object(
+                mod,
+                "verify_matching_checkpoints",
+                return_value=True,
+            ) as mock_verify,
+        ):
+            mod.run_pipeline(
+                problem="test_prob",
+                model="opus-4.5",
+                budget=5.0,
+                dolt_conn=None,
+            )
+
+        mock_verify.assert_called_once_with(
+            base_out, ta_out, "test_prob",
+        )
+
+    def test_mismatch_appends_error(self, tmp_path: Path):
+        """Checkpoint mismatch adds error to result."""
+        mod = _load_pipeline()
+
+        base_out = tmp_path / "baseline"
+        ta_out = tmp_path / "two_agent"
+        for d in [base_out, ta_out]:
+            d.mkdir(parents=True)
+            (d / "checkpoint_results.jsonl").write_text(
+                json.dumps({
+                    "strict_pass_rate": 0.8,
+                }) + "\n",
+            )
+
+        with (
+            patch.object(
+                mod, "run_baseline",
+                return_value=(base_out, 0),
+            ),
+            patch.object(
+                mod, "run_two_agent",
+                return_value=(ta_out, 0),
+            ),
+            patch.object(
+                mod, "run_eval",
+                return_value=0,
+            ),
+            patch.object(
+                mod,
+                "verify_matching_checkpoints",
+                return_value=False,
+            ),
+        ):
+            result = mod.run_pipeline(
+                problem="test_prob",
+                model="opus-4.5",
+                budget=5.0,
+                dolt_conn=None,
+            )
+
+        assert any(
+            "mismatch" in e.lower()
+            for e in result.errors
+        )
+
+
+# -------------------------------------------------------------------
+# Non-zero exit on critical errors (fix-canary-pipeline)
+# -------------------------------------------------------------------
+
+
+class TestNonZeroExitOnErrors:
+    """CLI exits non-zero on critical eval/Dolt errors."""
+
+    def test_exit_nonzero_on_eval_failure(
+        self, tmp_path: Path,
+    ):
+        """Pipeline records error when eval fails."""
+        mod = _load_pipeline()
+
+        base_out = tmp_path / "baseline"
+        base_out.mkdir()
+        (base_out / "checkpoint_results.jsonl").write_text(
+            json.dumps({
+                "strict_pass_rate": 0.8,
+            }) + "\n",
+        )
+        ta_out = tmp_path / "two_agent"
+        ta_out.mkdir()
+        (ta_out / "checkpoint_results.jsonl").write_text(
+            json.dumps({
+                "strict_pass_rate": 0.9,
+            }) + "\n",
+        )
+
+        with (
+            patch.object(
+                mod, "run_baseline",
+                return_value=(base_out, 0),
+            ),
+            patch.object(
+                mod, "run_two_agent",
+                return_value=(ta_out, 0),
+            ),
+            patch.object(
+                mod, "run_eval",
+                return_value=1,
+            ),
+        ):
+            res = mod.run_pipeline(
+                problem="test_prob",
+                model="opus-4.5",
+                budget=5.0,
+                dolt_conn=None,
+            )
+
+        # Eval failure recorded
+        assert any(
+            "eval failed" in e.lower()
+            for e in res.errors
+        )
+
+    def test_pipeline_errors_propagated_by_cli(
+        self, tmp_path: Path,
+    ):
+        """Pipeline result with errors (but not partial)
+        still has errors attribute set. The CLI should
+        exit non-zero on any errors."""
+        mod = _load_pipeline()
+
+        base_out = tmp_path / "baseline"
+        base_out.mkdir()
+        (base_out / "checkpoint_results.jsonl").write_text(
+            json.dumps({
+                "strict_pass_rate": 0.8,
+            }) + "\n",
+        )
+        ta_out = tmp_path / "two_agent"
+        ta_out.mkdir()
+        (ta_out / "checkpoint_results.jsonl").write_text(
+            json.dumps({
+                "strict_pass_rate": 0.9,
+            }) + "\n",
+        )
+
+        with (
+            patch.object(
+                mod, "run_baseline",
+                return_value=(base_out, 0),
+            ),
+            patch.object(
+                mod, "run_two_agent",
+                return_value=(ta_out, 0),
+            ),
+            patch.object(
+                mod, "run_eval",
+                return_value=1,
+            ),
+        ):
+            res = mod.run_pipeline(
+                problem="test_prob",
+                model="opus-4.5",
+                budget=5.0,
+                dolt_conn=None,
+            )
+
+        # Eval failures recorded
+        assert len(res.errors) > 0
+        assert any(
+            "eval failed" in e.lower()
+            for e in res.errors
+        )
+        # Result is NOT partial (both runs completed)
+        assert res.partial is False
+
+
+# -------------------------------------------------------------------
+# Baseline output directory uses explicit save_dir
+# -------------------------------------------------------------------
+
+
+class TestBaselineOutputDir:
+    """Baseline run uses explicit save_dir override."""
+
+    def test_baseline_cmd_includes_save_dir(self):
+        """run_baseline command includes save_dir override."""
+        mod = _load_pipeline()
+        captured_cmd: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            r = MagicMock()
+            r.returncode = 0
+            r.stdout = ""
+            r.stderr = ""
+            return r
+
+        with (
+            patch("subprocess.run", side_effect=fake_run),
+            patch.object(
+                mod, "_find_latest_run_dir",
+                return_value=None,
+            ),
+        ):
+            mod.run_baseline(
+                problem="test",
+                model="test",
+                budget=1.0,
+                prompt="just-solve",
+            )
+
+        # Should contain save_dir= override
+        save_args = [
+            a for a in captured_cmd
+            if a.startswith("save_dir=")
+        ]
+        assert len(save_args) == 1
+        assert "baseline_" in save_args[0]
+
+        # Should contain save_template=. override
+        template_args = [
+            a for a in captured_cmd
+            if a.startswith("save_template=")
+        ]
+        assert len(template_args) == 1
+        assert template_args[0] == "save_template=."
+
+
+# -------------------------------------------------------------------
+# _find_latest_run_dir prefix=None
+# -------------------------------------------------------------------
+
+
+class TestFindLatestRunDir:
+    """_find_latest_run_dir supports optional prefix."""
+
+    def test_finds_without_prefix(self, tmp_path: Path):
+        """Finds any dir with the problem when prefix=None."""
+        mod = _load_pipeline()
+
+        run_dir = tmp_path / "outputs" / "custom_name"
+        (run_dir / "test_prob").mkdir(parents=True)
+
+        with patch.object(
+            mod, "OUTPUTS_DIR",
+            tmp_path / "outputs",
+        ):
+            result = mod._find_latest_run_dir(
+                "test_prob", prefix=None,
+            )
+
+        assert result is not None
+        assert result.name == "custom_name"
+
+    def test_filters_by_prefix(self, tmp_path: Path):
+        """Filters by prefix when given."""
+        mod = _load_pipeline()
+
+        outputs = tmp_path / "outputs"
+        # Create dirs with different prefixes
+        (outputs / "baseline_run" / "test_prob").mkdir(
+            parents=True,
+        )
+        (outputs / "custom_run" / "test_prob").mkdir(
+            parents=True,
+        )
+
+        with patch.object(
+            mod, "OUTPUTS_DIR", outputs,
+        ):
+            result = mod._find_latest_run_dir(
+                "test_prob", prefix="baseline",
+            )
+
+        assert result is not None
+        assert result.name == "baseline_run"
+
+    def test_returns_none_when_no_match(
+        self, tmp_path: Path,
+    ):
+        """Returns None when no dirs match."""
+        mod = _load_pipeline()
+
+        outputs = tmp_path / "outputs"
+        outputs.mkdir()
+
+        with patch.object(
+            mod, "OUTPUTS_DIR", outputs,
+        ):
+            result = mod._find_latest_run_dir(
+                "test_prob", prefix=None,
+            )
+
+        assert result is None

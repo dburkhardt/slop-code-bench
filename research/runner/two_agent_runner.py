@@ -631,6 +631,7 @@ def run_two_agent(
     budget: float,
     output_dir: Path,
     run_id: str | None = None,
+    max_checkpoints: int | None = None,
 ) -> RunState:
     """Execute the two-agent loop over all checkpoints.
 
@@ -689,6 +690,11 @@ def run_two_agent(
             err=True,
         )
         raise SystemExit(1)
+
+    # Optionally constrain the number of checkpoints
+    # (used by canary to limit to checkpoint_1 only).
+    if max_checkpoints is not None:
+        checkpoints = checkpoints[:max_checkpoints]
 
     _implementer_fraction = budget_split / 100.0
     _reviewer_fraction = 1.0 - _implementer_fraction
@@ -1000,157 +1006,38 @@ def run_canary(
     output_dir = OUTPUTS_DIR / f"canary_{ts}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    state = RunState(
-        problem=problem,
-        model=model,
-        budget=budget,
-        budget_split=budget_split,
-        output_dir=output_dir,
-    )
-
-    # Determine the provider for model so we can pass it
-    # to slop-code run in "provider/model" format.
-    src_path = str(REPO_ROOT / "src")
-    if src_path not in sys.path:
-        sys.path.insert(0, src_path)
-
-    from slop_code.common.llms import ModelCatalog
-
-    model_def = ModelCatalog.get(model)
-    if model_def is None:
-        raise CanaryError(
-            "API",
-            f"Model '{model}' disappeared from catalog "
-            "between validation and run.",
-        )
-    model_spec = f"{model_def.provider}/{model_def.name}"
-
-    # ── Step 2: Implementer (slop-code run) ────────────
+    # ── Step 2-4: Run two-agent loop (checkpoint_1 only)
     typer.echo(
-        "Canary: running implementer via slop-code run "
+        "Canary: running two-agent loop "
         f"(problem={problem}, checkpoint_1 only) ...",
     )
 
-    impl_cost_limit = round(budget * budget_split / 100, 2)
-    slop_run_cmd = [
-        sys.executable, "-m", "slop_code",
-        "run",
-        "--problem", problem,
-        "--model", model_spec,
-        "--prompt", str(impl_prompt),
-        "--evaluate",
-        f"agent.cost_limits.cost_limit={impl_cost_limit}",
-    ]
+    try:
+        state = run_two_agent(
+            problem=problem,
+            model=model,
+            implementer_prompt=impl_prompt,
+            reviewer_prompt=rev_prompt,
+            budget_split=budget_split,
+            budget=budget,
+            output_dir=output_dir,
+            max_checkpoints=1,
+        )
+    except SystemExit as exc:
+        raise CanaryError(
+            "Pipeline",
+            f"Two-agent loop exited with code "
+            f"{exc.code}.",
+        ) from exc
+
+    typer.echo("Canary: two-agent loop complete.")
+
+    # ── Step 5: Evaluation ─────────────────────────────
+    typer.echo("Canary: running evaluation ...")
     slop_run_env = {
         **os.environ,
         "PYTHONPATH": str(REPO_ROOT / "src"),
     }
-
-    try:
-        impl_result = subprocess.run(  # noqa: S603
-            slop_run_cmd,
-            capture_output=True,
-            text=True,
-            cwd=str(REPO_ROOT),
-            timeout=600,
-            env=slop_run_env,
-        )
-    except subprocess.TimeoutExpired:
-        raise CanaryError(
-            "Implementer",
-            "slop-code run timed out after 600 s.",
-        )
-
-    if impl_result.returncode != 0:
-        raise CanaryError(
-            "Implementer",
-            "slop-code run exited with code "
-            f"{impl_result.returncode}.\n"
-            f"stderr (last 500 chars): "
-            f"{impl_result.stderr[-500:]}",
-        )
-
-    typer.echo("Canary: implementer phase complete.")
-
-    # Locate the run output directory created by slop-code
-    # It will be under outputs/ and contain the problem
-    # name as a subdirectory.
-    run_dirs = _find_latest_run_dir(problem)
-    if run_dirs is None:
-        raise CanaryError(
-            "Implementer",
-            "Could not locate slop-code output "
-            f"directory for problem '{problem}' after "
-            "implementer run.",
-        )
-    slop_output_dir, problem_output_dir = run_dirs
-
-    # Copy the slop-code output into the canary output dir
-    # so the canary output is self-contained.
-    canary_problem_dir = output_dir / problem
-    if canary_problem_dir.exists():
-        shutil.rmtree(canary_problem_dir)
-    shutil.copytree(problem_output_dir, canary_problem_dir)
-
-    # Also copy config.yaml and environment.yaml if present
-    for cfg_name in (
-        "config.yaml", "environment.yaml",
-        "checkpoint_results.jsonl",
-    ):
-        cfg_src = slop_output_dir / cfg_name
-        if cfg_src.exists():
-            shutil.copy2(cfg_src, output_dir / cfg_name)
-
-    # ── Step 3: Reviewer pass ──────────────────────────
-    typer.echo("Canary: running reviewer pass ...")
-    reviewer_budget = round(
-        budget * (100 - budget_split) / 100, 2,
-    )
-
-    # The reviewer reads the implementer's code and
-    # produces suggestions.  For canary we invoke
-    # slop-code run with the reviewer prompt on the
-    # same problem.  Since the output already exists
-    # the run will resume / overwrite.
-    review_run_cmd = [
-        sys.executable, "-m", "slop_code",
-        "run",
-        "--problem", problem,
-        "--model", model_spec,
-        "--prompt", str(rev_prompt),
-        "--evaluate",
-        f"agent.cost_limits.cost_limit={reviewer_budget}",
-    ]
-
-    try:
-        rev_result = subprocess.run(  # noqa: S603
-            review_run_cmd,
-            capture_output=True,
-            text=True,
-            cwd=str(REPO_ROOT),
-            timeout=600,
-            env=slop_run_env,
-        )
-    except subprocess.TimeoutExpired:
-        raise CanaryError(
-            "Reviewer",
-            "slop-code run (reviewer) timed out "
-            "after 600 s.",
-        )
-
-    if rev_result.returncode != 0:
-        # Reviewer failure is non-fatal for canary.
-        # Log it but continue.
-        typer.echo(
-            "Canary: reviewer pass exited with code "
-            f"{rev_result.returncode} (non-fatal).",
-            err=True,
-        )
-    else:
-        typer.echo("Canary: reviewer pass complete.")
-
-    # ── Step 4: Evaluation ─────────────────────────────
-    typer.echo("Canary: running evaluation ...")
     eval_cmd = [
         sys.executable, "-m", "slop_code",
         "eval",
@@ -1183,22 +1070,16 @@ def run_canary(
 
     typer.echo("Canary: evaluation complete.")
 
-    # ── Step 5: Record metrics ─────────────────────────
-    metrics = CheckpointMetrics(
-        pass_rate=0.0,
-        erosion=0.0,
-        verbosity=0.0,
-        tokens_implementer=0,
-        tokens_reviewer=0,
-        cost=0.0,
-    )
-    # Try to read cost/pass-rate from eval results
+    # ── Step 6: Update metrics from eval ───────────────
     results_file = output_dir / "checkpoint_results.jsonl"
     if results_file.exists():
-        _update_metrics_from_results(
-            metrics, results_file,
+        cp_metrics = state.checkpoint_metrics.get(
+            "checkpoint_1",
         )
-    state.checkpoint_metrics["checkpoint_1"] = metrics
+        if cp_metrics is not None:
+            _update_metrics_from_results(
+                cp_metrics, results_file,
+            )
 
     # Enforce budget cap
     if state.cumulative_cost > budget:
@@ -1237,19 +1118,30 @@ def _update_metrics_from_results(
 ) -> None:
     """Parse *checkpoint_results.jsonl* and update *metrics*.
 
-    Reads the first matching line and extracts pass_rate.
+    Reads the first matching line and extracts pass_rate
+    using the flattened metric schema (``strict_pass_rate``,
+    ``total_tests``, ``passed_tests``).  Falls back to
+    ``pass_counts``/``total_counts`` for legacy data.
     """
     try:
         for line in results_file.read_text().splitlines():
             if not line.strip():
                 continue
             data = json.loads(line)
-            total = data.get("total_counts", 0)
-            passed = data.get("pass_counts", 0)
-            if total > 0:
-                metrics.pass_rate = round(
-                    passed / total, 4,
+            # Prefer flattened metric keys
+            if "strict_pass_rate" in data:
+                metrics.pass_rate = float(
+                    data["strict_pass_rate"],
                 )
+            else:
+                total = data.get("total_tests", 0)
+                passed = data.get("passed_tests", 0)
+                if total > 0:
+                    metrics.pass_rate = round(
+                        passed / total, 4,
+                    )
+            if "cost" in data:
+                metrics.cost = float(data["cost"])
             break
     except (json.JSONDecodeError, OSError):
         pass

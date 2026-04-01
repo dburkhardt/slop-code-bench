@@ -319,9 +319,28 @@ def parse_eval_results(
             data = json.loads(line)
         except json.JSONDecodeError:
             continue
-        total = data.get("total_counts", 0)
-        passed = data.get("pass_counts", 0)
-        pr = round(passed / total, 4) if total > 0 else 0.0
+        # Prefer flattened metric keys (strict_pass_rate)
+        # produced by the real slop-code eval pipeline.
+        # Fall back to total_tests/passed_tests, then
+        # legacy pass_counts/total_counts.
+        if "strict_pass_rate" in data:
+            pr = float(data["strict_pass_rate"])
+        elif "total_tests" in data:
+            total = data.get("total_tests", 0)
+            passed = data.get("passed_tests", 0)
+            pr = (
+                round(passed / total, 4)
+                if total > 0
+                else 0.0
+            )
+        else:
+            total = data.get("total_counts", 0)
+            passed = data.get("pass_counts", 0)
+            pr = (
+                round(passed / total, 4)
+                if total > 0
+                else 0.0
+            )
         metrics.pass_rates.append(pr)
 
     metrics.checkpoint_count = len(metrics.pass_rates)
@@ -461,6 +480,10 @@ def run_baseline(
 ) -> tuple[Path | None, int]:
     """Run ``slop-code run`` for the single-agent baseline.
 
+    Passes ``save_dir`` and ``save_template`` overrides so
+    that the output lands in a known location instead of
+    relying on prefix-based directory detection.
+
     Returns (output_dir, exit_code).
     """
     src_path = str(REPO_ROOT / "src")
@@ -480,6 +503,8 @@ def run_baseline(
         "--environment", environment,
         "--evaluate",
         f"agent.cost_limits.cost_limit={budget}",
+        f"save_dir={output_dir}",
+        "save_template=.",
     ]
 
     env = {
@@ -500,8 +525,15 @@ def run_baseline(
         logger.error("Baseline run timed out after 3600s")
         return None, 1
 
-    # Find the actual output directory created by slop-code
-    actual_dir = _find_latest_run_dir(problem, "baseline")
+    # The output directory was passed explicitly so it
+    # should exist.  Fall back to general lookup only
+    # when the explicit dir is absent.
+    if output_dir.is_dir():
+        return output_dir, result.returncode
+
+    actual_dir = _find_latest_run_dir(
+        problem, prefix=None,
+    )
     if actual_dir is not None:
         return actual_dir, result.returncode
     return output_dir, result.returncode
@@ -548,8 +580,16 @@ def run_two_agent(
         logger.error("Two-agent run timed out after 3600s")
         return None, 1
 
-    # Find the actual output directory
-    actual_dir = _find_latest_run_dir(problem, "two_agent")
+    # Find the actual output directory.  The runner
+    # names its dirs ``two_agent_...`` by default, but
+    # fall back to any directory containing the problem.
+    actual_dir = _find_latest_run_dir(
+        problem, prefix="two_agent",
+    )
+    if actual_dir is None:
+        actual_dir = _find_latest_run_dir(
+            problem, prefix=None,
+        )
     if actual_dir is not None:
         return actual_dir, result.returncode
     return None, result.returncode
@@ -589,16 +629,23 @@ def run_eval(output_dir: Path) -> int:
 
 def _find_latest_run_dir(
     problem: str,
-    prefix: str,
+    prefix: str | None = None,
 ) -> Path | None:
-    """Find the most recent output dir matching *prefix*."""
+    """Find the most recent output dir containing *problem*.
+
+    When *prefix* is given, only directories whose name
+    starts with *prefix* are considered.  When *prefix*
+    is ``None``, all directories are scanned.
+    """
     if not OUTPUTS_DIR.exists():
         return None
     candidates: list[tuple[float, Path]] = []
     for d in OUTPUTS_DIR.iterdir():
         if not d.is_dir():
             continue
-        if not d.name.startswith(prefix):
+        if prefix is not None and not d.name.startswith(
+            prefix,
+        ):
             continue
         prob_dir = d / problem
         if prob_dir.is_dir():
@@ -815,6 +862,22 @@ def run_pipeline(
             )
         ta_metrics = parse_eval_results(ta_dir, problem)
         result.two_agent_metrics = ta_metrics
+
+    # ── Step 4.5: Checkpoint parity check ────────────
+    if (
+        baseline_dir is not None
+        and ta_dir is not None
+        and baseline_dir.exists()
+        and ta_dir.exists()
+        and not verify_matching_checkpoints(
+            baseline_dir, ta_dir, problem,
+        )
+    ):
+        result.errors.append(
+            "Checkpoint mismatch: baseline and "
+            "two-agent arms produced different "
+            "checkpoint directories.",
+        )
 
     # ── Step 5: Compute deltas ────────────────────────
     delta_pr, delta_er = compute_deltas(
@@ -1036,6 +1099,12 @@ def main(
         typer.echo(
             "\nPartial results saved.", err=True,
         )
+        raise SystemExit(1)
+
+    # Propagate non-zero exit on critical errors
+    # (eval failures, Dolt write failures, checkpoint
+    # mismatches) even when the run is not partial.
+    if result.errors:
         raise SystemExit(1)
 
 

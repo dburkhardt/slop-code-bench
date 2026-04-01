@@ -681,48 +681,47 @@ class TestCanaryRunFunction:
                 return_value="opus-4.5",
             ),
             patch.object(
-                subprocess, "run",
-            ) as mock_run,
-            patch.object(
-                mod,
-                "_find_latest_run_dir",
-                return_value=None,
+                mod, "run_two_agent",
+                side_effect=SystemExit(1),
             ),
+            patch.object(
+                mod, "OUTPUTS_DIR",
+                Path("/tmp/canary_test"),  # noqa: S108
+            ),
+            pytest.raises(mod.CanaryError),
         ):
-            fake = MagicMock()
-            fake.returncode = 0
-            fake.stdout = ""
-            fake.stderr = ""
-            mock_run.return_value = fake
-            with pytest.raises(mod.CanaryError):
-                mod.run_canary()
+            mod.run_canary()
         mock_preflight.assert_called_once()
 
     def test_run_canary_full_pipeline_mocked(
         self, tmp_path: Path,
     ):
-        """run_canary exercises implementer, reviewer, and eval
-        when all subprocess calls succeed."""
+        """run_canary exercises run_two_agent and eval
+        when all steps succeed."""
         mod = _load_runner_module()
 
-        # Set up a fake output directory structure
-        fake_run_dir = tmp_path / "fake_run"
-        fake_problem_dir = fake_run_dir / "file_backup"
-        fake_cp_dir = fake_problem_dir / "checkpoint_1"
-        fake_snapshot = fake_cp_dir / "snapshot"
-        fake_snapshot.mkdir(parents=True)
-        (fake_snapshot / "solution.py").write_text(
-            "print('hello')",
-        )
-        # Config file
-        (fake_run_dir / "config.yaml").write_text(
-            "model:\n  name: opus-4.5\n",
-        )
+        canary_out = tmp_path / "canary_output"
 
-        fake_result = MagicMock()
-        fake_result.returncode = 0
-        fake_result.stdout = ""
-        fake_result.stderr = ""
+        def fake_run_two_agent(**kwargs):
+            # Simulate run_two_agent creating output
+            out = kwargs.get("output_dir", canary_out)
+            out.mkdir(parents=True, exist_ok=True)
+            state = mod.RunState(
+                problem="file_backup",
+                model="opus-4.5",
+                budget=0.50,
+                budget_split=70,
+                output_dir=out,
+            )
+            m = mod.CheckpointMetrics(cost=0.10)
+            state.checkpoint_metrics["checkpoint_1"] = m
+            state.save_results()
+            return state
+
+        fake_eval = MagicMock()
+        fake_eval.returncode = 0
+        fake_eval.stdout = ""
+        fake_eval.stderr = ""
 
         with (
             patch.object(mod, "run_preflight_checks"),
@@ -731,14 +730,12 @@ class TestCanaryRunFunction:
                 return_value="opus-4.5",
             ),
             patch.object(
-                subprocess, "run",
-                return_value=fake_result,
+                mod, "run_two_agent",
+                side_effect=fake_run_two_agent,
             ),
             patch.object(
-                mod, "_find_latest_run_dir",
-                return_value=(
-                    fake_run_dir, fake_problem_dir,
-                ),
+                subprocess, "run",
+                return_value=fake_eval,
             ),
             patch.object(
                 mod, "OUTPUTS_DIR", tmp_path,
@@ -755,13 +752,29 @@ class TestCanaryRunFunction:
         )
         assert metrics_file.exists()
 
-    def test_run_canary_implementer_failure(self):
-        """run_canary raises CanaryError on implementer failure."""
+    def test_run_canary_passes_max_checkpoints_1(self):
+        """run_canary passes max_checkpoints=1 to
+        run_two_agent."""
         mod = _load_runner_module()
-        fail_result = MagicMock()
-        fail_result.returncode = 1
-        fail_result.stdout = ""
-        fail_result.stderr = "API error: invalid key"
+
+        captured_kwargs: dict = {}
+
+        def capture_kwargs(**kwargs):
+            captured_kwargs.update(kwargs)
+            state = mod.RunState(
+                problem="file_backup",
+                model="opus-4.5",
+                budget=0.50,
+                budget_split=70,
+                output_dir=kwargs["output_dir"],
+            )
+            state.save_results()
+            return state
+
+        fake_eval = MagicMock()
+        fake_eval.returncode = 0
+        fake_eval.stdout = ""
+        fake_eval.stderr = ""
 
         with (
             patch.object(mod, "run_preflight_checks"),
@@ -770,8 +783,40 @@ class TestCanaryRunFunction:
                 return_value="opus-4.5",
             ),
             patch.object(
+                mod, "run_two_agent",
+                side_effect=capture_kwargs,
+            ),
+            patch.object(
                 subprocess, "run",
-                return_value=fail_result,
+                return_value=fake_eval,
+            ),
+            patch.object(
+                mod, "OUTPUTS_DIR",
+                Path("/tmp/canary_test"),  # noqa: S108
+            ),
+        ):
+            mod.run_canary()
+
+        assert captured_kwargs.get("max_checkpoints") == 1
+
+    def test_run_canary_pipeline_failure(self):
+        """run_canary raises CanaryError with component
+        'Pipeline' when run_two_agent exits non-zero."""
+        mod = _load_runner_module()
+
+        with (
+            patch.object(mod, "run_preflight_checks"),
+            patch.object(
+                mod, "validate_model",
+                return_value="opus-4.5",
+            ),
+            patch.object(
+                mod, "run_two_agent",
+                side_effect=SystemExit(1),
+            ),
+            patch.object(
+                mod, "OUTPUTS_DIR",
+                Path("/tmp/canary_test"),  # noqa: S108
             ),
         ):
             with pytest.raises(
@@ -779,38 +824,71 @@ class TestCanaryRunFunction:
             ) as exc_info:
                 mod.run_canary()
             assert (
-                exc_info.value.component == "Implementer"
+                exc_info.value.component == "Pipeline"
             )
+
+    def test_run_canary_reviewer_failure_is_fatal(self):
+        """Reviewer failure in canary mode is fatal.
+
+        When run_two_agent invokes run_slop_code for the
+        reviewer and it fails, the canary should propagate
+        the error rather than ignoring it.
+        """
+        # This is tested structurally: the old code had
+        # a "non-fatal" branch for reviewer failures.
+        # The new canary delegates to run_two_agent which
+        # naturally propagates failures through
+        # run_slop_code.  We verify that a SystemExit
+        # from run_two_agent becomes a CanaryError.
+        mod = _load_runner_module()
+
+        with (
+            patch.object(mod, "run_preflight_checks"),
+            patch.object(
+                mod, "validate_model",
+                return_value="opus-4.5",
+            ),
+            patch.object(
+                mod, "run_two_agent",
+                side_effect=SystemExit(1),
+            ),
+            patch.object(
+                mod, "OUTPUTS_DIR",
+                Path("/tmp/canary_test"),  # noqa: S108
+            ),
+            pytest.raises(mod.CanaryError),
+        ):
+            mod.run_canary()
 
     def test_run_canary_eval_failure(self, tmp_path: Path):
         """run_canary raises CanaryError on eval failure."""
         mod = _load_runner_module()
 
-        fake_run_dir = tmp_path / "fake_run"
-        fake_problem_dir = fake_run_dir / "file_backup"
-        fake_cp_dir = fake_problem_dir / "checkpoint_1"
-        fake_snapshot = fake_cp_dir / "snapshot"
-        fake_snapshot.mkdir(parents=True)
-        (fake_snapshot / "solution.py").write_text("")
-        (fake_run_dir / "config.yaml").write_text(
-            "model:\n  name: opus-4.5\n",
-        )
+        def fake_run_two_agent(**kwargs):
+            out = kwargs.get("output_dir", tmp_path)
+            out.mkdir(parents=True, exist_ok=True)
+            state = mod.RunState(
+                problem="file_backup",
+                model="opus-4.5",
+                budget=0.50,
+                budget_split=70,
+                output_dir=out,
+            )
+            m = mod.CheckpointMetrics(cost=0.10)
+            state.checkpoint_metrics["checkpoint_1"] = m
+            state.save_results()
+            return state
 
         call_count = 0
 
-        def side_effect(*args, **kwargs):
+        def eval_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             r = MagicMock()
             r.stdout = ""
-            r.stderr = ""
-            # First two calls (implementer + reviewer) succeed
-            if call_count <= 2:
-                r.returncode = 0
-            else:
-                # Eval fails
-                r.returncode = 1
-                r.stderr = "eval: no checkpoints found"
+            # Eval fails
+            r.returncode = 1
+            r.stderr = "eval: no checkpoints found"
             return r
 
         with (
@@ -820,14 +898,12 @@ class TestCanaryRunFunction:
                 return_value="opus-4.5",
             ),
             patch.object(
-                subprocess, "run",
-                side_effect=side_effect,
+                mod, "run_two_agent",
+                side_effect=fake_run_two_agent,
             ),
             patch.object(
-                mod, "_find_latest_run_dir",
-                return_value=(
-                    fake_run_dir, fake_problem_dir,
-                ),
+                subprocess, "run",
+                side_effect=eval_side_effect,
             ),
             patch.object(
                 mod, "OUTPUTS_DIR", tmp_path,
@@ -845,15 +921,33 @@ class TestCanaryRunFunction:
 class TestUpdateMetricsFromResults:
     """_update_metrics_from_results parses checkpoint results."""
 
-    def test_parses_jsonl(self, tmp_path: Path):
-        """Reads pass_rate from checkpoint_results.jsonl."""
+    def test_parses_jsonl_flattened(self, tmp_path: Path):
+        """Reads pass_rate from flattened strict_pass_rate."""
         mod = _load_runner_module()
         results_file = tmp_path / "checkpoint_results.jsonl"
         data = {
             "problem_name": "file_backup",
             "checkpoint_name": "checkpoint_1",
-            "pass_counts": 8,
-            "total_counts": 10,
+            "strict_pass_rate": 0.8,
+            "total_tests": 10,
+            "passed_tests": 8,
+        }
+        results_file.write_text(json.dumps(data) + "\n")
+        metrics = mod.CheckpointMetrics()
+        mod._update_metrics_from_results(
+            metrics, results_file,
+        )
+        assert metrics.pass_rate == pytest.approx(0.8)
+
+    def test_parses_jsonl_total_tests_fallback(
+        self, tmp_path: Path,
+    ):
+        """Falls back to total_tests/passed_tests."""
+        mod = _load_runner_module()
+        results_file = tmp_path / "checkpoint_results.jsonl"
+        data = {
+            "total_tests": 10,
+            "passed_tests": 8,
         }
         results_file.write_text(json.dumps(data) + "\n")
         metrics = mod.CheckpointMetrics()
@@ -1096,6 +1190,46 @@ class TestCoreLoopInvocations:
             assert m.cost == pytest.approx(0.15)
         # Total cost = 2 checkpoints * 0.15
         assert state.cumulative_cost == pytest.approx(0.30)
+
+    def test_max_checkpoints_limits_execution(
+        self, tmp_path, fake_problem,
+    ):
+        """max_checkpoints=1 limits execution to
+        checkpoint_1 only."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        call_args: list[dict] = []
+
+        def capture_call(**kwargs):
+            call_args.append(kwargs)
+            return _fake_slop_result()
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=capture_call,
+            ),
+        ):
+            state = mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+                max_checkpoints=1,
+            )
+
+        # Only 1 checkpoint x 2 phases = 2 calls
+        assert len(call_args) == 2
+        assert len(state.checkpoint_metrics) == 1
+        assert "checkpoint_1" in state.checkpoint_metrics
 
 
 # ---------------------------------------------------------------------------
