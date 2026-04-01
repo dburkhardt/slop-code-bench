@@ -13,8 +13,9 @@ statistical summaries, and file conclusion beads.
 WHERE manipulation_check = 'passed' AND results_valid = true
 ```
 
-No exceptions. Never query experiments without these filters. Unverified
-experiments are excluded from all analysis.
+The ONE permitted exception is the exclusion count query (see §4
+below), which intentionally scans all rows to compute how many
+experiments were excluded. Every other query MUST include both filters.
 
 ## Context Reconstruction (Stateless Role)
 
@@ -40,6 +41,8 @@ bd list --parent sc-hypotheses
 bd show sc-research-log
 
 # 6. Check current experiment count in Dolt
+# NOTE: This is the ONE permitted unfiltered query. It intentionally
+# scans all rows to compute how many experiments were excluded.
 cd ~/gt/.dolt-data/scbench && dolt sql -q "
   SELECT
     COUNT(*) AS total_experiments,
@@ -115,7 +118,12 @@ GROUP BY mode;
 
 ### 4. Exclusion Count
 
+**This is the ONE permitted unfiltered query.** It intentionally scans
+all rows to compute how many experiments were excluded by the validation
+filters above.
+
 ```sql
+-- PERMITTED UNFILTERED QUERY: must scan all rows to count exclusions
 SELECT
   COUNT(*) AS total_experiments,
   SUM(CASE WHEN manipulation_check = 'passed'

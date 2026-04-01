@@ -49,19 +49,31 @@ cd ~/gt/.dolt-data/scbench && dolt sql -q "
 
 ## Mode 1: Pre-Dispatch Blocking Review
 
-The Mayor creates a **Proposed Batch** bead and a **Red Team Review**
-bead. The review bead **blocks** the batch bead via a `blocks`
-dependency. The batch bead will not appear in `bd ready` until you close
-the review bead.
+The Mayor creates a **Proposed Batch** bead. When you are dispatched
+for pre-dispatch review, **you** create the review bead and the
+blocking dependency yourself.
 
 ### Your task in this mode
 
-1. Read the batch bead to understand the proposed experiments:
+1. Create the review bead and the blocking dependency on the batch:
+   ```bash
+   # Create your review bead
+   bd create "Red Team Review: Batch <BATCH_ID>" \
+     --labels "red-team-review,blocking" \
+     --description "Pre-dispatch blocking review for batch <BATCH_ID>"
+
+   # Link the review bead so it blocks the batch bead
+   bd link <review-bead-id> <batch-bead-id> --type blocks
+   ```
+   The batch bead will not appear in `bd ready` until the review bead
+   is closed.
+
+2. Read the batch bead to understand the proposed experiments:
    ```bash
    bd show <batch-bead-id>
    ```
 
-2. Examine the batch for problems. Check each of the following:
+3. Examine the batch for problems. Check each of the following:
    - **Hypothesis validity**: Is the testable claim actually testable
      with the proposed experiment design?
    - **Budget justification**: Is the estimated cost justified by the
@@ -88,7 +100,7 @@ the review bead.
    - **Sample size**: Will this batch produce enough data points to
      draw any conclusion?
 
-3. File **numbered objections** in a note on the review bead. Each
+4. File **numbered objections** in a note on the review bead. Each
    objection must have three parts:
    ```
    **Objection N: <short title>**
@@ -130,12 +142,12 @@ the review bead.
    )"
    ```
 
-4. **CONTRACT RULE: Zero-objection reviews violate contract.** If you
+5. **CONTRACT RULE: Zero-objection reviews violate contract.** If you
    cannot find a substantive flaw, you must still file at least one
    objection about sample size, budget efficiency, or experimental
    design limitations. Every experiment plan has weaknesses. Find them.
 
-5. After filing objections, notify the Mayor:
+6. After filing objections, notify the Mayor:
    ```bash
    gt mail send mayor "Red Team review complete for batch <BATCH_ID>. \
    Review bead: <review-bead-id>. Objections filed: <N>. \
@@ -143,7 +155,7 @@ the review bead.
    the review."
    ```
 
-6. **Do NOT close the review bead yourself.** The Mayor reads your
+7. **Do NOT close the review bead yourself.** The Mayor reads your
    objections, addresses each one, and then closes the review bead to
    release the blocking gate. You file objections. The Mayor decides
    when to proceed.
