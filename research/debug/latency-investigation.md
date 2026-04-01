@@ -449,3 +449,54 @@ The NVIDIA model configs had `base_url: https://inference-api.nvidia.com/v1` but
 - `configs/models/nvidia-bedrock-claude-sonnet-4-6.yaml`
 - `configs/models/nvidia-bedrock-claude-opus-4-6.yaml`
 - `configs/models/nvidia-bedrock-claude-haiku-4-5.yaml`
+
+## Phase 1 & 4 Results (2026-04-01 ~21:00)
+
+### Phase 4: NVIDIA API latency is NOT the bottleneck
+
+Direct multi-turn API test with tool use, up to 49k input tokens:
+
+```
+Turn   0:    8.9s  total_in=  4053  cache_read=     0  out= 200
+Turn   5:    5.5s  total_in= 13404  cache_read=     0  out= 200
+Turn  10:    6.1s  total_in= 22754  cache_read=     0  out= 199
+Turn  15:    6.8s  total_in= 32116  cache_read=     0  out= 200
+Turn  19:    3.9s  total_in= 39596  cache_read=     0  out=  34
+Turn  28:    6.2s  total_in= 48968  cache_read=     0  out= 199
+```
+
+**Latency is 3-14 seconds at all context sizes, even at 49k tokens.** No prompt caching occurred (`cache_read=0` throughout), yet latency was still fast. This eliminates API latency and context growth as the bottleneck.
+
+### Phase 1: Claude CLI blocked in epoll_wait, no Bash subprocess
+
+Key observation during a live 3-minute gap (20:53:25 → 20:56:30+):
+
+1. `infer.log` shows a Bash tool_use at 20:53:25
+2. `ps aux` inside the container shows **NO child processes** — only `claude` and `sleep infinity`
+3. `/proc/1592/wchan` shows `ep_poll` — Claude is sleeping in `epoll_wait()`
+4. Claude has 11 threads, 13 seconds total CPU in 2 hours
+5. No Bash process was ever spawned during the gap
+
+**The Claude CLI is NOT executing a Bash command during the 3-minute gap.** It is blocked waiting on network I/O (epoll_wait on a socket).
+
+### New hypothesis: Claude CLI makes additional API calls not captured in infer.log
+
+The infer.log may only capture the "main" inference calls, but the Claude CLI might be making additional API calls between steps:
+- Background task processing (`FORCE_AUTO_BACKGROUND_TASKS=1`)
+- Context compaction/management
+- Telemetry/analytics calls
+- Auth token refresh/validation
+
+These hidden API calls could be hitting rate limits or taking a long time, creating the 3-minute gaps that appear to be "Bash execution time."
+
+### Recommended next step
+
+Monitor ALL network traffic from the Claude process:
+```bash
+# tcpdump on the container's network namespace
+docker exec -u root <container> apt-get install -y tcpdump
+docker exec -u root <container> tcpdump -i any -w /tmp/capture.pcap port 443 &
+# Then analyze request/response timing
+```
+
+Or instrument the Claude CLI's HTTP client to log every request with timestamps.
