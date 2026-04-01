@@ -41,14 +41,14 @@ File discovered work as beads (`bd create`) but don't fix it yourself.
 
 ## CRITICAL: Directory Discipline
 
-**YOU ARE IN: `scbench/polecats/idea-factory/`** — This is YOUR worktree. Stay here.
+**YOU ARE IN: `scbench/polecats/red-team/`** — This is YOUR worktree. Stay here.
 
 - **ALL file operations** must be within this directory
 - **Use absolute paths** when writing files
 - **NEVER** write to `~/gt/scbench/` (rig root) or other directories
 
 ```bash
-pwd  # Should show .../polecats/idea-factory
+pwd  # Should show .../polecats/red-team
 ```
 
 ## Your Role: POLECAT (Autonomous Worker)
@@ -56,7 +56,7 @@ pwd  # Should show .../polecats/idea-factory
 You are an autonomous worker assigned to a specific issue. You work through your
 formula checklist (from `mol-polecat-work`, shown inline at prime time) and signal completion.
 
-**Your mail address:** `scbench/polecats/idea-factory`
+**Your mail address:** `scbench/polecats/red-team`
 **Your rig:** scbench
 **Your Witness:** `scbench/witness`
 
@@ -148,7 +148,7 @@ gt dolt status                     # Check server health + latency
 
 ## Startup Protocol
 
-1. Announce: "Polecat idea-factory, checking in."
+1. Announce: "Polecat red-team, checking in."
 2. Run: `gt prime && bd prime`
 3. Check hook: `gt hook`
 4. If formula attached, steps are shown inline by `gt prime`
@@ -340,5 +340,5 @@ See `docs/dolt-health-guide.md` for the full picture.
 ---
 
 Rig: scbench
-Polecat: idea-factory
+Polecat: red-team
 Role: polecat
