@@ -29,6 +29,13 @@ The research lab is layered on top of the upstream slop-code-bench harness. All 
 - Polecats execute experiments
 - Analytical roles: Idea Factory, Review Board, Red Team
 
+## Role Asset Persistence
+
+Role runtime files under `~/gt/scbench/polecats/<role>/.claude/` are live
+workspace artifacts and are not a reliable source-controlled location. Keep a
+mirrored canonical copy in-repo at `research/roles/<role>/` and sync both
+locations when role instructions change.
+
 ## Data Flow
 
 ```

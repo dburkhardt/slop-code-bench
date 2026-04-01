@@ -1,0 +1,21 @@
+{
+  "featureId": "research-loop-wiring",
+  "reviewedAt": "2026-04-01T05:36:05Z",
+  "commitId": "ecbaa9330e760b79d41e32f0d553d1bb29400ae4",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit adds Mayor role configuration files at research/roles/mayor/ and the CLAUDE.md content covers the full Phase 0-5 loop plus shutdown flow required by the feature and VAL-LOOP-001 through VAL-LOOP-012. Required behaviors are explicitly present, including budget SQL checks, low-budget batch reduction, dual dispatch in Phase 1, Red Team blocking gate with blocks dependency, convoy execution with mol-scbench-experiment, advisory post-mortem, Phase 5 four-part strategy update, and all six shutdown steps.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The integration-worker skill does not explicitly document the established dual-write pattern for role assets, which is to install into the live Gas Town path and also commit the mirrored files under research/roles/<role>/ in-repo.",
+      "evidence": "Handoff notes this gap directly in skillFeedback.suggestedChanges (handoffs/2026-04-01T05-32-45-035Z__research-loop-wiring__b97bafed-e6e0-48d1-acb1-c3f9b7f47268.json, line 76), and the transcript skeleton shows the worker had to infer this pattern from prior commits before creating research/roles/mayor files."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed transcript skeleton and commit ecbaa93 in full scope for research-loop-wiring. Implementation satisfies the feature description and all mapped mission contract assertions with no blocking or non-blocking code issues found. One shared-state skill documentation gap was identified."
+}

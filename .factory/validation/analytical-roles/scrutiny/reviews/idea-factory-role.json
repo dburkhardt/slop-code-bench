@@ -1,0 +1,33 @@
+{
+  "featureId": "idea-factory-role",
+  "reviewedAt": "2026-04-01T05:36:47Z",
+  "commitId": "154b344f80a4857c718fcecc81ff649ecaca8a27",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Implementation covers the feature description and fulfills VAL-ROLES-008/009/010. The new role instructions enforce web search before hypothesis creation, define KB taxonomy labeling under sc-research-kb, require hypothesis provenance metadata with the four required fields, and include explicit stateless context reconstruction commands. I found one non-blocking reliability issue in settings hook PATH configuration.",
+    "issues": [
+      {
+        "file": "research/roles/idea-factory/settings.json",
+        "line": 14,
+        "severity": "non_blocking",
+        "description": "Hook commands prepend $HOME/go/bin and $HOME/bin, but this environment exposes gt/bd in /home/ubuntu/gopath/bin. In shells where gopath/bin is absent from PATH, SessionStart/PreCompact/UserPromptSubmit/Stop hook commands can fail to find gt. See also lines 23, 32, 43, 54, 65, 76 and environment guidance in .factory/library/environment.md lines 18 and 23."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The integration-worker procedure does not explicitly state that Gas Town role files should be both deployed to ~/gt/scbench/polecats/<role>/.claude/ and mirrored into research/roles/<role>/ for versioned persistence. Worker had to infer this by inspecting prior commits.",
+      "evidence": "worker-transcripts.jsonl entry for session f1b80f1b-fffb-4f74-b6c8-902ec0b08657 includes: \"The files are in ~/gt/scbench/polecats/idea-factory/, which is outside the git repo...\" followed by \"I see! The previous roles were committed to `research/roles/` ... AND separately deployed ...\""
+    },
+    {
+      "area": "conventions",
+      "observation": "Role settings templates appear to use a non-canonical PATH for gt hooks. Shared guidance should define one canonical hook PATH to avoid repeated drift across role settings.",
+      "evidence": "research/roles/idea-factory/settings.json lines 14/23/32/43/54/65/76 use $HOME/go/bin and $HOME/bin; .factory/library/environment.md lines 18 and 23 document gt binaries in /home/ubuntu/gopath/bin and require adding that path."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed transcript skeleton, handoff, and commit 154b344. Feature requirements and mapped contract assertions are met; review passes with one non-blocking settings PATH reliability issue and two shared-state observations."
+}

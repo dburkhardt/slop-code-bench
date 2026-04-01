@@ -1,0 +1,38 @@
+{
+  "featureId": "review-board-role",
+  "reviewedAt": "2026-04-01T05:36:15Z",
+  "commitId": "7236f0e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature delivers the requested role files and covers most requirements, including stateless bead reconstruction guidance, required analysis metrics, exclusion reporting structure, sample-size fields, and low-N handling instructions. However, the committed Review Board prompt contains a contract-critical inconsistency on validation filtering that violates the feature's own no-exceptions rule.",
+    "issues": [
+      {
+        "file": "/home/ubuntu/git-repos/slop-code-bench/research/roles/review-board/CLAUDE.md",
+        "line": 131,
+        "severity": "blocking",
+        "description": "The document states \"Every Dolt query MUST include\" and \"No exceptions\" for `WHERE manipulation_check = 'passed' AND results_valid = true` (lines 10 and 16), but the exclusion-count template queries `FROM experiments;` without a `WHERE` filter (line 131). The same pattern also appears in the context-reconstruction count query (`FROM experiments;` at line 52). This does not satisfy the literal requirement in expectedBehavior/VAL-ROLES-002 that all Review Board queries include the validation filter."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The integration-worker skill does not document the expected persistence pattern for role files created under `~/gt/scbench/polecats/` when those workspace paths are gitignored.",
+      "evidence": "Skill step 4 only says to install role files in Gas Town (SKILL.md line 48), and step 8 enforces commit/push (line 69). Handoff `skillFeedback.suggestedChanges` explicitly requests adding guidance that `polecats/` is gitignored and reference copies should be stored in `research/roles/` (handoff lines 55-56)."
+    },
+    {
+      "area": "conventions",
+      "observation": "Mission conventions require commit/push for every feature but do not define a convention for workspace-only artifacts, causing avoidable decision overhead during implementation.",
+      "evidence": "Mission AGENTS mandates commit/push after every feature (AGENTS.md lines 28-33). In the transcript skeleton entry for this worker session, the worker had to determine that `polecats/` is gitignored and then decide to create repo reference copies in `research/roles/`."
+    },
+    {
+      "area": "knowledge",
+      "observation": "Shared architecture docs describe both `research/` and Gas Town workspace structure but do not capture where polecat role instructions should be source-controlled for reproducibility.",
+      "evidence": "`.factory/library/architecture.md` documents `research/` additions (line 18) and Gas Town workspace location (line 25), but does not include a persistence rule for `~/gt/scbench/polecats/.../.claude/*` files; the worker transcript/handoff shows this was discovered ad hoc."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review failed for `review-board-role` due to a blocking filter-contract mismatch in `research/roles/review-board/CLAUDE.md`. The implementation is otherwise close to requirements, and shared-state gaps were noted around documenting how to persist polecat role files."
+}

@@ -53,3 +53,5 @@ Workers must set: `export PATH=$PATH:/home/ubuntu/gopath/bin:/home/ubuntu/go/bin
 
 - Gas Town escalation config expects `smtp_port` as a string value in `~/gt/settings/escalation.json` in this environment.
 - Dolt auto-commit validation must run through the SQL server path on port `3307`; local `dolt sql` CLI mode does not exercise the same commit-log behavior.
+- For role `settings.json` hooks, use a PATH that includes `/home/ubuntu/gopath/bin` and `/home/ubuntu/go/bin` so `gt` and `bd` resolve consistently.
+- For machine-readable bead creation/output parsing, prefer `bd ... --json`; `-q` is not guaranteed to emit only a raw bead ID.

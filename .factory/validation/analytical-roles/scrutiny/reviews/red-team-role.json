@@ -1,0 +1,33 @@
+{
+  "featureId": "red-team-role",
+  "reviewedAt": "2026-04-01T05:36:01Z",
+  "commitId": "5d56c82",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Red Team role docs capture adversarial tone, numbered objection format, zero-objection violation, and non-blocking post-mortem, but the pre-dispatch workflow does not instruct the Red Team polecat to create the blocking dependency itself, so VAL-ROLES-005 is not fully satisfied.",
+    "issues": [
+      {
+        "file": "research/roles/red-team/CLAUDE.md",
+        "line": 52,
+        "severity": "blocking",
+        "description": "Mode 1 states the Mayor creates the review bead and `blocks` link (lines 52-53), and the Red Team steps only consume an existing review bead. The feature and contract require the Red Team pre-dispatch workflow to create the review bead that blocks the batch (VAL-ROLES-005), so this required responsibility is left unimplemented/ambiguous in the role instructions."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "integration-worker guidance for role setup is underspecified for Red Team gate ownership. It asks to include adversarial stance but does not explicitly require Red Team instructions to create/link the blocking review bead, which likely contributed to assigning gate creation to Mayor.",
+      "evidence": ".factory/skills/integration-worker/SKILL.md:43-47 covers role setup and adversarial stance, but no explicit requirement that Red Team creates `bd link --type blocks`; implemented role doc says Mayor creates blocked review flow (research/roles/red-team/CLAUDE.md:52-53)."
+    },
+    {
+      "area": "knowledge",
+      "observation": "Worker spent exploratory effort discovering bead ID extraction behavior (`bd create -q` still emits verbose output) before switching to `--json`; this operational detail is not documented in shared skill/library guidance.",
+      "evidence": "Transcript skeleton for session 54d011ac-3c3f-425d-9cb0-eb74607103b6 includes: 'The `-q` flag produces more than just the ID' followed by `bd create \"Test Quiet\" -q` and then `bd create \"Test JSON\" --json`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review result is fail due to one blocking contract mismatch. The role docs include adversarial behavior, structured objections, and advisory post-mortem guidance, but they do not assign Red Team to create/link the pre-dispatch blocking review bead as required by VAL-ROLES-005."
+}
