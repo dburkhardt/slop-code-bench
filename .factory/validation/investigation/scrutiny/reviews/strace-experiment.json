@@ -1,0 +1,39 @@
+{
+  "featureId": "strace-experiment",
+  "reviewedAt": "2026-04-01T23:16:08Z",
+  "commitId": "a0baa6f",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature requirements were met. The commit starts a baseline container with the expected env vars, attaches strace to the host PID, captures syscall output for a full slow run (~393s), and records an explicit analysis answering the long-read vs short-call question. I found two resilience gaps in fallback paths, but they did not block successful strace capture in this run.",
+    "issues": [
+      {
+        "file": "research/debug/run_strace_experiment.sh",
+        "line": 150,
+        "severity": "non_blocking",
+        "description": "Fallback host-PID discovery filters for `node` only (`grep -i node`). If /proc-based host PID matching fails and the process name is `claude`, this fallback can miss the process and skip strace even though Claude is running."
+      },
+      {
+        "file": "research/debug/run_strace_experiment.sh",
+        "line": 205,
+        "severity": "non_blocking",
+        "description": "The documented no-strace fallback polls `/proc/$CLAUDE_PID_IN_CONTAINER/syscall` via `docker exec`, but the produced output shows repeated `syscall=N/A` entries. In environments where strace cannot attach, this fallback may fail to produce useful syscall evidence."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The skill/feature guidance includes `/proc` polling as a fallback, but this mission run showed container-side `/proc/<pid>/syscall` polling does not work as implemented. Guidance should specify host-side polling using resolved host PID.",
+      "evidence": "research/debug/run_strace_experiment.sh:205 and research/debug/results/strace_output.txt:26,27,254 (and many later lines) show repeated `syscall=N/A`; handoff.skillFeedback also notes this limitation."
+    },
+    {
+      "area": "knowledge",
+      "observation": "Host ptrace restrictions required sudo for successful strace attach, which is an environment-specific prerequisite not captured in shared environment docs.",
+      "evidence": "research/debug/results/strace_output.txt:24-25 shows non-sudo attach failure; line 30 onward shows successful `strace output (sudo)`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review passed. The feature successfully captured and analyzed syscall data during the long-gap experiment and produced the required artifact at research/debug/results/strace_output.txt. Two non-blocking robustness issues were found in fallback tracing paths."
+}

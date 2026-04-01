@@ -1,0 +1,39 @@
+{
+  "featureId": "debug-scripts",
+  "reviewedAt": "2026-04-01T23:16:06Z",
+  "commitId": "a55138e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature adds the three required debug scripts under research/debug/ and they align with the mission goal of network capture, pcap analysis, and strace-based tracing. Implementation quality is generally solid and self-documenting, with two non-blocking reliability issues noted below.",
+    "issues": [
+      {
+        "file": "research/debug/strace_helper.sh",
+        "line": 157,
+        "severity": "non_blocking",
+        "description": "In the nsenter fallback path, the script exits with the raw strace/timeout code. A normal duration expiry returns 124, so successful captures can be reported as failures to callers."
+      },
+      {
+        "file": "research/debug/analyze_pcap.py",
+        "line": 494,
+        "severity": "non_blocking",
+        "description": "When --output is provided, the script writes directly to Path(args.output) without creating parent directories, which raises FileNotFoundError for nested output paths."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The debug-worker skill's test step is not aligned with this mission's known pre-existing failures, which led the worker to run an unfiltered pytest command and hit a known failure before any edits.",
+      "evidence": "Skill says to run `uv run pytest tests/runner/ -x -q` (.factory/skills/debug-worker/SKILL.md:26). Mission AGENTS documents pre-existing failures and filtered invocation guidance (/home/ubuntu/.factory/missions/ba94244c-8343-4186-8ee5-9d59460ef8a8/AGENTS.md:76-80). Transcript skeleton shows the worker ran unfiltered runner tests, then noted a pre-existing failure."
+    },
+    {
+      "area": "conventions",
+      "observation": "Mission shared guidance is internally inconsistent on test filtering for known failures.",
+      "evidence": "AGENTS lists two known failing tests but its suggested command excludes only `test_provenance_chain_documented` (/home/ubuntu/.factory/missions/ba94244c-8343-4186-8ee5-9d59460ef8a8/AGENTS.md:76-80), while .factory/services.yaml test command excludes both known failures."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed feature debug-scripts (worker session ae0db73a-4285-47a0-a00e-caf2f3beb10b, commit a55138e). The feature satisfies its required scope and is marked pass, with two non-blocking script robustness issues and two shared-state documentation/skill alignment observations."
+}

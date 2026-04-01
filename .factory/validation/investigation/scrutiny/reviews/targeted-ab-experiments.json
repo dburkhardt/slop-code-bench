@@ -1,0 +1,44 @@
+{
+  "featureId": "targeted-ab-experiments",
+  "reviewedAt": "2026-04-01T23:16:16Z",
+  "commitId": "004a026",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature implementation and run artifacts satisfy the core objective of running targeted A/B experiments and producing comparative evidence. The transcript and artifacts show Tests A-D were executed, pcap/network analysis artifacts were produced, and the report captures the key latency pattern. I found two non-blocking quality issues around baseline comparability and naming/threshold consistency for 3-minute gaps.",
+    "issues": [
+      {
+        "file": "research/debug/results/ab_test_results.md",
+        "line": 24,
+        "severity": "non_blocking",
+        "description": "Baseline Test A stopped after 4 steps and is explicitly marked invalid for comparison, which weakens direct A-vs-B/C isolation. The overall conclusion is still supported by Tests B/C/D, but baseline comparability is incomplete."
+      },
+      {
+        "file": "research/debug/ab_experiment_runner.py",
+        "line": 138,
+        "severity": "non_blocking",
+        "description": "The field name `has_3min_gap` is set with `gap > 120`, which is a >2-minute threshold. This can mislabel 2-minute delays as 3-minute gaps. Either rename the metric to match >2min or raise the threshold to align with 3-minute wording."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The debug-worker cleanup guidance is missing a safe pattern for process cleanup in shared environments. The worker hit a self-termination path when using pkill and had to recover with a PID-filtered approach.",
+      "evidence": "worker-transcripts.jsonl (session f2f4f0be-2024-487c-9b7d-9e33fc29c2fb) includes: \"The pkill command terminated our own shell. Let me be more careful...\". Handoff skillFeedback.suggestedChanges also requests guidance for concurrent-worker cleanup behavior."
+    },
+    {
+      "area": "conventions",
+      "observation": "Timeout guidance is inconsistent across mission artifacts and feature instructions, which can cause procedure drift during experiment features.",
+      "evidence": "Mission AGENTS.md line 47 and .factory/skills/debug-worker/SKILL.md line 42 prescribe `timeout 1800`, while the targeted-ab-experiments feature description requires `timeout 900` per test."
+    },
+    {
+      "area": "services",
+      "observation": "Common experiment cleanup commands are not codified in services.yaml, so workers are forced to use ad hoc cleanup command sequences.",
+      "evidence": ".factory/services.yaml lines 1-7 only define install/test/lint/typecheck/import sorting commands; no reusable command exists for stale process/container cleanup used by this mission."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed feature targeted-ab-experiments (commit 004a026) across feature metadata, handoff, transcript skeleton, skill instructions, and commit diff. Marked PASS with two non-blocking issues: invalid baseline comparability in Test A and a 3-minute gap naming/threshold mismatch. Logged three shared-state observations covering cleanup procedure guidance, timeout convention mismatch, and missing reusable cleanup commands in services."
+}

@@ -1,0 +1,33 @@
+{
+  "featureId": "per-step-timing-instrumentation",
+  "reviewedAt": "2026-04-01T23:15:45Z",
+  "commitId": "dfae48b111e4c58c13efe298a2471780ae067fe6",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Instrumentation was added to cli_utils.py and emits structured step_timing logs, but it does not implement a real per-step API vs tool duration breakdown because tool_ms is hardcoded to 0.0 for every step.",
+    "issues": [
+      {
+        "file": "src/slop_code/agent_runner/agents/cli_utils.py",
+        "line": 127,
+        "severity": "blocking",
+        "description": "`tool_ms` is hardcoded to `0.0` at every step-timing emission (also lines 155, 179, 201), so the feature does not distinguish API time from tool execution time as required by the investigation contract."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "Mission architecture guidance states that timestamping consecutive yields in `stream_cli_command()` directly measures API time vs tool execution time, but this layer does not actually isolate tool execution duration; the implementation ended up logging `tool_ms=0.0` everywhere. The shared guidance should be corrected to avoid repeating this design mismatch.",
+      "evidence": ".factory/library/architecture.md:18 claims direct API/tool measurement; commit dfae48b111e4c58c13efe298a2471780ae067fe6 logs `tool_ms=0.0` at src/slop_code/agent_runner/agents/cli_utils.py:127,155,179,201"
+    },
+    {
+      "area": "skills",
+      "observation": "The debug-worker skill procedure requires reading `research/debug/latency-investigation.md` for instrumentation features, but the reviewed transcript skeleton shows no read of that file before implementation. Procedure compliance criteria appear ambiguous and should be tightened or the skill should clarify which steps are mandatory.",
+      "evidence": "Transcript skeleton for workerSessionId 4c586c49-b529-402c-85eb-bf10246db299 shows reads of mission.md, validation-contract.md, AGENTS.md, architecture.md, and code files, but no read of research/debug/latency-investigation.md; debug-worker SKILL.md instrumentation step 2 requires reading it."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed commit dfae48b111e4c58c13efe298a2471780ae067fe6 and transcript for per-step timing instrumentation. The feature adds structured timing logs, but fails the core requirement to distinguish API and tool time because tool_ms is constant zero on all emissions."
+}

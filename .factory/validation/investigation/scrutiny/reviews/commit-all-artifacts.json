@@ -1,0 +1,33 @@
+{
+  "featureId": "commit-all-artifacts",
+  "reviewedAt": "2026-04-01T23:16:20Z",
+  "commitId": "ed8a6254c48c3b58ed27ed8873c1ae115ced0998",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Feature intent is met. The worker verified that research/debug artifacts and cli_utils instrumentation were already committed in prior commits, performed secret checks, and created the requested investigation commit message. The resulting commit is safe and does not expose keys.",
+    "issues": [
+      {
+        "file": "configs/models/nvidia-bedrock-claude-sonnet-4-6.yaml",
+        "line": 14,
+        "severity": "non_blocking",
+        "description": "This commit bundles additional model-config and .factory changes beyond the explicit staging paths in the feature description. The feature still succeeds, but scope expansion makes the commit less audit-friendly."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The debug-worker skill has procedures for instrumentation, script creation, experiment execution, and analysis, but no commit-only/cleanup procedure. The worker had to improvise a commit flow and explicitly requested this addition in skillFeedback.",
+      "evidence": ".factory/skills/debug-worker/SKILL.md has only sections at lines 20, 30, 38, and 48; handoff skillFeedback.suggestedChanges asks for a commit/cleanup section."
+    },
+    {
+      "area": "conventions",
+      "observation": "Mission AGENTS test guidance is inconsistent with current known pre-existing failures and service-level test command. AGENTS recommends excluding only one failing test, while service command excludes additional known failures (formula + canary), which caused iterative reruns in the worker transcript.",
+      "evidence": "/home/ubuntu/.factory/missions/ba94244c-8343-4186-8ee5-9d59460ef8a8/AGENTS.md line 80 vs .factory/services.yaml line 3; transcript skeleton shows repeated pytest -k adjustments."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed handoff, commit diff, transcript skeleton, mission AGENTS, services, and library context. Marking pass with one non-blocking scope note and two shared-state observations."
+}
