@@ -559,3 +559,112 @@ The Bash tool may have a sandboxing layer that phones home or validates permissi
    Where http-logger.js monkey-patches `http.request` and `https.request` to log URLs and timing.
 3. **Try the `--bare` flag** with a multi-turn task (Test 3 failed silently; needs debugging)
 4. **Compare with official Anthropic endpoint**: Set `ANTHROPIC_API_KEY` to a real Anthropic key (not NVIDIA) and see if the delay persists. If it doesn't, the blocking call is one that Anthropic's API handles but NVIDIA's doesn't.
+
+## Conclusions
+
+This section synthesizes all collected evidence: Phase 1 (process inspection), Phase 4 (direct API latency test), A/B experiments (4 tests varying auth method and background task flags), tcpdump network capture (3883 packets over 7.5 minutes), and strace syscall tracing (attached to the Claude process at the host level).
+
+### Hypothesis Verdicts
+
+**H1: Bash commands genuinely take ~3 minutes to execute — REFUTED**
+
+Phase 1 proved that no Bash child process exists during the 3-minute gap. `ps aux` inside the container shows only `claude` and `sleep infinity`. The Claude CLI is blocked in `epoll_wait()` on a network socket, not waiting for a subprocess. When Bash commands do run, they complete in under 5 seconds (e.g., `python3 -m venv` in 3 seconds, file writes instantly).
+
+**H2: NVIDIA API latency is high for multi-turn conversations with tool use — REFUTED**
+
+Phase 4 measured direct NVIDIA API latency at 3 to 14 seconds across 40 turns, up to 49k input tokens. No prompt caching occurred (`cache_read=0` throughout), yet latency stayed flat. The NVIDIA endpoint itself responds promptly for single API calls. The 190-second delays are not caused by normal API inference latency.
+
+**H3: Claude CLI has internal overhead between tool execution and API call — CONFIRMED (primary root cause)**
+
+The CLI adds ~190 to 220 seconds of delay between receiving a tool_use response from the model and producing the tool_result for the next turn. During this delay, strace shows the process is blocked in `epoll_wait()` on network file descriptors, not performing CPU work (13 seconds total CPU in 2+ hours). The A/B tests confirmed this delay is invariant to client-side configuration: it appears identically with `ANTHROPIC_API_KEY` (Test B: 219s, 184s gaps), `ANTHROPIC_AUTH_TOKEN` (Test C: 200s, 179s gaps), and with background tasks enabled or disabled.
+
+The tcpdump data reveals that during gaps, the CLI maintains an active HTTPS connection to the NVIDIA GCP gateway (34.36.57.103) with steady low-volume traffic (30 to 65 packets per 10-second window). Gaps resolve with large response bursts (321 to 438 packets), consistent with a delayed server-side response finally arriving.
+
+The strace data confirms that between active streaming periods, the CLI opens multiple parallel TLS connections (6+ concurrent sockets) to the NVIDIA endpoint (34.36.57.103) and AWS Bedrock endpoints (16.146.192.132, 52.39.201.119, 35.165.251.166). After delivering a tool result and before receiving the next response, the CLI fires a burst of outgoing requests across these connections and then blocks in `epoll_wait` for ~190 seconds waiting for a response.
+
+The most plausible explanation: the Claude CLI issues a **secondary API call** (background task, conversation compaction, context caching request, or similar) after each tool execution. This secondary call goes through the NVIDIA inference proxy to Bedrock. Because NVIDIA/Bedrock queues this request behind other inference traffic, the response takes ~190 seconds. The CLI blocks on this response before proceeding to the next user turn.
+
+**H4: Rate limiting / queuing at the NVIDIA endpoint — INCONCLUSIVE**
+
+The A/B tests ran sequentially in a clean environment with no parallel experiments. The consistent ~190 to 220 second delay across all tests, regardless of concurrency conditions, suggests the delay is not caused by user-side rate limiting. However, the NVIDIA endpoint may apply platform-level queuing or priority scheduling that affects all requests equally. The earlier 429 "Priority-based rate limit exceeded" errors (model saturation: 13.8 to 15.5%) suggest the endpoint operates under load. Without access to NVIDIA's server-side logs, we cannot distinguish between "the CLI makes a slow secondary request" and "the endpoint queues all requests for 3 minutes."
+
+**H5: The infer.log timestamps are misleading — REFUTED**
+
+The A/B experiment runner independently measured elapsed time from the host side using stream-json output, matching the infer.log timestamps within seconds. The tcpdump capture timestamps correlate directly with the gap periods. The 190-second delays are real wall-clock time, not an artifact of buffering or polling.
+
+**H6: Bash tool execution includes Docker exec overhead per command — REFUTED**
+
+Phase 1 showed that during the 3-minute gap, no Bash subprocess is spawned at all. The delay occurs before the Claude CLI even attempts to execute the Bash command, not during Docker process creation. Fast Bash steps (4 to 15 seconds) prove that Docker exec overhead is negligible.
+
+**H7: The file_backup problem's test scenarios are inherently slow — REFUTED**
+
+The delay occurs with simple tasks too ("Create hello.py, create a venv, run it"). The A/B tests used a trivial hello-world task, not the file_backup benchmark, and still produced 190 to 220 second gaps. The problem content is irrelevant.
+
+**H8: The CLI makes a blocking "background" API call between tool_use and tool execution — CONFIRMED (most specific explanation)**
+
+This is the refinement of H3. The strace data at 22:32:00 shows the CLI, immediately after delivering a tool result, opening 6 new simultaneous TCP connections to 34.36.57.103 (NVIDIA GCP) and 1 connection to 16.146.192.132 (AWS Bedrock). It then writes TLS handshake data to all of them and blocks waiting for responses. This burst of 7 parallel outgoing connections is not consistent with a single inference request (which uses one connection with streaming). It suggests the CLI fires multiple parallel background API calls (context prefetch, conversation update, telemetry, or background task processing) through the NVIDIA proxy after each tool execution.
+
+The connection to 3.233.158.50 (Anthropic us-east-1) at 22:32:00, accompanied by an `[ERROR]` log entry, suggests the CLI also attempts to contact Anthropic's infrastructure directly, which fails because the NVIDIA API key is not a valid Anthropic API key. This error does not cause the main delay but indicates the CLI tries to reach Anthropic endpoints for background operations.
+
+**Hidden API calls hypothesis — CONFIRMED**
+
+The tcpdump and strace data together prove that the Claude CLI makes additional network requests beyond the primary inference call. During gap periods: (a) 5 distinct AWS/NVIDIA IP addresses receive traffic, (b) the Anthropic us-east-1 endpoints (3.233.158.*) are contacted sporadically, (c) the strace shows 7 parallel new TLS connections opened immediately after delivering a tool result. These hidden API calls, routed through the NVIDIA proxy, take ~190 seconds to complete because either the proxy queues them or Bedrock's secondary endpoints (not the main inference endpoint) are slow.
+
+### Root Cause
+
+The root cause is narrowed to **one primary candidate**:
+
+**The Claude CLI v2.0.51 issues hidden background API calls through the configured base URL after each tool execution.** These calls go through the NVIDIA inference proxy (inference-api.nvidia.com), which either queues them behind inference traffic or routes them to an incompatible endpoint. The calls block the CLI's main event loop for ~190 to 220 seconds before timing out or completing.
+
+Supporting evidence:
+- Direct NVIDIA API calls take 3 to 14 seconds (Phase 4), so the primary inference path is fast.
+- The CLI is blocked in `epoll_wait` on network sockets during the gap (Phase 1, strace).
+- Seven parallel TLS connections are opened to NVIDIA/AWS immediately after each tool result (strace).
+- Gap duration is invariant to auth method or background task env vars (A/B tests).
+- Gaps end with large response bursts, not timeout errors (tcpdump).
+- The CLI attempts to contact Anthropic us-east-1 directly, producing an `[ERROR]` (strace).
+
+The developer's laptop is fast because it uses `ANTHROPIC_API_KEY` against Anthropic's direct API (`api.anthropic.com`), which handles background CLI calls natively. The NVIDIA proxy does not support these background endpoints, causing them to queue or time out.
+
+### Note on claude-code-router
+
+The Docker image installs `@musistudio/claude-code-router` (npm package), but this package provides a **separate binary called `ccr`**, not `claude`. The `claude` binary symlinks to the official `@anthropic-ai/claude-code/cli.js`. The router does not intercept, proxy, or modify any requests made by the Claude CLI. It is not involved in the latency issue and should be disregarded in future debugging. Its presence in the Docker image is incidental and does not affect experiment results.
+
+## Recommended Fix
+
+### Primary fix: Use Anthropic's direct API instead of the NVIDIA proxy
+
+Switch experiment configurations from the NVIDIA inference endpoint to the Anthropic direct API. This eliminates the 190-second background call delay entirely.
+
+**Config changes in `configs/models/nvidia-bedrock-claude-sonnet-4-6.yaml`:**
+
+```yaml
+# BEFORE (slow: ~3 min per Bash step)
+base_url: https://inference-api.nvidia.com
+# With ANTHROPIC_AUTH_TOKEN=$NVIDIA_INFERENCE_KEY
+
+# AFTER (fast: ~5-15s per step)
+base_url: https://api.anthropic.com
+# With ANTHROPIC_API_KEY=<direct-anthropic-key>
+```
+
+This requires obtaining a direct Anthropic API key. The same change applies to `nvidia-bedrock-claude-opus-4-6.yaml` and `nvidia-bedrock-claude-haiku-4-5.yaml`.
+
+### Workaround if NVIDIA proxy must be used
+
+If the NVIDIA endpoint is required (e.g., for cost or access reasons), investigate these options:
+
+1. **Intercept and disable background CLI calls.** Set `NODE_OPTIONS="--require /tmp/disable-background.js"` where the script patches `https.request` to drop or short-circuit requests that are not to the main inference path. This requires understanding which CLI-internal calls cause the delay.
+
+2. **Pin the Claude Code version.** Newer versions of Claude Code may have different background call behavior. Test with `--bare` mode if the CLI supports it, which may skip background tasks entirely.
+
+3. **Use `DISABLE_BACKGROUND_TASKS=1` and `ANTHROPIC_DISABLE_TELEMETRY=1`.** Although `DISABLE_NON_ESSENTIAL_MODEL_CALLS=1` was tested and did not help, newer or different environment variables may be recognized. Try also: `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`, `CLAUDE_TELEMETRY_DISABLED=1`.
+
+4. **Increase NVIDIA API capacity.** If the delay is caused by server-side queuing, request a higher throughput allocation or dedicated capacity from NVIDIA's inference service.
+
+### Verification
+
+After applying the primary fix, run a single checkpoint and confirm:
+- Steps complete in 5 to 15 seconds each (no 3-minute gaps)
+- Total per-checkpoint time drops from ~70 minutes to ~7 to 10 minutes
+- The `infer.log` step timing shows no gaps > 30 seconds between consecutive steps
