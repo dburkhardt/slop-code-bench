@@ -1,0 +1,214 @@
+{
+  "milestone": "scale-report",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 41,
+    "passed": 1,
+    "failed": 17,
+    "blocked": 23
+  },
+  "passedAssertions": [
+    "VAL-RUNNER-014"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-ANALYSIS-002",
+      "reason": "Analysis SQL is not exclusively validation-filtered as written in the assertion; query_exclusion_counts scans all rows without a WHERE manipulation_check='passed' AND results_valid=true filter."
+    },
+    {
+      "id": "VAL-LOOP-001",
+      "reason": "Mayor research log contains no Phase 0 budget-check or remaining-budget entries, so required per-iteration gate behavior is not evidenced."
+    },
+    {
+      "id": "VAL-LOOP-003",
+      "reason": "Audit shows Review Board and Idea Factory activity, but no loop-phase record proves Mayor waited for both completions before proceeding to Phase 2."
+    },
+    {
+      "id": "VAL-LOOP-005",
+      "reason": "Observed Red Team review bead has no blocking dependencies and no before/after ready transition tied to gate closure."
+    },
+    {
+      "id": "VAL-LOOP-007",
+      "reason": "Only one test convoy exists and it tracks zero items, so Phase 3 parallel experiment execution via convoy is not evidenced."
+    },
+    {
+      "id": "VAL-LOOP-011",
+      "reason": "Research log lacks required Phase 5 content for conclusions and post-mortem findings, so full strategy-update record is incomplete."
+    },
+    {
+      "id": "VAL-LOOP-012",
+      "reason": "Shutdown artifacts are incomplete: no summary bead, no final analysis bead, no FINAL_REPORT.md, and town remains running."
+    },
+    {
+      "id": "VAL-PIPELINE-002",
+      "reason": "Baseline arm is eval-compatible (slop-code eval --overwrite exit 0 with checkpoint_results schema), but two-agent arm is not eval-compatible (slop-code eval --overwrite exit 1: 'No problems to evaluate') and has no checkpoint_results.jsonl, so metric schema parity is not satisfied."
+    },
+    {
+      "id": "VAL-PIPELINE-003",
+      "reason": "Baseline and two-agent arms do not have identical checkpoint directories for file_backup: baseline has checkpoint_1, while two-agent output is missing the problem checkpoint tree."
+    },
+    {
+      "id": "VAL-ROLES-005",
+      "reason": "Red Team review bead does not block any batch work. The observed review bead has zero dependents and no blocks dependencies."
+    },
+    {
+      "id": "VAL-ROLES-006",
+      "reason": "Red Team review bead does not contain numbered actionable objections with problem, impact, and suggested fix. Current description is unstructured."
+    },
+    {
+      "id": "VAL-ROLES-009",
+      "reason": "Hypothesis metadata contract is not uniformly satisfied. Two hypothesis beads are missing all required provenance fields."
+    },
+    {
+      "id": "VAL-ROLES-010",
+      "reason": "Provenance-linked evidence does not satisfy web-search-before-hypothesis requirement. All checked hypothesis-to-KB pairs violate web-search label and/or strict earlier timestamp conditions."
+    },
+    {
+      "id": "VAL-RUNNER-002",
+      "reason": "Happy-path run exited 0, but output was not eval-compatible. `slop-code eval` failed with 'No problems to evaluate' and the run output lacked problem checkpoint directories."
+    },
+    {
+      "id": "VAL-RUNNER-005",
+      "reason": "With a very small budget cap ($0.01), the run completed all checkpoints and exited 0 without a budget-exceeded abort."
+    },
+    {
+      "id": "VAL-RUNNER-008",
+      "reason": "Runner output structure was not eval-compatible. `checkpoint_results.jsonl` and problem checkpoint directories were missing, and eval failed."
+    },
+    {
+      "id": "VAL-RUNNER-009",
+      "reason": "Boundary value `--budget-split 100` was accepted and reviewer phase was skipped, but output was still not eval-compatible (`No problems to evaluate`)."
+    }
+  ],
+  "blockedAssertions": [
+    {
+      "id": "VAL-ANALYSIS-003",
+      "blockedBy": "Delta SQL logic matches required join and subtraction pattern, but no experiments exist (0 total, 0 valid), so no real matched query results are available to validate computed deltas."
+    },
+    {
+      "id": "VAL-ANALYSIS-004",
+      "blockedBy": "Generated report contains an erosion comparison section, but the only analysis conclusion bead is a no-data notice with no erosion comparison, and there are 0 validated experiments."
+    },
+    {
+      "id": "VAL-ANALYSIS-005",
+      "blockedBy": "Report includes budget efficiency structure, but conclusion evidence does not include a budget efficiency comparison and there are 0 validated experiments for computation."
+    },
+    {
+      "id": "VAL-ANALYSIS-009",
+      "blockedBy": "Final report exclusion rows are present and match Dolt counts (all zero), but the available conclusion bead does not provide failure-type exclusion breakdown and is explicitly a no-data conclusion."
+    },
+    {
+      "id": "VAL-ANALYSIS-010",
+      "blockedBy": "Report includes verbosity and erosion slope sections with a verbosity difference line, but conclusion evidence does not include a slope comparison and reflects a no-data state."
+    },
+    {
+      "id": "VAL-CROSS-001",
+      "blockedBy": "Hypothesis artifacts exist, but no experiment rows, conclusion beads, or final report links complete the required end-to-end hypothesis lifecycle chain."
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "blockedBy": "Budget table is initialized, but experiment count and total spend remain zero, so cost-propagation into Mayor loop gating cannot be exercised."
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "blockedBy": "Required batch-review-objection-response-convoy timestamp sequence is absent; only an unrelated test blocks edge is present."
+    },
+    {
+      "id": "VAL-CROSS-006",
+      "blockedBy": "Upstream provenance links (KB to hypothesis) exist, but experiment/analysis/report links are missing, so full backward provenance chain cannot be completed."
+    },
+    {
+      "id": "VAL-CROSS-008",
+      "blockedBy": "Critical routes correctly include human channels, but no critical escalations for the specific events budget exhausted or research complete were found."
+    },
+    {
+      "id": "VAL-LOOP-002",
+      "blockedBy": "No low-budget execution scenario is present (budget spent remains 0 and no reduced-batch planning artifact exists), so proportional batch-size reduction cannot be validated."
+    },
+    {
+      "id": "VAL-LOOP-004",
+      "blockedBy": "No Proposed Batch bead was found, so required fields (rationale/configs/expected outcomes/budget estimate) cannot be checked."
+    },
+    {
+      "id": "VAL-LOOP-006",
+      "blockedBy": "No objection/response artifact pair was found for Red Team review, so objection-by-objection Mayor responses cannot be validated."
+    },
+    {
+      "id": "VAL-LOOP-008",
+      "blockedBy": "Formula mol-scbench-experiment exists, but no experiment molecules were found to verify Phase 3 molecule-to-formula linkage."
+    },
+    {
+      "id": "VAL-LOOP-009",
+      "blockedBy": "No experiments and no conclusion beads are present, so post-execution Review Board dispatch/analysis sequencing cannot be validated."
+    },
+    {
+      "id": "VAL-LOOP-010",
+      "blockedBy": "No Red Team post-mortem bead exists and research log has no post-mortem reference, so dispatch/read behavior cannot be verified."
+    },
+    {
+      "id": "VAL-ROLES-002",
+      "blockedBy": "Blocked by missing experiment data. The only Review Board conclusion is a no-data bead, and experiments table count is zero, so validated-only experiment referencing cannot be confirmed."
+    },
+    {
+      "id": "VAL-ROLES-004",
+      "blockedBy": "Blocked by missing experiment data. The conclusion bead is explicitly a no-data analysis and does not contain pass-rate delta, erosion slope comparison, or budget efficiency metrics."
+    },
+    {
+      "id": "VAL-ROLES-007",
+      "blockedBy": "Blocked because no Red Team post-mortem beads were found by title, label, or text search, so non-blocking dependency checks cannot be exercised."
+    },
+    {
+      "id": "VAL-RUNNER-003",
+      "blockedBy": "Per-phase budget split enforcement could not be validated. Metrics did not include implementer/reviewer cost fields and all tracked tokens/costs were zero; reviewer artifacts contained `No module named slop_code.__main__` errors."
+    },
+    {
+      "id": "VAL-RUNNER-006",
+      "blockedBy": "Canary preflight failed at API validation (HTTP 401 Unauthorized), so the capped run and eval-compatible output requirements could not be exercised."
+    },
+    {
+      "id": "VAL-RUNNER-007",
+      "blockedBy": "Component diagnostics are descriptive for both invalid API key and Docker-unavailable scenarios, but full canary pipeline validation remains blocked by API preflight/auth failure."
+    },
+    {
+      "id": "VAL-RUNNER-011",
+      "blockedBy": "Concurrent runs used distinct run IDs and output directories, but full container-level and per-run spend isolation could not be confirmed because produced runs showed zero spend and no active container evidence."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Updated known frictions to reflect current runner behavior for --budget-split 100, canary 401 preflight failures, and slop-code run CLI flag compatibility.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null,
+  "flowReports": [
+    "/home/ubuntu/git-repos/slop-code-bench/.factory/validation/scale-report/user-testing/flows/analysis-j.json",
+    "/home/ubuntu/git-repos/slop-code-bench/.factory/validation/scale-report/user-testing/flows/roles-j.json",
+    "/home/ubuntu/git-repos/slop-code-bench/.factory/validation/scale-report/user-testing/flows/loop-cross-j.json",
+    "/home/ubuntu/git-repos/slop-code-bench/.factory/validation/scale-report/user-testing/flows/runner-k.json",
+    "/home/ubuntu/git-repos/slop-code-bench/.factory/validation/scale-report/user-testing/flows/pipeline-l.json"
+  ],
+  "frictions": [
+    "bd/gt binaries were not on default PATH in fresh shell invocations; commands required explicit PATH export to /home/ubuntu/gopath/bin and /home/ubuntu/go/bin.",
+    "No dedicated post-mortem artifacts were present in the current rig dataset, requiring assertion VAL-ROLES-007 to remain blocked.",
+    "Review Board conclusion artifacts are no-data only because experiments table has zero rows, limiting direct validation for VAL-ROLES-002 and VAL-ROLES-004.",
+    "gt/bd commands emit a repeated unsigned-binary warning on stderr, which adds noise to captured logs.",
+    "Query field names differed from initial assumptions (e.g., experiments.created_at/total_cost and comments.text), requiring schema inspection before final evidence queries.",
+    "Escalation routing config resides at /home/ubuntu/gt/settings/escalation.json instead of rig-local .gt/settings path.",
+    "Runner reports checkpoint completion with zero tokens/cost while reviewer suggestion artifacts contain `No module named slop_code.__main__`, making budget telemetry interpretation difficult.",
+    "Canary validation is blocked by NVIDIA API key auth failures in this environment, so full canary pipeline checks cannot be completed.",
+    "Fresh-run attempt hit CLI surface drift in this environment: slop-code run does not accept --output-dir and two_agent_runner rejected model alias nvidia/nvidia-bedrock-claude-haiku-4-5. Validation proceeded with current shell-produced run artifacts copied into /tmp/scbench-user-testing/pipeline-l for isolated checks.",
+    "slop-code eval on previously evaluated baseline artifacts requires --overwrite; otherwise it exits with 'No problems to evaluate'."
+  ],
+  "blockers": [
+    "Dolt experiments table currently has 0 rows (0 validated), so analysis conclusions requiring real experiment comparisons are blocked by missing data.",
+    "Missing experiment execution data in Dolt experiments table (0 rows) blocked VAL-ROLES-002 and VAL-ROLES-004.",
+    "No Red Team post-mortem beads found blocked VAL-ROLES-007.",
+    "Experiments table currently has zero rows and budget spent is 0.00, preventing lifecycle and budget-flow assertions from being exercised end-to-end.",
+    "No active loop artifacts for proposed batches, post-mortems, conclusions, summary/final analysis beads, or final report were found during this validation window.",
+    "NVIDIA canary preflight failed with HTTP 401 Unauthorized, preventing full canary execution and eval checks.",
+    "Per-phase spend telemetry needed for budget-split and concurrency cost-isolation assertions was unavailable from produced artifacts."
+  ]
+}

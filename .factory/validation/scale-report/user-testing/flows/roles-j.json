@@ -1,0 +1,90 @@
+{
+  "milestone": "scale-report",
+  "groupId": "roles-j",
+  "surface": "shell",
+  "assertions": [
+    {
+      "id": "VAL-ROLES-002",
+      "status": "blocked",
+      "reason": "Blocked by missing experiment data. The only Review Board conclusion is a no-data bead, and experiments table count is zero, so validated-only experiment referencing cannot be confirmed.",
+      "evidence": [
+        "scale-report/roles-j/VAL-ROLES-002-004-conclusion-list.json",
+        "scale-report/roles-j/VAL-ROLES-002-004-conclusion-show-sc-mp3.json",
+        "scale-report/roles-j/VAL-ROLES-002-experiment-validation-count.log",
+        "scale-report/roles-j/VAL-ROLES-002-004-conclusion-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-004",
+      "status": "blocked",
+      "reason": "Blocked by missing experiment data. The conclusion bead is explicitly a no-data analysis and does not contain pass-rate delta, erosion slope comparison, or budget efficiency metrics.",
+      "evidence": [
+        "scale-report/roles-j/VAL-ROLES-002-004-conclusion-show-sc-mp3.json",
+        "scale-report/roles-j/VAL-ROLES-004-required-statistics-analysis.json",
+        "scale-report/roles-j/VAL-ROLES-002-experiment-validation-count.log"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-005",
+      "status": "fail",
+      "reason": "Red Team review bead does not block any batch work. The observed review bead has zero dependents and no blocks dependencies.",
+      "evidence": [
+        "scale-report/roles-j/VAL-ROLES-005-006-red-team-review-list.json",
+        "scale-report/roles-j/VAL-ROLES-005-006-red-team-review-show-sc-d6f.json",
+        "scale-report/roles-j/VAL-ROLES-005-006-red-team-review-dep-up-blocks-sc-d6f.json",
+        "scale-report/roles-j/VAL-ROLES-005-bd-ready-snapshot.json",
+        "scale-report/roles-j/VAL-ROLES-005-blocking-gate-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-006",
+      "status": "fail",
+      "reason": "Red Team review bead does not contain numbered actionable objections with problem, impact, and suggested fix. Current description is unstructured.",
+      "evidence": [
+        "scale-report/roles-j/VAL-ROLES-005-006-red-team-review-show-sc-d6f.json",
+        "scale-report/roles-j/VAL-ROLES-006-objection-structure-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-007",
+      "status": "blocked",
+      "reason": "Blocked because no Red Team post-mortem beads were found by title, label, or text search, so non-blocking dependency checks cannot be exercised.",
+      "evidence": [
+        "scale-report/roles-j/VAL-ROLES-007-post-mortem-title-list.json",
+        "scale-report/roles-j/VAL-ROLES-007-post-mortem-label-list.json",
+        "scale-report/roles-j/VAL-ROLES-007-red-team-post-search.json",
+        "scale-report/roles-j/VAL-ROLES-007-post-mortem-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-009",
+      "status": "fail",
+      "reason": "Hypothesis metadata contract is not uniformly satisfied. Two hypothesis beads are missing all required provenance fields.",
+      "evidence": [
+        "scale-report/roles-j/VAL-ROLES-009-010-hypotheses-children.json",
+        "scale-report/roles-j/VAL-ROLES-009-hypothesis-metadata-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-010",
+      "status": "fail",
+      "reason": "Provenance-linked evidence does not satisfy web-search-before-hypothesis requirement. All checked hypothesis-to-KB pairs violate web-search label and/or strict earlier timestamp conditions.",
+      "evidence": [
+        "scale-report/roles-j/VAL-ROLES-010-kb-children.json",
+        "scale-report/roles-j/VAL-ROLES-009-010-hypotheses-children.json",
+        "scale-report/roles-j/VAL-ROLES-010-web-search-order-analysis.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [
+    "No dedicated post-mortem artifacts were present in the current rig dataset, requiring assertion VAL-ROLES-007 to remain blocked.",
+    "Review Board conclusion artifacts are no-data only because experiments table has zero rows, limiting direct validation for VAL-ROLES-002 and VAL-ROLES-004."
+  ],
+  "blockers": [
+    "Missing experiment execution data in Dolt experiments table (0 rows) blocked VAL-ROLES-002 and VAL-ROLES-004.",
+    "No Red Team post-mortem beads found blocked VAL-ROLES-007."
+  ]
+}

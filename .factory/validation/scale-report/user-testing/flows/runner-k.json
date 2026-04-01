@@ -1,0 +1,121 @@
+{
+  "milestone": "scale-report",
+  "groupId": "runner-k",
+  "surface": "shell",
+  "assertions": [
+    {
+      "id": "VAL-RUNNER-002",
+      "status": "fail",
+      "reason": "Happy-path run exited 0, but output was not eval-compatible. `slop-code eval` failed with 'No problems to evaluate' and the run output lacked problem checkpoint directories.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-002-happy-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-002-happy-run.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-002-output-tree.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-002-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-002-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-003",
+      "status": "blocked",
+      "reason": "Per-phase budget split enforcement could not be validated. Metrics did not include implementer/reviewer cost fields and all tracked tokens/costs were zero; reviewer artifacts contained `No module named slop_code.__main__` errors.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-003-budget-split-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-003-telemetry-files.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-003-slop-code-main-error-scan.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-005",
+      "status": "fail",
+      "reason": "With a very small budget cap ($0.01), the run completed all checkpoints and exited 0 without a budget-exceeded abort.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-005-budget-cap-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-005-budget-cap-run.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-005-output-tree.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-006",
+      "status": "blocked",
+      "reason": "Canary preflight failed at API validation (HTTP 401 Unauthorized), so the capped run and eval-compatible output requirements could not be exercised.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-006-canary-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-006-canary-run.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-007",
+      "status": "blocked",
+      "reason": "Component diagnostics are descriptive for both invalid API key and Docker-unavailable scenarios, but full canary pipeline validation remains blocked by API preflight/auth failure.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-007-canary-invalid-key.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-007-canary-invalid-key.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-007-canary-docker-unavailable.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-007-canary-docker-unavailable.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-007-component-diagnostics.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-008",
+      "status": "fail",
+      "reason": "Runner output structure was not eval-compatible. `checkpoint_results.jsonl` and problem checkpoint directories were missing, and eval failed.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-008-structure-compare.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-002-output-tree.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-002-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-002-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-009",
+      "status": "fail",
+      "reason": "Boundary value `--budget-split 100` was accepted and reviewer phase was skipped, but output was still not eval-compatible (`No problems to evaluate`).",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-009-split100-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-009-split100-run.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-009-split100-reviewer-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-009-split100-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-009-split100-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-011",
+      "status": "blocked",
+      "reason": "Concurrent runs used distinct run IDs and output directories, but full container-level and per-run spend isolation could not be confirmed because produced runs showed zero spend and no active container evidence.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-011-concurrent-a.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-011-concurrent-a.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-011-concurrent-b.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-011-concurrent-b.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-011-isolation-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-011-docker-ps.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-011-docker-ps.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-014",
+      "status": "pass",
+      "reason": "Reviewer artifacts were saved for each checkpoint and reviewer suggestions were injected into subsequent implementer iterations.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-002-happy-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k/VAL-RUNNER-014-reviewer-injection-check.log",
+        "/tmp/scbench-user-testing/runner-k/run-happy/reviewer_suggestions_checkpoint_1.json",
+        "/tmp/scbench-user-testing/runner-k/run-happy/reviewer_suggestions_checkpoint_2.json",
+        "/tmp/scbench-user-testing/runner-k/run-happy/reviewer_suggestions_checkpoint_3.json",
+        "/tmp/scbench-user-testing/runner-k/run-happy/reviewer_suggestions_checkpoint_4.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [
+    "Runner reports checkpoint completion with zero tokens/cost while reviewer suggestion artifacts contain `No module named slop_code.__main__`, making budget telemetry interpretation difficult.",
+    "Canary validation is blocked by NVIDIA API key auth failures in this environment, so full canary pipeline checks cannot be completed."
+  ],
+  "blockers": [
+    "NVIDIA canary preflight failed with HTTP 401 Unauthorized, preventing full canary execution and eval checks.",
+    "Per-phase spend telemetry needed for budget-split and concurrency cost-isolation assertions was unavailable from produced artifacts."
+  ]
+}

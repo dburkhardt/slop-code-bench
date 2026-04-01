@@ -1,0 +1,197 @@
+{
+  "milestone": "scale-report",
+  "groupId": "loop-cross-j",
+  "surface": "shell",
+  "assertions": [
+    {
+      "id": "VAL-LOOP-001",
+      "status": "fail",
+      "reason": "Mayor research log contains no Phase 0 budget-check or remaining-budget entries, so required per-iteration gate behavior is not evidenced.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-001-research-log-show.log",
+        "scale-report/loop-cross-j/VAL-LOOP-001-research-log-history.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-002",
+      "status": "blocked",
+      "reason": "No low-budget execution scenario is present (budget spent remains 0 and no reduced-batch planning artifact exists), so proportional batch-size reduction cannot be validated.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-002-batch-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-002-batch-desc-list.log",
+        "scale-report/loop-cross-j/VAL-CROSS-002-budget-table.log",
+        "scale-report/loop-cross-j/VAL-CROSS-002-experiments-cost.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-003",
+      "status": "fail",
+      "reason": "Audit shows Review Board and Idea Factory activity, but no loop-phase record proves Mayor waited for both completions before proceeding to Phase 2.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-003-gt-audit-72h.log",
+        "scale-report/loop-cross-j/VAL-LOOP-003-review-board-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-003-idea-factory-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-001-research-log-show.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-004",
+      "status": "blocked",
+      "reason": "No Proposed Batch bead was found, so required fields (rationale/configs/expected outcomes/budget estimate) cannot be checked.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-004-proposed-batch-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-002-batch-desc-list.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-005",
+      "status": "fail",
+      "reason": "Observed Red Team review bead has no blocking dependencies and no before/after ready transition tied to gate closure.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-005-red-team-review-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-005-red-team-review-deps-down.log",
+        "scale-report/loop-cross-j/VAL-LOOP-005-red-team-review-deps-up.log",
+        "scale-report/loop-cross-j/VAL-LOOP-005-bd-ready-snapshot.log",
+        "scale-report/loop-cross-j/VAL-CROSS-003-dependencies-all.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-006",
+      "status": "blocked",
+      "reason": "No objection/response artifact pair was found for Red Team review, so objection-by-objection Mayor responses cannot be validated.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-006-objection-search.log",
+        "scale-report/loop-cross-j/VAL-LOOP-006-response-search.log",
+        "scale-report/loop-cross-j/VAL-CROSS-003-comments-all.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-007",
+      "status": "fail",
+      "reason": "Only one test convoy exists and it tracks zero items, so Phase 3 parallel experiment execution via convoy is not evidenced.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-007-convoy-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-007-convoy-status-hq-cv-clkii.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-008",
+      "status": "blocked",
+      "reason": "Formula mol-scbench-experiment exists, but no experiment molecules were found to verify Phase 3 molecule-to-formula linkage.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-008-formula-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-008-molecule-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-007-convoy-list.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-009",
+      "status": "blocked",
+      "reason": "No experiments and no conclusion beads are present, so post-execution Review Board dispatch/analysis sequencing cannot be validated.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-CROSS-002-experiments-cost.log",
+        "scale-report/loop-cross-j/VAL-LOOP-009-conclusion-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-003-review-board-title-list.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-010",
+      "status": "blocked",
+      "reason": "No Red Team post-mortem bead exists and research log has no post-mortem reference, so dispatch/read behavior cannot be verified.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-010-post-mortem-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-001-research-log-show.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-011",
+      "status": "fail",
+      "reason": "Research log lacks required Phase 5 content for conclusions and post-mortem findings, so full strategy-update record is incomplete.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-001-research-log-show.log",
+        "scale-report/loop-cross-j/VAL-LOOP-009-conclusion-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-010-post-mortem-title-list.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-012",
+      "status": "fail",
+      "reason": "Shutdown artifacts are incomplete: no summary bead, no final analysis bead, no FINAL_REPORT.md, and town remains running.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-012-summary-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-012-final-analysis-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-012-final-report-title-list.log",
+        "scale-report/loop-cross-j/VAL-CROSS-006-final-report-presence.log",
+        "scale-report/loop-cross-j/VAL-LOOP-context-gt-status.log",
+        "scale-report/loop-cross-j/VAL-LOOP-012-escalate-list.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-001",
+      "status": "blocked",
+      "reason": "Hypothesis artifacts exist, but no experiment rows, conclusion beads, or final report links complete the required end-to-end hypothesis lifecycle chain.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-CROSS-001-hypothesis-sample-show.log",
+        "scale-report/loop-cross-j/VAL-CROSS-001-hypothesis-children.log",
+        "scale-report/loop-cross-j/VAL-CROSS-001-experiments-by-hypothesis.log",
+        "scale-report/loop-cross-j/VAL-LOOP-009-conclusion-title-list.log",
+        "scale-report/loop-cross-j/VAL-CROSS-006-final-report-presence.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "status": "blocked",
+      "reason": "Budget table is initialized, but experiment count and total spend remain zero, so cost-propagation into Mayor loop gating cannot be exercised.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-CROSS-002-budget-table.log",
+        "scale-report/loop-cross-j/VAL-CROSS-002-experiments-cost.log",
+        "scale-report/loop-cross-j/VAL-LOOP-001-research-log-show.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "status": "blocked",
+      "reason": "Required batch-review-objection-response-convoy timestamp sequence is absent; only an unrelated test blocks edge is present.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-005-red-team-review-title-list.log",
+        "scale-report/loop-cross-j/VAL-LOOP-005-red-team-review-deps-down.log",
+        "scale-report/loop-cross-j/VAL-LOOP-005-red-team-review-deps-up.log",
+        "scale-report/loop-cross-j/VAL-CROSS-003-dependencies-all.log",
+        "scale-report/loop-cross-j/VAL-CROSS-003-comments-all.log",
+        "scale-report/loop-cross-j/VAL-LOOP-007-convoy-list.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-006",
+      "status": "blocked",
+      "reason": "Upstream provenance links (KB to hypothesis) exist, but experiment/analysis/report links are missing, so full backward provenance chain cannot be completed.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-CROSS-006-kb-children.log",
+        "scale-report/loop-cross-j/VAL-CROSS-001-hypothesis-sample-show.log",
+        "scale-report/loop-cross-j/VAL-CROSS-001-experiments-by-hypothesis.log",
+        "scale-report/loop-cross-j/VAL-CROSS-006-final-report-presence.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-008",
+      "status": "blocked",
+      "reason": "Critical routes correctly include human channels, but no critical escalations for the specific events budget exhausted or research complete were found.",
+      "evidence": [
+        "scale-report/loop-cross-j/VAL-LOOP-012-escalate-list.log",
+        "scale-report/loop-cross-j/VAL-CROSS-008-escalation-routing-file.log"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [
+    "gt/bd commands emit a repeated unsigned-binary warning on stderr, which adds noise to captured logs.",
+    "Query field names differed from initial assumptions (e.g., experiments.created_at/total_cost and comments.text), requiring schema inspection before final evidence queries.",
+    "Escalation routing config resides at /home/ubuntu/gt/settings/escalation.json instead of rig-local .gt/settings path."
+  ],
+  "blockers": [
+    "Experiments table currently has zero rows and budget spent is 0.00, preventing lifecycle and budget-flow assertions from being exercised end-to-end.",
+    "No active loop artifacts for proposed batches, post-mortems, conclusions, summary/final analysis beads, or final report were found during this validation window."
+  ]
+}

@@ -63,8 +63,12 @@ This is a CLI/infrastructure project with no web UI. All testing is done via she
 - Canary failure diagnostics are asymmetric. Docker failures are component-tagged,
   while invalid API-key scenarios can surface as a generic implementer-stage
   failure without explicit auth wording.
-- `--budget-split 100` is rejected by argument validation (`range 1-99`), which
-  conflicts with assertions expecting implementer-only boundary behavior.
+- `--budget-split 100` is now accepted by the runner and does skip reviewer
+  phases, but output can still fail eval compatibility.
+- In this environment, canary preflight frequently fails early with NVIDIA API
+  auth errors (`HTTP 401`), which blocks full canary pipeline assertions.
+- `slop-code run` in the current CLI surface does not accept `--output-dir`,
+  so validators should avoid relying on that flag when recreating fresh runs.
 - Foundation pipeline validation remains blocked until Dolt research tables
   `experiments` and `budget` are present in the `scbench` database.
 - Run `gt` and `bd` validation commands from `/home/ubuntu/gt/scbench`.

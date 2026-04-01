@@ -1,0 +1,41 @@
+{
+  "milestone": "scale-report",
+  "groupId": "pipeline-l",
+  "surface": "shell",
+  "assertions": [
+    {
+      "id": "VAL-PIPELINE-002",
+      "status": "fail",
+      "reason": "Baseline arm is eval-compatible (slop-code eval --overwrite exit 0 with checkpoint_results schema), but two-agent arm is not eval-compatible (slop-code eval --overwrite exit 1: 'No problems to evaluate') and has no checkpoint_results.jsonl, so metric schema parity is not satisfied.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-002-baseline-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-002-baseline-eval.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-002-two-agent-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-002-two-agent-eval.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-002-metric-key-compare.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-002-metric-key-compare.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-002-baseline-output-tree.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-002-two-agent-output-tree.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-003",
+      "status": "fail",
+      "reason": "Baseline and two-agent arms do not have identical checkpoint directories for file_backup: baseline has checkpoint_1, while two-agent output is missing the problem checkpoint tree.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-003-checkpoint-diff.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-003-checkpoint-diff.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-002-baseline-output-tree.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/pipeline-l/VAL-PIPELINE-002-two-agent-output-tree.log"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [
+    "Fresh-run attempt hit CLI surface drift in this environment: slop-code run does not accept --output-dir and two_agent_runner rejected model alias nvidia/nvidia-bedrock-claude-haiku-4-5. Validation proceeded with current shell-produced run artifacts copied into /tmp/scbench-user-testing/pipeline-l for isolated checks.",
+    "slop-code eval on previously evaluated baseline artifacts requires --overwrite; otherwise it exits with 'No problems to evaluate'."
+  ],
+  "blockers": []
+}

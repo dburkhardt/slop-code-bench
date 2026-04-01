@@ -1,0 +1,142 @@
+{
+  "milestone": "scale-report",
+  "groupId": "runner-pipeline-j",
+  "surface": "shell",
+  "assertions": [
+    {
+      "id": "VAL-RUNNER-002",
+      "status": "fail",
+      "reason": "Two-agent run exited 0 but did not produce eval-compatible problem/checkpoint artifacts; slop-code eval returned 'No problems to evaluate'.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-002-happy-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-002-happy-run.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-002-output-tree.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-002-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-002-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-003",
+      "status": "blocked",
+      "reason": "Budget-split enforcement could not be validated on real spend because telemetry stayed at zero cost/tokens and underlying phase execution surfaced 'No module named slop_code.__main__'.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-003-budget-split-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-014-reviewer-injection-check.log",
+        "/tmp/scbench-user-testing/runner-pipeline-j/run-happy/two_agent_metrics.json"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-005",
+      "status": "fail",
+      "reason": "With a tiny budget (0.01), the run completed all checkpoints with exit code 0 and no budget-abort message, so budget-cap abort behavior was not observed.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-005-budget-cap-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-005-budget-cap-run.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-005-output-tree.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-006",
+      "status": "blocked",
+      "reason": "Canary preflight failed at API validation (HTTP 401), so the $0.50 capped pipeline run and eval-compatible output checks could not be completed.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-006-canary-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-006-canary-run.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-007",
+      "status": "blocked",
+      "reason": "Component-level diagnostics are descriptive for invalid API key and Docker-missing scenarios, but full pipeline-path validation remains blocked by API preflight failure.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-007-canary-invalid-key.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-007-canary-invalid-key.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-007-canary-docker-unavailable-v3.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-007-canary-docker-unavailable-v3.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-007-component-diagnostics.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-008",
+      "status": "fail",
+      "reason": "Two-agent output structure is not eval-compatible: checkpoint_results.jsonl and problem checkpoint directories are missing, and eval fails.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-008-structure-compare.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-002-output-tree.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-002-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-002-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-009",
+      "status": "fail",
+      "reason": "Split=100 implementer-only mode ran with zero reviewer phases, but produced output is not eval-compatible, so boundary assertion is not fully satisfied.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-009-split100-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-009-split100-run.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-009-split100-reviewer-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-009-split100-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-009-split100-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-011",
+      "status": "blocked",
+      "reason": "Concurrent runs had distinct run IDs and isolated output directories, but container-level and spend-isolation validation is blocked because runs recorded zero spend and no Docker workload evidence.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-011-concurrent-a.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-011-concurrent-b.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-011-concurrent-a.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-011-concurrent-b.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-011-isolation-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-011-docker-ps.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-014",
+      "status": "pass",
+      "reason": "Reviewer artifacts were saved per checkpoint and reviewer suggestions were injected into subsequent implementer iterations.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-002-happy-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-RUNNER-014-reviewer-injection-check.log",
+        "/tmp/scbench-user-testing/runner-pipeline-j/run-happy/reviewer_suggestions_checkpoint_1.json",
+        "/tmp/scbench-user-testing/runner-pipeline-j/run-happy/reviewer_suggestions_checkpoint_2.json",
+        "/tmp/scbench-user-testing/runner-pipeline-j/run-happy/reviewer_suggestions_checkpoint_3.json",
+        "/tmp/scbench-user-testing/runner-pipeline-j/run-happy/reviewer_suggestions_checkpoint_4.json"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-002",
+      "status": "fail",
+      "reason": "Baseline arm produced checkpoint metric schema, but two-agent output lacks checkpoint_results.jsonl and fails eval, so two-agent eval-compatibility is not met.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-PIPELINE-002-baseline-checkpoint-results-head.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-PIPELINE-002-metric-key-compare.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-PIPELINE-002-two-agent-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-PIPELINE-002-two-agent-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-003",
+      "status": "fail",
+      "reason": "Baseline and two-agent arms do not contain the same checkpoint directories; two-agent output is missing the problem checkpoint tree.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-PIPELINE-003-baseline-checkpoints.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-PIPELINE-003-two-agent-checkpoints.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-PIPELINE-003-checkpoint-diff.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-pipeline-j/VAL-PIPELINE-003-checkpoint-diff.exitcode"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [
+    "slop-code eval on baseline run returned 'No problems to evaluate (already evaluated)' unless overwrite is used; schema evidence was taken from checkpoint_results.jsonl.",
+    "The runner logs successful checkpoint progression while internal phase subprocesses emit 'No module named slop_code.__main__', resulting in zero-cost/zero-token telemetry and non-evaluable two-agent outputs."
+  ],
+  "blockers": [
+    "NVIDIA canary preflight failed with HTTP 401 for NVIDIA_INFERENCE_KEY, blocking canary full-pipeline validation.",
+    "Concurrent-run container isolation could not be fully confirmed because no Docker workload evidence was present in produced artifacts."
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "milestone": "scale-report",
+  "groupId": "analysis-j",
+  "surface": "shell",
+  "assertions": [
+    {
+      "id": "VAL-ANALYSIS-002",
+      "status": "fail",
+      "reason": "Analysis SQL is not exclusively validation-filtered as written in the assertion; query_exclusion_counts scans all rows without a WHERE manipulation_check='passed' AND results_valid=true filter.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/VAL-ANALYSIS-002-sql-filter-audit.log"
+      ]
+    },
+    {
+      "id": "VAL-ANALYSIS-003",
+      "status": "blocked",
+      "reason": "Delta SQL logic matches required join and subtraction pattern, but no experiments exist (0 total, 0 valid), so no real matched query results are available to validate computed deltas.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/VAL-ANALYSIS-003-pass-rate-delta-check.log"
+      ]
+    },
+    {
+      "id": "VAL-ANALYSIS-004",
+      "status": "blocked",
+      "reason": "Generated report contains an erosion comparison section, but the only analysis conclusion bead is a no-data notice with no erosion comparison, and there are 0 validated experiments.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/VAL-ANALYSIS-004-erosion-comparison-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/VAL-ANALYSIS-conclusion-bead-sc-mp3.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/FINAL_REPORT.md"
+      ]
+    },
+    {
+      "id": "VAL-ANALYSIS-005",
+      "status": "blocked",
+      "reason": "Report includes budget efficiency structure, but conclusion evidence does not include a budget efficiency comparison and there are 0 validated experiments for computation.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/VAL-ANALYSIS-005-budget-efficiency-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/VAL-ANALYSIS-conclusion-bead-sc-mp3.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/FINAL_REPORT.md"
+      ]
+    },
+    {
+      "id": "VAL-ANALYSIS-009",
+      "status": "blocked",
+      "reason": "Final report exclusion rows are present and match Dolt counts (all zero), but the available conclusion bead does not provide failure-type exclusion breakdown and is explicitly a no-data conclusion.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/VAL-ANALYSIS-009-exclusion-counts-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/VAL-ANALYSIS-conclusion-bead-sc-mp3.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/FINAL_REPORT.md"
+      ]
+    },
+    {
+      "id": "VAL-ANALYSIS-010",
+      "status": "blocked",
+      "reason": "Report includes verbosity and erosion slope sections with a verbosity difference line, but conclusion evidence does not include a slope comparison and reflects a no-data state.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/VAL-ANALYSIS-010-verbosity-slope-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/VAL-ANALYSIS-conclusion-bead-sc-mp3.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-j/FINAL_REPORT.md"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [
+    "bd/gt binaries were not on default PATH in fresh shell invocations; commands required explicit PATH export to /home/ubuntu/gopath/bin and /home/ubuntu/go/bin."
+  ],
+  "blockers": [
+    "Dolt experiments table currently has 0 rows (0 validated), so analysis conclusions requiring real experiment comparisons are blocked by missing data."
+  ]
+}
