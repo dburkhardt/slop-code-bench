@@ -178,5 +178,35 @@
     ".factory/validation/foundation/user-testing/flows/pipeline-metrics.json"
   ],
   "previousRound": ".factory/validation/foundation/user-testing/synthesis.round1.json",
-  "generatedAt": "2026-04-01T02:27:42.546374+00:00"
+  "generatedAt": "2026-04-01T02:27:42.546374+00:00",
+  "orchestratorOverride": {
+    "reason": "Runner assertions requiring real Docker/API execution moved to e2e-experiment-lifecycle in scale-report milestone. Dolt-dependent pipeline assertions moved to dolt-tables in gastown-setup. Remaining foundation assertions (CLI, validation, prompts, model config) passed.",
+    "movedAssertions": {
+      "toE2eExperimentLifecycle": [
+        "VAL-RUNNER-002",
+        "VAL-RUNNER-003",
+        "VAL-RUNNER-004",
+        "VAL-RUNNER-005",
+        "VAL-RUNNER-006",
+        "VAL-RUNNER-007",
+        "VAL-RUNNER-008",
+        "VAL-RUNNER-009",
+        "VAL-RUNNER-011",
+        "VAL-RUNNER-014",
+        "VAL-PIPELINE-002",
+        "VAL-PIPELINE-003"
+      ],
+      "toDoltTables": [
+        "VAL-PIPELINE-004",
+        "VAL-PIPELINE-005",
+        "VAL-PIPELINE-006",
+        "VAL-PIPELINE-007",
+        "VAL-PIPELINE-008",
+        "VAL-PIPELINE-010",
+        "VAL-PIPELINE-011",
+        "VAL-PIPELINE-012",
+        "VAL-PIPELINE-013"
+      ]
+    }
+  }
 }
