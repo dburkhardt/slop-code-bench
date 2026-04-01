@@ -1,0 +1,26 @@
+{
+  "featureId": "fix-role-instructions",
+  "reviewedAt": "2026-04-01T06:02:02Z",
+  "commitId": "9770617",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Fix commit 9770617 addresses both prior blocking failures. Review Board now explicitly marks the exclusion-count query as the one permitted unfiltered exception while preserving validation filters for all analytical query templates. Red Team Mode 1 now assigns review-bead creation and `blocks` dependency creation to Red Team directly. Idea Factory settings now include `$HOME/gopath/bin` in all PATH hook exports.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Shared architecture invariants still state that Review Board always filters queries, which now conflicts with the accepted one-query exception for exclusion counting.",
+      "evidence": ".factory/library/architecture.md:79 says \"Review Board ALWAYS filters on manipulation_check='passed' AND results_valid=true\"; updated role file documents a permitted exception at research/roles/review-board/CLAUDE.md:16,44,121,126."
+    },
+    {
+      "area": "skills",
+      "observation": "integration-worker skill language still implies unconditional filter enforcement and does not mention the approved exclusion-count exception, so future role edits may reintroduce this mismatch.",
+      "evidence": ".factory/skills/integration-worker/SKILL.md:46 and example assertions at lines 88-99 emphasize validation filters in all templates; updated role guidance now allows one explicit unfiltered query at research/roles/review-board/CLAUDE.md:16,44,121,126."
+    }
+  ],
+  "addressesFailureFrom": ".factory/validation/analytical-roles/scrutiny/reviews/review-board-role.json; .factory/validation/analytical-roles/scrutiny/reviews/red-team-role.json",
+  "summary": "PASS. The fix resolves the prior review-board-role and red-team-role blocking defects and applies the PATH correction for idea-factory settings. No code-level blockers remain for this feature."
+}

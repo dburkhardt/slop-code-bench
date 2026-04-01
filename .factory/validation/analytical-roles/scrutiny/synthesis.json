@@ -1,7 +1,7 @@
 {
   "milestone": "analytical-roles",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -20,77 +20,32 @@
     }
   },
   "reviewsSummary": {
-    "total": 4,
-    "passed": 2,
-    "failed": 2,
-    "failedFeatures": [
-      "review-board-role",
-      "red-team-role"
-    ]
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
-    {
-      "featureId": "review-board-role",
-      "severity": "blocking",
-      "description": "Review Board role doc says all Dolt queries must include validation filters but includes unfiltered `FROM experiments;` queries, violating the literal no-exceptions filter contract.",
-      "evidence": [
-        ".factory/validation/analytical-roles/scrutiny/reviews/review-board-role.json"
-      ]
-    },
-    {
-      "featureId": "red-team-role",
-      "severity": "blocking",
-      "description": "Red Team role doc assigns pre-dispatch blocking-review bead/link creation to Mayor instead of Red Team workflow, leaving VAL-ROLES-005 responsibility unmet/ambiguous.",
-      "evidence": [
-        ".factory/validation/analytical-roles/scrutiny/reviews/red-team-role.json"
-      ]
-    }
-  ],
+  "blockingIssues": [],
   "appliedUpdates": [
     {
       "target": "library",
-      "description": "Added role asset persistence guidance clarifying that live `~/gt/scbench/polecats/<role>/.claude/` files should be mirrored in `research/roles/<role>/` for source control.",
-      "sourceFeature": "review-board-role"
-    },
-    {
-      "target": "library",
-      "description": "Documented two operational facts: role hook PATH must include `/home/ubuntu/gopath/bin` and `/home/ubuntu/go/bin`, and bead automation should use `bd --json` instead of relying on `-q` output shape.",
-      "sourceFeature": "idea-factory-role"
+      "description": "Updated `.factory/library/architecture.md` invariants to reflect the approved single exception for the Review Board exclusion-count query while keeping validation filters mandatory for analytical queries.",
+      "sourceFeature": "fix-role-instructions"
     }
   ],
   "suggestedGuidanceUpdates": [
     {
       "target": "skills",
-      "suggestion": "Update `.factory/skills/integration-worker/SKILL.md` role-setup steps to explicitly require dual-write persistence for analytical roles: deploy live files to `~/gt/scbench/polecats/<role>/.claude/` and commit mirrored canonical copies under `research/roles/<role>/`.",
-      "evidence": "Same gap reported by review-board-role, idea-factory-role, and research-loop-wiring scrutiny reports.",
-      "isSystemic": true
-    },
-    {
-      "target": "skills",
-      "suggestion": "Update `.factory/skills/integration-worker/SKILL.md` to require that Red Team pre-dispatch instructions explicitly create and link the blocking review bead (`bd link --type blocks`) rather than delegating ownership to Mayor.",
-      "evidence": "Blocking issue in red-team-role scrutiny report shows VAL-ROLES-005 ownership ambiguity.",
-      "isSystemic": false
-    },
-    {
-      "target": "AGENTS.md",
-      "suggestion": "Add a mission-level convention for workspace-only artifacts (especially `~/gt/scbench/polecats/`): treat in-repo `research/roles/<role>/` as canonical and keep it synchronized with deployed workspace copies.",
-      "evidence": "review-board-role transcript/review shows repeated worker ambiguity under mandatory commit/push rules when outputs are in gitignored workspace paths.",
+      "suggestion": "Update `.factory/skills/integration-worker/SKILL.md` review-board guidance to explicitly allow one unfiltered exclusion-count query and require all analytical result queries to keep `manipulation_check='passed' AND results_valid=true` filters.",
+      "evidence": "fix-role-instructions review reported drift between updated role docs and current skill wording.",
       "isSystemic": true
     }
   ],
   "rejectedObservations": [
     {
-      "observation": "Dual-write persistence note from research-loop-wiring report",
-      "reason": "duplicate"
-    },
-    {
-      "observation": "Dual-write persistence note from idea-factory-role report",
-      "reason": "duplicate"
-    },
-    {
-      "observation": "Canonical PATH for role settings hooks",
-      "reason": "already-documented"
+      "observation": "No additional services.yaml updates proposed",
+      "reason": "none-needed"
     }
   ],
-  "previousRound": null
+  "previousRound": ".factory/validation/analytical-roles/scrutiny/synthesis.round1.json"
 }

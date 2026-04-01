@@ -76,7 +76,7 @@ Idea Factory -> Hypothesis bead -> Mayor batches experiments
 
 - All custom work stays under research/ - no upstream harness modifications
 - Budget has two enforcement layers: Mayor Dolt check + harness per-experiment cap
-- Review Board ALWAYS filters on manipulation_check='passed' AND results_valid=true
+- Review Board filters analytical queries on manipulation_check='passed' AND results_valid=true, with one permitted unfiltered exclusion-count query used to compute valid vs excluded totals
 - Red Team gate is mechanical (blocks dependency), not advisory
 - Experiment outputs must be compatible with `slop-code eval`
 - Every experiment traces back to a hypothesis bead
