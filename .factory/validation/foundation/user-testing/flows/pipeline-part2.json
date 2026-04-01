@@ -1,0 +1,111 @@
+{
+  "groupId": "pipeline-part2",
+  "testedAt": "2026-04-01T01:56:54+00:00",
+  "isolation": {
+    "workspace": "/tmp/scbench-user-testing/pipeline-part2/",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/foundation/pipeline-part2/",
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench",
+    "milestone": "foundation"
+  },
+  "toolsUsed": [
+    "shell",
+    "dolt sql"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-PIPELINE-007",
+      "status": "blocked",
+      "reason": "Per-checkpoint metrics could not be compared because the Dolt `experiments` table is missing, so no stored metrics are available to match against eval output.",
+      "evidence": [
+        "foundation/pipeline-part2/VAL-PIPELINE-007-dolt-schema-scan.log",
+        "foundation/pipeline-part2/VAL-PIPELINE-007-metrics-query.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-008",
+      "status": "blocked",
+      "reason": "Partial aborted-run storage could not be validated because querying `experiments` for rows with fewer checkpoints fails with table-not-found.",
+      "evidence": [
+        "foundation/pipeline-part2/VAL-PIPELINE-007-dolt-schema-scan.log",
+        "foundation/pipeline-part2/VAL-PIPELINE-008-partial-results-query.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-010",
+      "status": "blocked",
+      "reason": "Schema validation for the expected 27-column `experiments` table is blocked because `DESCRIBE experiments` returns table-not-found.",
+      "evidence": [
+        "foundation/pipeline-part2/VAL-PIPELINE-010-describe-experiments.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-011",
+      "status": "blocked",
+      "reason": "Manipulation-check propagation and filtering behavior cannot be tested because `experiments` does not exist for either grouped counts or filtered counts.",
+      "evidence": [
+        "foundation/pipeline-part2/VAL-PIPELINE-011-manipulation-check-query.log",
+        "foundation/pipeline-part2/VAL-PIPELINE-011-filtered-count-query.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-012",
+      "status": "blocked",
+      "reason": "End-to-end baseline vs two-agent comparison rows and delta fields cannot be validated because selecting from `experiments` fails with table-not-found.",
+      "evidence": [
+        "foundation/pipeline-part2/VAL-PIPELINE-012-comparison-deltas-query.log"
+      ]
+    }
+  ],
+  "commandsRun": [
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"SHOW DATABASES;\" && dolt sql -q \"SHOW TABLES;\"",
+      "exitCode": 0,
+      "observation": "Dolt was reachable and listed only Gas Town issue-tracking tables in `scbench`; `experiments` was not present."
+    },
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"SELECT hypothesis_id, mode, JSON_EXTRACT(pass_rates, '$[0]') AS pass_0, JSON_EXTRACT(erosion_scores, '$[0]') AS erosion_0, JSON_EXTRACT(verbosity_scores, '$[0]') AS verbosity_0 FROM experiments LIMIT 5;\"",
+      "exitCode": 1,
+      "observation": "Failed with Error 1146 (HY000): table not found: experiments."
+    },
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"SELECT hypothesis_id, mode, JSON_LENGTH(pass_rates) AS pass_rate_count, total_checkpoints, total_cost_usd FROM experiments WHERE JSON_LENGTH(pass_rates) < total_checkpoints ORDER BY created_at DESC LIMIT 10;\"",
+      "exitCode": 1,
+      "observation": "Failed with Error 1146 (HY000): table not found: experiments."
+    },
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"DESCRIBE experiments;\"",
+      "exitCode": 1,
+      "observation": "Failed with Error 1146 (HY000): table not found: experiments."
+    },
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"SELECT manipulation_check, COUNT(*) AS cnt FROM experiments GROUP BY manipulation_check ORDER BY manipulation_check;\"",
+      "exitCode": 1,
+      "observation": "Failed with Error 1146 (HY000): table not found: experiments."
+    },
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"SELECT COUNT(*) AS included_rows FROM experiments WHERE manipulation_check='passed' AND results_valid=true;\"",
+      "exitCode": 1,
+      "observation": "Failed with Error 1146 (HY000): table not found: experiments."
+    },
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"SELECT hypothesis_id, mode, model, total_budget_usd, avg_pass_rate, avg_erosion, delta_pass_rate, delta_erosion FROM experiments ORDER BY created_at DESC LIMIT 20;\"",
+      "exitCode": 1,
+      "observation": "Failed with Error 1146 (HY000): table not found: experiments."
+    }
+  ],
+  "frictions": [],
+  "blockers": [
+    {
+      "description": "The Dolt `experiments` table required for all assigned pipeline assertions is absent in the current `scbench` database.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-007",
+        "VAL-PIPELINE-008",
+        "VAL-PIPELINE-010",
+        "VAL-PIPELINE-011",
+        "VAL-PIPELINE-012"
+      ],
+      "quickFixAttempted": "Confirmed Dolt connectivity and enumerated available tables with SHOW TABLES; then attempted assertion-specific queries, each returning Error 1146 table-not-found."
+    }
+  ],
+  "summary": "Validated the assigned pipeline assertions through shell CLI commands. All five assertions were blocked because the required Dolt `experiments` table is not present in this environment, preventing schema checks and all data-level comparisons."
+}

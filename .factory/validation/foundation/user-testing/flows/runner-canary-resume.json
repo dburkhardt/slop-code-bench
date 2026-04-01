@@ -1,0 +1,163 @@
+{
+  "groupId": "runner-canary-resume",
+  "testedAt": "2026-04-01T01:44:19Z",
+  "isolation": {
+    "tempWorkspace": "/tmp/scbench-user-testing/runner-canary-resume/",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/foundation/runner-canary-resume/",
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench"
+  },
+  "toolsUsed": [
+    "shell",
+    "uv run",
+    "slop-code CLI"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-RUNNER-006",
+      "status": "fail",
+      "reason": "`uv run python research/runner/two_agent_runner.py --canary` did not complete successfully. Default environment failed API preflight (missing ANTHROPIC_API_KEY), and with ANTHROPIC_API_KEY set to a placeholder the canary pipeline still failed before execution with 'no checkpoints found' for file_backup.",
+      "evidence": [
+        "foundation/runner-canary-resume/VAL-RUNNER-006-canary.log",
+        "foundation/runner-canary-resume/VAL-RUNNER-007-invalid-key.log",
+        "foundation/runner-canary-resume/problem-file_backup-layout.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-007",
+      "status": "fail",
+      "reason": "Docker-unavailable path produced a descriptive Docker error, but invalid API key path did not produce an authentication failure; canary preflight accepted the placeholder key and failed later with a pipeline checkpoint error.",
+      "evidence": [
+        "foundation/runner-canary-resume/VAL-RUNNER-007-docker-unavailable.log",
+        "foundation/runner-canary-resume/VAL-RUNNER-007-invalid-key.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-008",
+      "status": "fail",
+      "reason": "Runner canary output was not eval-compatible. `slop-code eval` failed with missing `environment.yaml` and the output directory was empty.",
+      "evidence": [
+        "foundation/runner-canary-resume/VAL-RUNNER-008-eval-cli.log",
+        "foundation/runner-canary-resume/VAL-RUNNER-008-output-structure.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-009",
+      "status": "fail",
+      "reason": "`--budget-split 100` is rejected by argument validation (`must be in range 1-99`) instead of running implementer-only mode.",
+      "evidence": [
+        "foundation/runner-canary-resume/VAL-RUNNER-009-budget-split-100.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-010",
+      "status": "pass",
+      "reason": "`--budget-split 0` is rejected with clear validation error and non-zero exit code.",
+      "evidence": [
+        "foundation/runner-canary-resume/VAL-RUNNER-010-budget-split-0.log",
+        "foundation/runner-canary-resume/VAL-RUNNER-010.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-011",
+      "status": "blocked",
+      "reason": "Concurrent-run isolation could not be fully validated because both simultaneous runs exited before creating outputs or containers due 'no checkpoints found' for file_backup.",
+      "evidence": [
+        "foundation/runner-canary-resume/VAL-RUNNER-011-run1.log",
+        "foundation/runner-canary-resume/VAL-RUNNER-011-run2.log",
+        "foundation/runner-canary-resume/VAL-RUNNER-011-output-dirs.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-012",
+      "status": "blocked",
+      "reason": "Resume behavior could not be tested because initial run did not complete any checkpoint and re-run produced the same early checkpoint-discovery failure.",
+      "evidence": [
+        "foundation/runner-canary-resume/VAL-RUNNER-012-initial.log",
+        "foundation/runner-canary-resume/VAL-RUNNER-012-rerun.log",
+        "foundation/runner-canary-resume/VAL-RUNNER-012.exitcodes"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-014",
+      "status": "blocked",
+      "reason": "Reviewer-to-next-iteration prompt injection could not be observed because the run exits before checkpoint execution starts.",
+      "evidence": [
+        "foundation/runner-canary-resume/VAL-RUNNER-014.log"
+      ]
+    }
+  ],
+  "commandsRun": [
+    {
+      "command": "uv run python research/runner/two_agent_runner.py --problem file_backup --model opus-4.5 --budget 1.00 --budget-split 0",
+      "exitCode": 1,
+      "observation": "Rejected with clear range error for budget-split=0."
+    },
+    {
+      "command": "uv run python research/runner/two_agent_runner.py --canary",
+      "exitCode": 1,
+      "observation": "Canary failed API preflight because ANTHROPIC_API_KEY is not set."
+    },
+    {
+      "command": "ANTHROPIC_API_KEY=invalid uv run python research/runner/two_agent_runner.py --canary",
+      "exitCode": 1,
+      "observation": "Preflight passed, then run failed with 'no checkpoints found' for file_backup."
+    },
+    {
+      "command": "PATH=/tmp/scbench-user-testing/runner-canary-resume/emptybin:$PATH uv run python research/runner/two_agent_runner.py --canary",
+      "exitCode": 1,
+      "observation": "Produced descriptive Docker failure message from preflight check."
+    },
+    {
+      "command": "uv run python research/runner/two_agent_runner.py --problem file_backup --model opus-4.5 --budget-split 100 --budget 1.00 --output-dir /tmp/scbench-user-testing/runner-canary-resume/val-runner-009",
+      "exitCode": 1,
+      "observation": "Rejected budget-split=100 as out of range."
+    },
+    {
+      "command": "Two concurrent invocations of uv run python research/runner/two_agent_runner.py --problem file_backup --model opus-4.5 --budget-split 70 --budget 1.00",
+      "exitCode": 1,
+      "observation": "Both runs failed early with no checkpoints found; output directories were not created."
+    },
+    {
+      "command": "Two sequential invocations with same --output-dir for resume test (budget-split 70, budget 2.00)",
+      "exitCode": 1,
+      "observation": "Initial and rerun both failed before checkpoint execution; no resume behavior observed."
+    },
+    {
+      "command": "uv run slop-code eval /home/ubuntu/git-repos/slop-code-bench/outputs/canary_20260401_014136",
+      "exitCode": 1,
+      "observation": "Eval failed because environment.yaml is missing in canary output directory."
+    }
+  ],
+  "frictions": [
+    {
+      "description": "`python -m slop_code eval` is not a valid entrypoint here; needed `uv run slop-code eval`.",
+      "resolved": true,
+      "resolution": "Switched to `uv run slop-code eval` for evaluation checks.",
+      "affectedAssertions": [
+        "VAL-RUNNER-008"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Runner checkpoint discovery expects `problems/<problem>/checkpoint_*` directories, but file_backup uses `checkpoint_*.md` files. This prevents checkpoint execution for normal and canary runs.",
+      "affectedAssertions": [
+        "VAL-RUNNER-006",
+        "VAL-RUNNER-007",
+        "VAL-RUNNER-008",
+        "VAL-RUNNER-011",
+        "VAL-RUNNER-012",
+        "VAL-RUNNER-014"
+      ],
+      "quickFixAttempted": "Validated on repeated runs and captured problem directory layout; issue reproduced consistently."
+    },
+    {
+      "description": "Default canary run requires provider credentials in environment and failed preflight due missing ANTHROPIC_API_KEY in this validator context.",
+      "affectedAssertions": [
+        "VAL-RUNNER-006"
+      ],
+      "quickFixAttempted": "Retried with placeholder ANTHROPIC_API_KEY to proceed past preflight; run then failed on checkpoint-discovery blocker."
+    }
+  ],
+  "summary": "Validated 8 assigned assertions: 1 pass (VAL-RUNNER-010), 4 fail (VAL-RUNNER-006/007/008/009), 3 blocked (VAL-RUNNER-011/012/014). Primary blocker is early checkpoint discovery failure (`no checkpoints found`) that prevents executing runner checkpoints."
+}

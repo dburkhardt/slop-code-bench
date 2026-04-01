@@ -1,0 +1,139 @@
+{
+  "groupId": "model-prompt",
+  "milestone": "foundation",
+  "testedAt": "2026-04-01T01:59:04Z",
+  "isolation": {
+    "tempWorkspace": "/tmp/scbench-user-testing/model-prompt/",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/foundation/model-prompt/",
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench"
+  },
+  "toolsUsed": [
+    "shell",
+    "uv",
+    "python",
+    "litellm"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-MODEL-001",
+      "status": "pass",
+      "reason": "Experiment model config file exists and contains required keys internal_name, provider, and pricing.",
+      "evidence": [
+        "foundation/model-prompt/VAL-MODEL-001-model-config.txt"
+      ]
+    },
+    {
+      "id": "VAL-MODEL-002",
+      "status": "pass",
+      "reason": "Model provider nvidia maps to NVIDIA_INFERENCE_KEY in providers.yaml, and the credential environment variable is set at runtime.",
+      "evidence": [
+        "foundation/model-prompt/VAL-MODEL-002-provider-credential.txt"
+      ]
+    },
+    {
+      "id": "VAL-MODEL-003",
+      "status": "pass",
+      "reason": "NVIDIA provider uses env_var=NVIDIA_INFERENCE_KEY, model configs include litellm + NVIDIA api_base, and live LiteLLM smoke tests succeeded for configured NVIDIA models.",
+      "evidence": [
+        "foundation/model-prompt/VAL-MODEL-003-nvidia-litellm.txt"
+      ]
+    },
+    {
+      "id": "VAL-PROMPT-001",
+      "status": "pass",
+      "reason": "configs/prompts/default_implementer.jinja exists and renders successfully with spec and is_continuation variables.",
+      "evidence": [
+        "foundation/model-prompt/VAL-PROMPT-001-implementer-render.txt"
+      ]
+    },
+    {
+      "id": "VAL-PROMPT-002",
+      "status": "pass",
+      "reason": "configs/prompts/default_reviewer.jinja exists and renders successfully with reviewer flow variables.",
+      "evidence": [
+        "foundation/model-prompt/VAL-PROMPT-002-reviewer-render.txt"
+      ]
+    },
+    {
+      "id": "VAL-PROMPT-003",
+      "status": "pass",
+      "reason": "Reviewer and implementer templates are distinct, and reviewer template includes reviewer-specific instructions for review/slop/refactoring.",
+      "evidence": [
+        "foundation/model-prompt/VAL-PROMPT-003-distinctness.txt"
+      ]
+    },
+    {
+      "id": "VAL-PROMPT-004",
+      "status": "pass",
+      "reason": "Runner CLI exposes --implementer-prompt and --reviewer-prompt options, custom prompt paths pass runner validation, and custom templates render without error.",
+      "evidence": [
+        "foundation/model-prompt/VAL-PROMPT-004-runner-help.txt",
+        "foundation/model-prompt/VAL-PROMPT-004-custom-prompts.txt"
+      ]
+    }
+  ],
+  "commandsRun": [
+    {
+      "command": "uv run python [VAL-MODEL-001 config field check for nvidia-bedrock-claude-haiku-4-5]",
+      "exitCode": 0,
+      "observation": "Model YAML exists and required keys internal_name/provider/pricing are present."
+    },
+    {
+      "command": "uv run python [VAL-MODEL-002 provider/env_var resolution check]",
+      "exitCode": 0,
+      "observation": "Provider nvidia found in providers.yaml with env_var NVIDIA_INFERENCE_KEY; env var is set."
+    },
+    {
+      "command": "uv run python [VAL-MODEL-003 NVIDIA litellm config + live smoke tests across configured nvidia models]",
+      "exitCode": 0,
+      "observation": "Provider/env var mapping and api_base checks passed. litellm calls succeeded for sonnet/opus models; haiku returned access denied."
+    },
+    {
+      "command": "uv run python [VAL-PROMPT-001 implementer Jinja render check]",
+      "exitCode": 0,
+      "observation": "Template file exists and renders for both is_continuation=False and True with spec injected."
+    },
+    {
+      "command": "uv run python [VAL-PROMPT-002 reviewer Jinja render check]",
+      "exitCode": 0,
+      "observation": "Template file exists and renders for both continuation states with reviewer wording and spec injection."
+    },
+    {
+      "command": "uv run python [VAL-PROMPT-003 template distinctness/content comparison]",
+      "exitCode": 0,
+      "observation": "Templates are not identical; reviewer template contains reviewer/slop/refactor instructions."
+    },
+    {
+      "command": "uv run python /home/ubuntu/git-repos/slop-code-bench/research/runner/two_agent_runner.py --help",
+      "exitCode": 0,
+      "observation": "CLI help includes --implementer-prompt and --reviewer-prompt options."
+    },
+    {
+      "command": "uv run python [VAL-PROMPT-004 custom prompt files through validate_prompt_template + render]",
+      "exitCode": 0,
+      "observation": "Custom prompt paths in /tmp workspace resolved successfully and both templates rendered with required variables."
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Initial check using system python3 failed because two_agent_runner imports datetime.UTC (requires Python 3.11+).",
+      "resolved": true,
+      "resolution": "Switched runner/module checks to uv run python (project Python 3.12).",
+      "affectedAssertions": [
+        "VAL-MODEL-001",
+        "VAL-MODEL-002",
+        "VAL-PROMPT-004"
+      ]
+    },
+    {
+      "description": "LiteLLM smoke call for nvidia-bedrock-claude-haiku-4-5 returned team model access denied in this environment.",
+      "resolved": true,
+      "resolution": "Ran smoke tests for all configured NVIDIA model YAMLs; sonnet and opus succeeded with live responses.",
+      "affectedAssertions": [
+        "VAL-MODEL-003"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated 7 assigned assertions through shell CLI flows. Statuses: 7 pass, 0 fail, 0 blocked. Evidence files were saved under foundation/model-prompt/."
+}

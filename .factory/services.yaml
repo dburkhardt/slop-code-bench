@@ -7,8 +7,8 @@ commands:
 
 services:
   dolt:
-    start: cd ~/gt/.dolt-data/scbench && dolt sql-server --port 3307 &
-    stop: lsof -ti :3307 | xargs kill
-    healthcheck: dolt sql -q "SELECT 1;" --host 127.0.0.1 --port 3307
+    start: ss -ltn | grep -q ':3307 ' || (cd ~/gt/.dolt-data/scbench && nohup dolt sql-server --port 3307 >/tmp/dolt-sql-server.log 2>&1 &)
+    stop: lsof -ti :3307 | xargs -r kill
+    healthcheck: cd ~/gt/.dolt-data/scbench && dolt sql -q "SELECT 1;"
     port: 3307
     depends_on: []

@@ -1,0 +1,255 @@
+{
+  "milestone": "foundation",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 33,
+    "passed": 12,
+    "failed": 7,
+    "blocked": 14
+  },
+  "passedAssertions": [
+    "VAL-MODEL-001",
+    "VAL-MODEL-002",
+    "VAL-MODEL-003",
+    "VAL-PIPELINE-001",
+    "VAL-PROMPT-001",
+    "VAL-PROMPT-002",
+    "VAL-PROMPT-003",
+    "VAL-PROMPT-004",
+    "VAL-RUNNER-001",
+    "VAL-RUNNER-010",
+    "VAL-RUNNER-013",
+    "VAL-RUNNER-015"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-PIPELINE-002",
+      "reason": "Two-agent runner exited non-zero with 'no checkpoints found' for dag_execution, and no output directory was created for eval. `slop-code eval` then failed with invalid AGENT_RUN_DIR."
+    },
+    {
+      "id": "VAL-PIPELINE-003",
+      "reason": "Checkpoint listings differ between baseline and two-agent outputs (baseline had checkpoint_1, two-agent had none)."
+    },
+    {
+      "id": "VAL-RUNNER-002",
+      "reason": "Single-problem run exited 1 with 'no checkpoints found' and produced no output directory; eval could not run against a nonexistent run path."
+    },
+    {
+      "id": "VAL-RUNNER-006",
+      "reason": "`uv run python research/runner/two_agent_runner.py --canary` did not complete successfully. Default environment failed API preflight (missing ANTHROPIC_API_KEY), and with ANTHROPIC_API_KEY set to a placeholder the canary pipeline still failed before execution with 'no checkpoints found' for file_backup."
+    },
+    {
+      "id": "VAL-RUNNER-007",
+      "reason": "Docker-unavailable path produced a descriptive Docker error, but invalid API key path did not produce an authentication failure; canary preflight accepted the placeholder key and failed later with a pipeline checkpoint error."
+    },
+    {
+      "id": "VAL-RUNNER-008",
+      "reason": "Runner canary output was not eval-compatible. `slop-code eval` failed with missing `environment.yaml` and the output directory was empty."
+    },
+    {
+      "id": "VAL-RUNNER-009",
+      "reason": "`--budget-split 100` is rejected by argument validation (`must be in range 1-99`) instead of running implementer-only mode."
+    }
+  ],
+  "blockedAssertions": [
+    {
+      "id": "VAL-PIPELINE-004",
+      "blockedBy": "Dolt `scbench` database does not contain the `experiments` table in this environment, so insertion behavior cannot be validated through the user surface."
+    },
+    {
+      "id": "VAL-PIPELINE-005",
+      "blockedBy": "Dolt `budget` table is missing, so before/after spent and remaining deltas cannot be measured."
+    },
+    {
+      "id": "VAL-PIPELINE-006",
+      "blockedBy": "Budget-gate path is not testable in this environment because required Dolt budget table is absent and `pymysql` dependency is unavailable for the pipeline's Dolt connector."
+    },
+    {
+      "id": "VAL-PIPELINE-007",
+      "blockedBy": "Per-checkpoint metrics could not be compared because the Dolt `experiments` table is missing, so no stored metrics are available to match against eval output."
+    },
+    {
+      "id": "VAL-PIPELINE-008",
+      "blockedBy": "Partial aborted-run storage could not be validated because querying `experiments` for rows with fewer checkpoints fails with table-not-found."
+    },
+    {
+      "id": "VAL-PIPELINE-010",
+      "blockedBy": "Schema validation for the expected 27-column `experiments` table is blocked because `DESCRIBE experiments` returns table-not-found."
+    },
+    {
+      "id": "VAL-PIPELINE-011",
+      "blockedBy": "Manipulation-check propagation and filtering behavior cannot be tested because `experiments` does not exist for either grouped counts or filtered counts."
+    },
+    {
+      "id": "VAL-PIPELINE-012",
+      "blockedBy": "End-to-end baseline vs two-agent comparison rows and delta fields cannot be validated because selecting from `experiments` fails with table-not-found."
+    },
+    {
+      "id": "VAL-RUNNER-003",
+      "blockedBy": "Could not reach any checkpoint execution phase because runner exited early with 'no checkpoints found'; telemetry file was never created."
+    },
+    {
+      "id": "VAL-RUNNER-004",
+      "blockedBy": "Per-checkpoint metrics could not be validated because two_agent_metrics.json was not produced after early 'no checkpoints found' termination."
+    },
+    {
+      "id": "VAL-RUNNER-005",
+      "blockedBy": "Low-budget run failed before budget enforcement logic due 'no checkpoints found'; budget-cap abort path and partial-save behavior were not reachable."
+    },
+    {
+      "id": "VAL-RUNNER-011",
+      "blockedBy": "Concurrent-run isolation could not be fully validated because both simultaneous runs exited before creating outputs or containers due 'no checkpoints found' for file_backup."
+    },
+    {
+      "id": "VAL-RUNNER-012",
+      "blockedBy": "Resume behavior could not be tested because initial run did not complete any checkpoint and re-run produced the same early checkpoint-discovery failure."
+    },
+    {
+      "id": "VAL-RUNNER-014",
+      "blockedBy": "Reviewer-to-next-iteration prompt injection could not be observed because the run exits before checkpoint execution starts."
+    }
+  ],
+  "toolsUsed": [
+    "docker",
+    "dolt sql",
+    "litellm",
+    "python",
+    "python3",
+    "shell",
+    "slop-code",
+    "slop-code CLI",
+    "uv",
+    "uv run"
+  ],
+  "frictions": [
+    {
+      "description": "Initial check using system python3 failed because two_agent_runner imports datetime.UTC (requires Python 3.11+).",
+      "resolved": true,
+      "resolution": "Switched runner/module checks to uv run python (project Python 3.12).",
+      "affectedAssertions": [
+        "VAL-MODEL-001",
+        "VAL-MODEL-002",
+        "VAL-PROMPT-004"
+      ]
+    },
+    {
+      "description": "LiteLLM smoke call for nvidia-bedrock-claude-haiku-4-5 returned team model access denied in this environment.",
+      "resolved": true,
+      "resolution": "Ran smoke tests for all configured NVIDIA model YAMLs; sonnet and opus succeeded with live responses.",
+      "affectedAssertions": [
+        "VAL-MODEL-003"
+      ]
+    },
+    {
+      "description": "`slop-code eval` returned non-zero when run without `--overwrite` because the run had already been evaluated once.",
+      "resolved": true,
+      "resolution": "Re-ran with `--overwrite` to force evaluation and collect deterministic evidence.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-001"
+      ]
+    },
+    {
+      "description": "`python -m slop_code eval` is not a valid entrypoint here; needed `uv run slop-code eval`.",
+      "resolved": true,
+      "resolution": "Switched to `uv run slop-code eval` for evaluation checks.",
+      "affectedAssertions": [
+        "VAL-RUNNER-008"
+      ]
+    },
+    {
+      "description": "Runner checks for checkpoint_* directories, but current problems are organized without checkpoint subdirectories, which prevents execution from reaching any checkpoint phase.",
+      "resolved": false,
+      "resolution": "None in this validation run.",
+      "affectedAssertions": [
+        "VAL-RUNNER-002",
+        "VAL-RUNNER-003",
+        "VAL-RUNNER-004",
+        "VAL-RUNNER-005"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Dolt research tables required by pipeline assertions (`experiments`, `budget`) are not present in scbench/hq databases.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-004",
+        "VAL-PIPELINE-005",
+        "VAL-PIPELINE-006"
+      ],
+      "quickFixAttempted": "Checked available databases and table listings in both scbench and hq via dolt sql; confirmed tables are absent."
+    },
+    {
+      "description": "`pymysql` dependency for experiment_pipeline Dolt connector is not installed.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-006"
+      ],
+      "quickFixAttempted": "Verified import directly with `uv run python -c \"import pymysql\"`; import fails with ModuleNotFoundError."
+    },
+    {
+      "description": "The Dolt `experiments` table required for all assigned pipeline assertions is absent in the current `scbench` database.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-007",
+        "VAL-PIPELINE-008",
+        "VAL-PIPELINE-010",
+        "VAL-PIPELINE-011",
+        "VAL-PIPELINE-012"
+      ],
+      "quickFixAttempted": "Confirmed Dolt connectivity and enumerated available tables with SHOW TABLES; then attempted assertion-specific queries, each returning Error 1146 table-not-found."
+    },
+    {
+      "description": "Runner checkpoint discovery expects `problems/<problem>/checkpoint_*` directories, but file_backup uses `checkpoint_*.md` files. This prevents checkpoint execution for normal and canary runs.",
+      "affectedAssertions": [
+        "VAL-RUNNER-006",
+        "VAL-RUNNER-007",
+        "VAL-RUNNER-008",
+        "VAL-RUNNER-011",
+        "VAL-RUNNER-012",
+        "VAL-RUNNER-014"
+      ],
+      "quickFixAttempted": "Validated on repeated runs and captured problem directory layout; issue reproduced consistently."
+    },
+    {
+      "description": "Default canary run requires provider credentials in environment and failed preflight due missing ANTHROPIC_API_KEY in this validator context.",
+      "affectedAssertions": [
+        "VAL-RUNNER-006"
+      ],
+      "quickFixAttempted": "Retried with placeholder ANTHROPIC_API_KEY to proceed past preflight; run then failed on checkpoint-discovery blocker."
+    },
+    {
+      "description": "Happy-path execution is blocked by early checkpoint discovery failure ('no checkpoints found'), so downstream budget-split telemetry and metrics assertions cannot be exercised through CLI flow.",
+      "affectedAssertions": [
+        "VAL-RUNNER-003",
+        "VAL-RUNNER-004",
+        "VAL-RUNNER-005"
+      ],
+      "quickFixAttempted": "Retried with standard budget and low budget runs using explicit --output-dir; failure was identical each time."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "services.yaml",
+      "description": "Fixed Dolt service healthcheck command and made start command idempotent for port 3307.",
+      "source": "setup"
+    },
+    {
+      "target": "user-testing.md",
+      "description": "Added Flow Validator Guidance for shell surface with isolation boundaries and evidence/report paths.",
+      "source": "setup"
+    },
+    {
+      "target": "user-testing.md",
+      "description": "Documented observed frictions and blockers: Python version caveat, checkpoint discovery issue, missing Dolt research tables, and canary key preflight behavior.",
+      "source": "flow-report"
+    }
+  ],
+  "flowReports": [
+    ".factory/validation/foundation/user-testing/flows/model-prompt.json",
+    ".factory/validation/foundation/user-testing/flows/pipeline-part1.json",
+    ".factory/validation/foundation/user-testing/flows/pipeline-part2.json",
+    ".factory/validation/foundation/user-testing/flows/runner-canary-resume.json",
+    ".factory/validation/foundation/user-testing/flows/runner-core-basic.json"
+  ],
+  "previousRound": null,
+  "generatedAt": "2026-04-01T02:00:27.240137+00:00"
+}

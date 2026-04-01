@@ -1,0 +1,156 @@
+{
+  "groupId": "pipeline-part1",
+  "testedAt": "2026-04-01T01:53:41.188811+00:00",
+  "isolation": {
+    "workspace": "/tmp/scbench-user-testing/pipeline-part1/",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/foundation/pipeline-part1/",
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench",
+    "milestone": "foundation"
+  },
+  "toolsUsed": [
+    "shell",
+    "uv",
+    "slop-code CLI",
+    "dolt sql"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-PIPELINE-001",
+      "status": "pass",
+      "reason": "`slop-code run` produced a run directory that `slop-code eval --overwrite` accepted (exit 0). Eval artifacts include pass-rate and erosion fields per checkpoint, and a verbosity section in result.json schema.",
+      "evidence": [
+        "foundation/pipeline-part1/VAL-PIPELINE-001-baseline-run.log",
+        "foundation/pipeline-part1/VAL-PIPELINE-001-baseline-eval-overwrite.log",
+        "foundation/pipeline-part1/checkpoint_results.jsonl",
+        "foundation/pipeline-part1/result.json"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-002",
+      "status": "fail",
+      "reason": "Two-agent runner exited non-zero with 'no checkpoints found' for dag_execution, and no output directory was created for eval. `slop-code eval` then failed with invalid AGENT_RUN_DIR.",
+      "evidence": [
+        "foundation/pipeline-part1/VAL-PIPELINE-002-two-agent-run.log",
+        "foundation/pipeline-part1/VAL-PIPELINE-002-two-agent-eval.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-003",
+      "status": "fail",
+      "reason": "Checkpoint listings differ between baseline and two-agent outputs (baseline had checkpoint_1, two-agent had none).",
+      "evidence": [
+        "foundation/pipeline-part1/VAL-PIPELINE-003-checkpoint-diff.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-004",
+      "status": "blocked",
+      "reason": "Dolt `scbench` database does not contain the `experiments` table in this environment, so insertion behavior cannot be validated through the user surface.",
+      "evidence": [
+        "foundation/pipeline-part1/VAL-PIPELINE-004-show-databases.log",
+        "foundation/pipeline-part1/VAL-PIPELINE-004-show-tables.log",
+        "foundation/pipeline-part1/VAL-PIPELINE-004-hq-tables.log",
+        "foundation/pipeline-part1/VAL-PIPELINE-004-experiments-query.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-005",
+      "status": "blocked",
+      "reason": "Dolt `budget` table is missing, so before/after spent and remaining deltas cannot be measured.",
+      "evidence": [
+        "foundation/pipeline-part1/VAL-PIPELINE-005-budget-query.log",
+        "foundation/pipeline-part1/VAL-PIPELINE-004-show-tables.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-006",
+      "status": "blocked",
+      "reason": "Budget-gate path is not testable in this environment because required Dolt budget table is absent and `pymysql` dependency is unavailable for the pipeline's Dolt connector.",
+      "evidence": [
+        "foundation/pipeline-part1/VAL-PIPELINE-006-pymysql-check.log",
+        "foundation/pipeline-part1/VAL-PIPELINE-005-budget-query.log"
+      ]
+    }
+  ],
+  "commandsRun": [
+    {
+      "command": "cd /home/ubuntu/git-repos/slop-code-bench && uv run slop-code run --agent claude_code --model nvidia/nvidia-bedrock-claude-haiku-4-5 --problem dag_execution --evaluate --no-live-progress agent.cost_limits.cost_limit=0.20 save_dir=/tmp/scbench-user-testing/pipeline-part1/baseline_run save_template=.",
+      "exitCode": 0,
+      "observation": "Run directory created; checkpoint_1 evaluated; agent errored and later checkpoints missing; summary and checkpoint_results.jsonl written."
+    },
+    {
+      "command": "cd /home/ubuntu/git-repos/slop-code-bench && uv run slop-code eval --overwrite /tmp/scbench-user-testing/pipeline-part1/baseline_run",
+      "exitCode": 0,
+      "observation": "Eval accepted baseline run directory and regenerated report artifacts."
+    },
+    {
+      "command": "cd /home/ubuntu/git-repos/slop-code-bench && uv run python research/runner/two_agent_runner.py --problem dag_execution --model nvidia-bedrock-claude-haiku-4-5 --budget 0.20 --budget-split 70 --output-dir /tmp/scbench-user-testing/pipeline-part1/VAL-PIPELINE-002-two-agent-run",
+      "exitCode": 1,
+      "observation": "Runner failed immediately with 'no checkpoints found' in problem directory."
+    },
+    {
+      "command": "cd /home/ubuntu/git-repos/slop-code-bench && uv run slop-code eval /tmp/scbench-user-testing/pipeline-part1/VAL-PIPELINE-002-two-agent-run",
+      "exitCode": 2,
+      "observation": "Eval failed because two-agent run directory did not exist."
+    },
+    {
+      "command": "python3 checkpoint listing diff script for baseline vs two-agent outputs",
+      "exitCode": 0,
+      "observation": "Mismatch found: baseline=[checkpoint_1], two-agent=[]."
+    },
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"SHOW DATABASES;\"",
+      "exitCode": 0,
+      "observation": "Databases present: hq, information_schema, mysql, scbench."
+    },
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"SHOW TABLES;\"",
+      "exitCode": 0,
+      "observation": "Only Gas Town issue-tracking tables present; no experiments or budget tables."
+    },
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"SELECT ... FROM experiments ...\"",
+      "exitCode": 1,
+      "observation": "Error 1146: table not found: experiments."
+    },
+    {
+      "command": "cd /home/ubuntu/gt/.dolt-data/scbench && dolt sql -q \"SELECT ... FROM budget ...\"",
+      "exitCode": 1,
+      "observation": "Error 1146: table not found: budget."
+    },
+    {
+      "command": "cd /home/ubuntu/git-repos/slop-code-bench && uv run python -c \"import pymysql\"",
+      "exitCode": 1,
+      "observation": "ModuleNotFoundError: No module named 'pymysql'."
+    }
+  ],
+  "frictions": [
+    {
+      "description": "`slop-code eval` returned non-zero when run without `--overwrite` because the run had already been evaluated once.",
+      "resolved": true,
+      "resolution": "Re-ran with `--overwrite` to force evaluation and collect deterministic evidence.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-001"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Dolt research tables required by pipeline assertions (`experiments`, `budget`) are not present in scbench/hq databases.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-004",
+        "VAL-PIPELINE-005",
+        "VAL-PIPELINE-006"
+      ],
+      "quickFixAttempted": "Checked available databases and table listings in both scbench and hq via dolt sql; confirmed tables are absent."
+    },
+    {
+      "description": "`pymysql` dependency for experiment_pipeline Dolt connector is not installed.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-006"
+      ],
+      "quickFixAttempted": "Verified import directly with `uv run python -c \"import pymysql\"`; import fails with ModuleNotFoundError."
+    }
+  ],
+  "summary": "Validated VAL-PIPELINE-001..006 via shell CLI. 1 passed (001), 2 failed (002,003), and 3 blocked by missing Dolt research schema/dependency (004,005,006). Evidence files were saved under mission evidence/foundation/pipeline-part1/."
+}

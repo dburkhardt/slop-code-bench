@@ -1,0 +1,179 @@
+{
+  "groupId": "runner-core-basic",
+  "testedAt": "2026-04-01T01:44:45.519386+00:00",
+  "isolation": {
+    "workspace": "/tmp/scbench-user-testing/runner-core-basic/",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/foundation/runner-core-basic/",
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench"
+  },
+  "toolsUsed": [
+    "shell",
+    "uv",
+    "python3",
+    "slop-code",
+    "docker"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-RUNNER-001",
+      "status": "pass",
+      "reason": "--help listed all required flags and omitting --problem returned non-zero with an explicit missing argument error.",
+      "evidence": [
+        "foundation/runner-core-basic/VAL-RUNNER-001-help.txt",
+        "foundation/runner-core-basic/VAL-RUNNER-001-missing-problem.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-002",
+      "status": "fail",
+      "reason": "Single-problem run exited 1 with 'no checkpoints found' and produced no output directory; eval could not run against a nonexistent run path.",
+      "evidence": [
+        "foundation/runner-core-basic/VAL-RUNNER-002-run.txt",
+        "foundation/runner-core-basic/VAL-RUNNER-002-output-tree.txt",
+        "foundation/runner-core-basic/VAL-RUNNER-002-eval.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-003",
+      "status": "blocked",
+      "reason": "Could not reach any checkpoint execution phase because runner exited early with 'no checkpoints found'; telemetry file was never created.",
+      "evidence": [
+        "foundation/runner-core-basic/VAL-RUNNER-003-run.txt",
+        "foundation/runner-core-basic/VAL-RUNNER-003-telemetry.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-004",
+      "status": "blocked",
+      "reason": "Per-checkpoint metrics could not be validated because two_agent_metrics.json was not produced after early 'no checkpoints found' termination.",
+      "evidence": [
+        "foundation/runner-core-basic/VAL-RUNNER-003-run.txt",
+        "foundation/runner-core-basic/VAL-RUNNER-004-metrics-keys.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-005",
+      "status": "blocked",
+      "reason": "Low-budget run failed before budget enforcement logic due 'no checkpoints found'; budget-cap abort path and partial-save behavior were not reachable.",
+      "evidence": [
+        "foundation/runner-core-basic/VAL-RUNNER-005-run-budget-cap.txt",
+        "foundation/runner-core-basic/VAL-RUNNER-005-output-tree.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-013",
+      "status": "pass",
+      "reason": "Invalid model name was rejected immediately with a clear unknown-model error and no scbench-* Docker containers were present before or after.",
+      "evidence": [
+        "foundation/runner-core-basic/VAL-RUNNER-013-invalid-model.txt",
+        "foundation/runner-core-basic/VAL-RUNNER-013-docker-before.txt",
+        "foundation/runner-core-basic/VAL-RUNNER-013-docker-after.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-015",
+      "status": "pass",
+      "reason": "Out-of-range splits (0, 100, -5) were rejected with explicit range errors and non-integer abc was rejected by CLI parsing; in-range values (1, 99) passed split validation and failed later at model validation instead.",
+      "evidence": [
+        "foundation/runner-core-basic/VAL-RUNNER-015-range-check.txt"
+      ]
+    }
+  ],
+  "commandsRun": [
+    {
+      "command": "cd \"/home/ubuntu/git-repos/slop-code-bench\" && uv run python research/runner/two_agent_runner.py --help",
+      "exitCode": 0,
+      "observation": "Help output included --problem, --model, --implementer-prompt, --reviewer-prompt, --budget-split, --budget, and --canary."
+    },
+    {
+      "command": "cd \"/home/ubuntu/git-repos/slop-code-bench\" && uv run python research/runner/two_agent_runner.py --model nvidia-bedrock-claude-haiku-4-5 --budget 1.00",
+      "exitCode": 1,
+      "observation": "Exited non-zero with 'Error: --problem is required (or use --canary).'"
+    },
+    {
+      "command": "cd \"/home/ubuntu/git-repos/slop-code-bench\" && uv run python research/runner/two_agent_runner.py --problem file_backup --model nvidia-bedrock-claude-haiku-4-5 --budget-split 70 --budget 5.00 --output-dir /tmp/scbench-user-testing/runner-core-basic/val-runner-002",
+      "exitCode": 1,
+      "observation": "Runner started then failed with 'Error: no checkpoints found for problem file_backup'."
+    },
+    {
+      "command": "python3 - <<'INNER'\nfrom pathlib import Path\nroot=Path(\"/tmp/scbench-user-testing/runner-core-basic/val-runner-002\")\nif not root.exists():\n    print(\"MISSING_OUTPUT_DIR\")\nelse:\n    for p in sorted(root.rglob(\"*\")):\n        rel=p.relative_to(root)\n        kind=\"dir\" if p.is_dir() else \"file\"\n        print(f\"{kind} {rel}\")\nINNER",
+      "exitCode": 0,
+      "observation": "Printed MISSING_OUTPUT_DIR; run directory was not created."
+    },
+    {
+      "command": "cd \"/home/ubuntu/git-repos/slop-code-bench\" && uv run slop-code eval /tmp/scbench-user-testing/runner-core-basic/val-runner-002",
+      "exitCode": 2,
+      "observation": "Eval failed because AGENT_RUN_DIR did not exist."
+    },
+    {
+      "command": "cd \"/home/ubuntu/git-repos/slop-code-bench\" && uv run python research/runner/two_agent_runner.py --problem file_backup --model nvidia-bedrock-claude-haiku-4-5 --budget-split 70 --budget 5.00 --output-dir /tmp/scbench-user-testing/runner-core-basic/val-runner-003",
+      "exitCode": 1,
+      "observation": "Same early termination: 'no checkpoints found'."
+    },
+    {
+      "command": "python3 - <<'INNER'\nimport json\nfrom pathlib import Path\npath=Path(\"/tmp/scbench-user-testing/runner-core-basic/val-runner-003/two_agent_metrics.json\")\nif not path.exists():\n    print(\"MISSING_METRICS_FILE\")\n    raise SystemExit(1)\nobj=json.loads(path.read_text())\nprint(\"checkpoint_count\", len(obj.get(\"checkpoints\", {})))\nfor name, metrics in obj.get(\"checkpoints\", {}).items():\n    total=metrics.get(\"cost\", 0)\n    print(name, metrics.get(\"tokens_implementer\"), metrics.get(\"tokens_reviewer\"), total)\nINNER",
+      "exitCode": 1,
+      "observation": "Printed MISSING_METRICS_FILE; no telemetry/metrics file produced."
+    },
+    {
+      "command": "python3 - <<'INNER'\nimport json\nfrom pathlib import Path\npath=Path(\"/tmp/scbench-user-testing/runner-core-basic/val-runner-003/two_agent_metrics.json\")\nif not path.exists():\n    print(\"MISSING_METRICS_FILE\")\n    raise SystemExit(1)\nobj=json.loads(path.read_text())\nrequired=[\"pass_rate\",\"erosion\",\"verbosity\",\"tokens_implementer\",\"tokens_reviewer\",\"cost\"]\nmissing=[]\nfor cp, vals in obj.get(\"checkpoints\", {}).items():\n    miss=[k for k in required if k not in vals]\n    print(cp, sorted(vals.keys()))\n    if miss:\n        missing.append((cp, miss))\nprint(\"missing\", missing)\nINNER",
+      "exitCode": 1,
+      "observation": "Printed MISSING_METRICS_FILE; could not inspect required per-checkpoint keys."
+    },
+    {
+      "command": "cd \"/home/ubuntu/git-repos/slop-code-bench\" && uv run python research/runner/two_agent_runner.py --problem file_backup --model nvidia-bedrock-claude-haiku-4-5 --budget-split 70 --budget 0.10 --output-dir /tmp/scbench-user-testing/runner-core-basic/val-runner-005",
+      "exitCode": 1,
+      "observation": "Failed before budget-cap logic with 'no checkpoints found'."
+    },
+    {
+      "command": "python3 - <<'INNER'\nfrom pathlib import Path\nroot=Path(\"/tmp/scbench-user-testing/runner-core-basic/val-runner-005\")\nif not root.exists():\n    print(\"MISSING_OUTPUT_DIR\")\nelse:\n    for p in sorted(root.rglob(\"*\")):\n        rel=p.relative_to(root)\n        kind=\"dir\" if p.is_dir() else \"file\"\n        print(f\"{kind} {rel}\")\nINNER",
+      "exitCode": 0,
+      "observation": "Printed MISSING_OUTPUT_DIR; no partial output directory to inspect."
+    },
+    {
+      "command": "docker ps -a --filter name=scbench- --format \"{{.Names}}\"",
+      "exitCode": 0,
+      "observation": "No matching scbench-* containers listed before invalid-model test."
+    },
+    {
+      "command": "cd \"/home/ubuntu/git-repos/slop-code-bench\" && uv run python research/runner/two_agent_runner.py --problem file_backup --model nonexistent-model-xyz --budget 1.00 --budget-split 70",
+      "exitCode": 1,
+      "observation": "Exited with explicit unknown-model error naming nonexistent-model-xyz."
+    },
+    {
+      "command": "docker ps -a --filter name=scbench- --format \"{{.Names}}\"",
+      "exitCode": 0,
+      "observation": "No matching scbench-* containers listed after invalid-model test."
+    },
+    {
+      "command": "cd \"/home/ubuntu/git-repos/slop-code-bench\" && for v in 0 1 99 100 -5 abc; do echo \"=== split=$v ===\"; uv run python research/runner/two_agent_runner.py --problem file_backup --model nonexistent-model-xyz --budget 1.00 --budget-split \"$v\"; echo \"EXIT=$?\"; done",
+      "exitCode": 0,
+      "observation": "Per-value exits: 0->1(range error), 1->1(model error), 99->1(model error), 100->1(range error), -5->1(range error), abc->2(parse error)."
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Runner checks for checkpoint_* directories, but current problems are organized without checkpoint subdirectories, which prevents execution from reaching any checkpoint phase.",
+      "resolved": false,
+      "resolution": "None in this validation run.",
+      "affectedAssertions": [
+        "VAL-RUNNER-002",
+        "VAL-RUNNER-003",
+        "VAL-RUNNER-004",
+        "VAL-RUNNER-005"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Happy-path execution is blocked by early checkpoint discovery failure ('no checkpoints found'), so downstream budget-split telemetry and metrics assertions cannot be exercised through CLI flow.",
+      "affectedAssertions": [
+        "VAL-RUNNER-003",
+        "VAL-RUNNER-004",
+        "VAL-RUNNER-005"
+      ],
+      "quickFixAttempted": "Retried with standard budget and low budget runs using explicit --output-dir; failure was identical each time."
+    }
+  ],
+  "summary": "Validated 7 assigned assertions. Pass: VAL-RUNNER-001, VAL-RUNNER-013, VAL-RUNNER-015. Fail: VAL-RUNNER-002. Blocked: VAL-RUNNER-003, VAL-RUNNER-004, VAL-RUNNER-005 due to early checkpoint discovery failure."
+}
