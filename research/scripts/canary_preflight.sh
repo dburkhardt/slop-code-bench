@@ -35,7 +35,7 @@ CANARY_MODEL="${CANARY_MODEL:-}"
 CANARY_BUDGET="${CANARY_BUDGET:-0.50}"
 
 # ── Build runner command ──────────────────────────────
-CMD=(python3 "$RUNNER" --canary --budget "$CANARY_BUDGET")
+CMD=(uv run python "$RUNNER" --canary --budget "$CANARY_BUDGET")
 
 if [ -n "$CANARY_MODEL" ]; then
     CMD+=(--model "$CANARY_MODEL")
