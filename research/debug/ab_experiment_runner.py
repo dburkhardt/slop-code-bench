@@ -1,3 +1,4 @@
+# ruff: noqa: S607
 #!/usr/bin/env python3
 """A/B experiment runner for Claude CLI latency investigation.
 
@@ -14,13 +15,12 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
+import subprocess  # noqa: S404
 import sys
 import time
+from pathlib import Path
 
-RESULTS_DIR = os.path.join(
-    os.path.dirname(__file__), "results"
-)
+RESULTS_DIR = Path(__file__).parent / "results"
 IMAGE = "slop-code:claude_code-2.0.51-python3.12"
 MODEL = "aws/anthropic/bedrock-claude-sonnet-4-6"
 BASE_URL = "https://inference-api.nvidia.com"
@@ -34,6 +34,7 @@ TIMEOUT_SECS = 900  # 15 minutes per test
 
 
 def get_nvidia_key() -> str:
+    """Read and validate NVIDIA_INFERENCE_KEY."""
     key = os.environ.get("NVIDIA_INFERENCE_KEY", "")
     if not key:
         print("ERROR: NVIDIA_INFERENCE_KEY not set")
@@ -43,7 +44,7 @@ def get_nvidia_key() -> str:
 
 def start_container() -> str:
     """Start a fresh Docker container and return its ID."""
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603, S607
         ["docker", "run", "-d", IMAGE, "sleep", "infinity"],
         capture_output=True, text=True, check=True,
     )
@@ -54,7 +55,7 @@ def start_container() -> str:
 
 def stop_container(cid: str) -> None:
     """Stop and remove a Docker container."""
-    subprocess.run(
+    subprocess.run(  # noqa: S603, S607
         ["docker", "rm", "-f", cid],
         capture_output=True, text=True,
     )
@@ -66,7 +67,7 @@ def run_claude_experiment(
     env_vars: dict[str, str],
     label: str,
 ) -> dict:
-    """Run Claude CLI inside container and parse step timing."""
+    """Run Claude CLI inside container and parse timing."""
     cmd = ["docker", "exec"]
     for k, v in env_vars.items():
         cmd.extend(["--env", f"{k}={v}"])
@@ -82,23 +83,22 @@ def run_claude_experiment(
         TASK,
     ])
 
-    steps = []
+    steps: list[dict] = []
     start = time.monotonic()
     last_event_time = start
-    raw_lines = []
+    raw_lines: list[str] = []
 
     try:
-        proc = subprocess.Popen(
+        proc = subprocess.Popen(  # noqa: S603
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
         )
 
-        # Use timeout
         import threading
 
-        def kill_after_timeout():
+        def kill_after_timeout() -> None:
             time.sleep(TIMEOUT_SECS)
             if proc.poll() is None:
                 proc.kill()
@@ -108,6 +108,7 @@ def run_claude_experiment(
         )
         timer.start()
 
+        assert proc.stdout is not None  # noqa: S101
         for line in proc.stdout:
             line = line.strip()
             if not line:
@@ -127,7 +128,8 @@ def run_claude_experiment(
             if evt_type == "assistant":
                 msg = d.get("message", {})
                 for block in msg.get("content", []):
-                    if block.get("type") == "tool_use":
+                    btype = block.get("type")
+                    if btype == "tool_use":
                         tool_name = block.get("name", "?")
                         step_info = {
                             "elapsed_s": round(elapsed, 1),
@@ -142,7 +144,7 @@ def run_claude_experiment(
                             f"TOOL: {tool_name}"
                         )
                         last_event_time = now
-                    elif block.get("type") == "text":
+                    elif btype == "text":
                         text = block.get("text", "")[:60]
                         step_info = {
                             "elapsed_s": round(elapsed, 1),
@@ -181,7 +183,7 @@ def run_claude_experiment(
         total_time = time.monotonic() - start
         timed_out = proc.returncode == -9
 
-    except Exception as e:
+    except (OSError, ValueError, subprocess.SubprocessError) as e:
         total_time = time.monotonic() - start
         timed_out = False
         steps.append({
@@ -191,7 +193,6 @@ def run_claude_experiment(
             "has_3min_gap": False,
         })
 
-    # Count 3-minute gaps
     gaps_over_2min = sum(
         1 for s in steps if s.get("has_3min_gap")
     )
@@ -209,20 +210,17 @@ def run_claude_experiment(
         "steps": steps,
     }
 
-    # Save raw output
-    raw_path = os.path.join(
-        RESULTS_DIR, f"{label}_raw.jsonl"
+    raw_path = RESULTS_DIR / f"{label}_raw.jsonl"
+    raw_path.write_text(
+        "\n".join(raw_lines) + "\n"
     )
-    with open(raw_path, "w") as f:
-        for rl in raw_lines:
-            f.write(rl + "\n")
 
     return result
 
 
 def run_test_a(key: str) -> dict:
     """Test A: Baseline (current config)."""
-    print("\n=== TEST A: Baseline (AUTH_TOKEN + bg tasks) ===")
+    print("\n=== TEST A: Baseline (AUTH_TOKEN + bg) ===")
     cid = start_container()
     env = {
         "ANTHROPIC_AUTH_TOKEN": key,
@@ -241,7 +239,7 @@ def run_test_a(key: str) -> dict:
 def run_test_b(key: str) -> dict:
     """Test B: API_KEY instead of AUTH_TOKEN."""
     print(
-        "\n=== TEST B: API_KEY (no AUTH_TOKEN, no bg) ==="
+        "\n=== TEST B: API_KEY (no AUTH_TOKEN) ==="
     )
     cid = start_container()
     env = {
@@ -276,9 +274,7 @@ def run_test_c(key: str) -> dict:
 
 def run_test_d(key: str) -> dict:
     """Test D: Baseline + tcpdump capture."""
-    print(
-        "\n=== TEST D: Baseline + tcpdump ==="
-    )
+    print("\n=== TEST D: Baseline + tcpdump ===")
     cid = start_container()
     env = {
         "ANTHROPIC_AUTH_TOKEN": key,
@@ -289,37 +285,38 @@ def run_test_d(key: str) -> dict:
         "ENABLE_BACKGROUND_TASKS": "1",
     }
 
-    # Install tcpdump
     print("  Installing tcpdump...")
-    subprocess.run(
+    subprocess.run(  # noqa: S603, S607
         [
             "docker", "exec", "-u", "root", cid,
             "bash", "-c",
             "apt-get update -qq && "
-            "apt-get install -y -qq tcpdump >/dev/null 2>&1",
+            "apt-get install -y -qq tcpdump "
+            ">/dev/null 2>&1",
         ],
         capture_output=True, text=True, timeout=120,
     )
 
-    # Start tcpdump capture in background
     print("  Starting tcpdump capture...")
-    tcpdump_proc = subprocess.Popen(
+    pcap_container = "/tmp/capture.pcap"  # noqa: S108
+    tcpdump_proc = subprocess.Popen(  # noqa: S603, S607
         [
             "docker", "exec", "-u", "root", cid,
             "tcpdump", "-i", "any", "-w",
-            "/tmp/capture.pcap", "port", "443",
+            pcap_container, "port", "443",
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    time.sleep(2)  # Let tcpdump start
+    time.sleep(2)
 
     try:
-        result = run_claude_experiment(cid, env, "test_d")
+        result = run_claude_experiment(
+            cid, env, "test_d"
+        )
 
-        # Stop tcpdump
         print("  Stopping tcpdump...")
-        subprocess.run(
+        subprocess.run(  # noqa: S603, S607
             [
                 "docker", "exec", "-u", "root", cid,
                 "pkill", "tcpdump",
@@ -329,69 +326,70 @@ def run_test_d(key: str) -> dict:
         time.sleep(2)
         tcpdump_proc.terminate()
 
-        # Extract pcap file
-        pcap_path = os.path.join(
-            RESULTS_DIR, "capture.pcap"
-        )
+        pcap_path = RESULTS_DIR / "capture.pcap"
         print(f"  Extracting pcap to {pcap_path}...")
-        subprocess.run(
+        subprocess.run(  # noqa: S603, S607
             [
                 "docker", "cp",
-                f"{cid}:/tmp/capture.pcap",
-                pcap_path,
+                f"{cid}:{pcap_container}",
+                str(pcap_path),
             ],
             capture_output=True, text=True,
         )
 
-        # Analyze pcap with tcpdump
-        analysis_path = os.path.join(
-            RESULTS_DIR, "network_analysis.txt"
+        analysis_path = (
+            RESULTS_DIR / "network_analysis.txt"
         )
         print("  Analyzing pcap...")
-        analysis = subprocess.run(
+        analysis = subprocess.run(  # noqa: S603, S607
             [
                 "docker", "exec", "-u", "root", cid,
-                "tcpdump", "-r", "/tmp/capture.pcap",
+                "tcpdump", "-r", pcap_container,
                 "-n", "-q",
             ],
             capture_output=True, text=True, timeout=30,
         )
-        with open(analysis_path, "w") as f:
-            f.write(
-                "# Network Analysis - tcpdump output\n"
-                f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                f"# Container: {cid[:12]}\n\n"
-            )
-            lines = analysis.stdout.strip().split("\n")
-            f.write(f"Total packets captured: {len(lines)}\n\n")
-            f.write("First 100 packets:\n")
-            for pline in lines[:100]:
-                f.write(pline + "\n")
-            if len(lines) > 100:
-                f.write(f"\n... ({len(lines) - 100} more packets)\n")
+        lines = analysis.stdout.strip().split("\n")
+        ips: set[str] = set()
+        for pline in lines:
+            parts = pline.split()
+            for part in parts:
+                if (
+                    "." in part
+                    and part.count(".") >= 3
+                ):
+                    ip_candidate = (
+                        part.split(":")[0].rstrip(".")
+                    )
+                    if all(
+                        c.isdigit() or c == "."
+                        for c in ip_candidate
+                    ):
+                        ips.add(ip_candidate)
 
-            # Summary stats
-            f.write("\n\n# Connection Summary\n")
-            # Count unique destination IPs
-            ips = set()
-            for pline in lines:
-                parts = pline.split()
-                for part in parts:
-                    if "." in part and part.count(".") >= 3:
-                        # Might be an IP
-                        ip_candidate = part.split(":")[0].rstrip(".")
-                        if all(
-                            c.isdigit() or c == "."
-                            for c in ip_candidate
-                        ):
-                            ips.add(ip_candidate)
-            f.write(f"Unique IPs seen: {len(ips)}\n")
-            for ip in sorted(ips):
-                f.write(f"  {ip}\n")
+        out_lines = [
+            "# Network Analysis - tcpdump output",
+            f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"# Container: {cid[:12]}",
+            "",
+            f"Total packets captured: {len(lines)}",
+            "",
+            "First 100 packets:",
+        ]
+        out_lines.extend(lines[:100])
+        if len(lines) > 100:
+            extra = len(lines) - 100
+            out_lines.append(f"\n... ({extra} more)")
+        out_lines.append("\n\n# Connection Summary")
+        out_lines.append(f"Unique IPs seen: {len(ips)}")
+        for ip in sorted(ips):
+            out_lines.append(f"  {ip}")
 
+        analysis_path.write_text(
+            "\n".join(out_lines) + "\n"
+        )
         print(
-            f"  Network analysis saved to "
-            f"{analysis_path}"
+            f"  Network analysis saved: {analysis_path}"
         )
         result["pcap_packets"] = len(lines)
         result["unique_ips"] = len(ips)
@@ -403,250 +401,139 @@ def run_test_d(key: str) -> dict:
 
 def generate_report(results: list[dict]) -> str:
     """Generate markdown comparison report."""
-    report = []
-    report.append(
-        "# A/B Test Results: Claude CLI Latency Investigation"
+    r = []
+    r.append(
+        "# A/B Test Results: "
+        "Claude CLI Latency Investigation"
     )
-    report.append("")
-    report.append(
+    r.append("")
+    r.append(
         f"**Date:** {time.strftime('%Y-%m-%d %H:%M:%S')}"
     )
-    report.append(
-        f"**Image:** {IMAGE}"
-    )
-    report.append(f"**Model:** {MODEL}")
-    report.append(f"**Max turns:** {MAX_TURNS}")
-    report.append(
-        f"**Timeout per test:** {TIMEOUT_SECS}s "
-        f"(15 min)"
-    )
-    report.append("")
-    report.append("## Task")
-    report.append("")
-    report.append(f"> {TASK}")
-    report.append("")
-
-    # Comparison table
-    report.append("## Comparison Table")
-    report.append("")
-    report.append(
+    r.append(f"**Image:** {IMAGE}")
+    r.append(f"**Model:** {MODEL}")
+    r.append(f"**Max turns:** {MAX_TURNS}")
+    r.append(f"**Timeout per test:** {TIMEOUT_SECS}s")
+    r.append("")
+    r.append("## Task")
+    r.append("")
+    r.append(f"> {TASK}")
+    r.append("")
+    r.append("## Comparison Table")
+    r.append("")
+    r.append(
         "| Test | Auth Method | Bg Tasks | "
         "Total Time | Steps | 3min Gaps | Timed Out |"
     )
-    report.append(
+    r.append(
         "|------|-----------|----------|"
         "------------|-------|-----------|-----------|"
     )
 
-    for r in results:
-        label = r["label"].upper().replace("_", " ")
-        env = r["env_vars"]
-
-        if "ANTHROPIC_API_KEY" in env:
-            auth = "API_KEY"
-        else:
-            auth = "AUTH_TOKEN"
-
-        bg = "Yes" if (
-            "FORCE_AUTO_BACKGROUND_TASKS" in env
-        ) else "No"
-
-        total = f"{r['total_time_s']:.0f}s"
-        steps = str(r["num_steps"])
-        gaps = str(r["gaps_over_2min"])
-        timeout = "Yes" if r["timed_out"] else "No"
-
-        report.append(
+    for res in results:
+        label = res["label"].upper().replace("_", " ")
+        env = res["env_vars"]
+        auth = (
+            "API_KEY"
+            if "ANTHROPIC_API_KEY" in env
+            else "AUTH_TOKEN"
+        )
+        bg = (
+            "Yes"
+            if "FORCE_AUTO_BACKGROUND_TASKS" in env
+            else "No"
+        )
+        total = f"{res['total_time_s']:.0f}s"
+        steps = str(res["num_steps"])
+        gaps = str(res["gaps_over_2min"])
+        to = "Yes" if res["timed_out"] else "No"
+        r.append(
             f"| {label} | {auth} | {bg} | "
-            f"{total} | {steps} | {gaps} | {timeout} |"
+            f"{total} | {steps} | {gaps} | {to} |"
         )
 
-    report.append("")
+    r.append("")
 
-    # Detailed results for each test
-    for r in results:
-        label = r["label"].upper().replace("_", " ")
-        report.append(f"## {label}")
-        report.append("")
-        report.append("**Environment Variables:**")
-        report.append("")
-        for k, v in r["env_vars"].items():
-            report.append(f"- `{k}={v}`")
-        report.append("")
-        report.append(
-            f"**Total time:** {r['total_time_s']:.1f}s"
+    for res in results:
+        label = res["label"].upper().replace("_", " ")
+        r.append(f"## {label}")
+        r.append("")
+        r.append("**Environment Variables:**")
+        r.append("")
+        for k, v in res["env_vars"].items():
+            r.append(f"- `{k}={v}`")
+        r.append("")
+        r.append(
+            f"**Total time:** {res['total_time_s']:.1f}s"
         )
-        report.append(f"**Steps:** {r['num_steps']}")
-        report.append(
-            f"**Gaps >2min:** {r['gaps_over_2min']}"
+        r.append(f"**Steps:** {res['num_steps']}")
+        r.append(
+            f"**Gaps >2min:** {res['gaps_over_2min']}"
         )
-        report.append(
-            f"**Timed out:** "
-            f"{'Yes' if r['timed_out'] else 'No'}"
-        )
+        timed = "Yes" if res["timed_out"] else "No"
+        r.append(f"**Timed out:** {timed}")
 
-        if r.get("pcap_packets"):
-            report.append(
-                f"**Pcap packets:** {r['pcap_packets']}"
-            )
-        if r.get("unique_ips"):
-            report.append(
-                f"**Unique IPs:** {r['unique_ips']}"
+        if res.get("pcap_packets"):
+            r.append(
+                f"**Pcap packets:** "
+                f"{res['pcap_packets']}"
             )
 
-        report.append("")
-        report.append("**Step-by-step timing:**")
-        report.append("")
-        report.append(
-            "| Elapsed | Gap | Event |"
-        )
-        report.append(
-            "|---------|-----|-------|"
-        )
-        for step in r["steps"]:
+        r.append("")
+        r.append("**Step-by-step timing:**")
+        r.append("")
+        r.append("| Elapsed | Gap | Event |")
+        r.append("|---------|-----|-------|")
+        for step in res["steps"]:
             elapsed = f"{step['elapsed_s']:.1f}s"
             gap = f"{step['gap_s']:.1f}s"
             event = step["event"][:80]
-            flag = " **⚠️**" if step["has_3min_gap"] else ""
-            report.append(
-                f"| {elapsed} | {gap}{flag} | {event} |"
+            flag = (
+                " **warn**"
+                if step["has_3min_gap"]
+                else ""
             )
-        report.append("")
-
-    # Analysis section
-    report.append("## Analysis")
-    report.append("")
-
-    # Check if we have enough data to draw conclusions
-    completed = [
-        r for r in results if not r["timed_out"]
-    ]
-    if len(completed) < 2:
-        report.append(
-            "Insufficient data for comparison "
-            "(too many tests timed out)."
-        )
-    else:
-        # Compare Test A vs Test B
-        # (AUTH_TOKEN vs API_KEY)
-        a_results = [
-            r for r in results
-            if r["label"] == "test_a"
-        ]
-        b_results = [
-            r for r in results
-            if r["label"] == "test_b"
-        ]
-        c_results = [
-            r for r in results
-            if r["label"] == "test_c"
-        ]
-
-        if a_results and b_results:
-            a = a_results[0]
-            b = b_results[0]
-            report.append(
-                "### AUTH_TOKEN vs API_KEY "
-                "(Test A vs Test B)"
+            r.append(
+                f"| {elapsed} | {gap}{flag} | "
+                f"{event} |"
             )
-            report.append("")
-            if a["gaps_over_2min"] > 0 and b["gaps_over_2min"] == 0:
-                report.append(
-                    "**Finding:** AUTH_TOKEN shows "
-                    f"{a['gaps_over_2min']} gaps >2min "
-                    "while API_KEY shows none. "
-                    "This confirms the AUTH_TOKEN code "
-                    "path triggers the delay."
-                )
-            elif (
-                a["gaps_over_2min"] > 0
-                and b["gaps_over_2min"] > 0
-            ):
-                report.append(
-                    "**Finding:** Both AUTH_TOKEN and "
-                    "API_KEY show gaps >2min "
-                    f"({a['gaps_over_2min']} vs "
-                    f"{b['gaps_over_2min']}). "
-                    "The auth method alone does not "
-                    "explain the delay."
-                )
-            elif (
-                a["gaps_over_2min"] == 0
-                and b["gaps_over_2min"] == 0
-            ):
-                report.append(
-                    "**Finding:** Neither test showed "
-                    "gaps >2min. Compare total times: "
-                    f"A={a['total_time_s']:.0f}s vs "
-                    f"B={b['total_time_s']:.0f}s."
-                )
-            else:
-                report.append(
-                    f"**Finding:** A gaps="
-                    f"{a['gaps_over_2min']}, "
-                    f"B gaps={b['gaps_over_2min']}. "
-                    f"A time={a['total_time_s']:.0f}s, "
-                    f"B time={b['total_time_s']:.0f}s."
-                )
-            report.append("")
+        r.append("")
 
-        if a_results and c_results:
-            a = a_results[0]
-            c = c_results[0]
-            report.append(
-                "### Background Tasks Effect "
-                "(Test A vs Test C)"
-            )
-            report.append("")
-            if (
-                a["gaps_over_2min"] > 0
-                and c["gaps_over_2min"] == 0
-            ):
-                report.append(
-                    "**Finding:** Enabling "
-                    "FORCE_AUTO_BACKGROUND_TASKS/"
-                    "ENABLE_BACKGROUND_TASKS causes "
-                    f"{a['gaps_over_2min']} gaps >2min. "
-                    "Disabling them eliminates gaps. "
-                    "Background tasks are the root cause."
-                )
-            elif (
-                a["gaps_over_2min"] > 0
-                and c["gaps_over_2min"] > 0
-            ):
-                report.append(
-                    "**Finding:** Both configs show "
-                    "gaps >2min. Background task env "
-                    "vars do not explain the delay."
-                )
-            else:
-                report.append(
-                    f"**Finding:** A gaps="
-                    f"{a['gaps_over_2min']}, "
-                    f"C gaps={c['gaps_over_2min']}. "
-                    f"A time={a['total_time_s']:.0f}s, "
-                    f"C time={c['total_time_s']:.0f}s."
-                )
-            report.append("")
-
-    report.append("## Conclusion")
-    report.append("")
-    report.append(
+    r.append("## Conclusion")
+    r.append("")
+    r.append(
         "See the comparison table and per-test "
-        "timing above for detailed results. "
-        "The combination of AUTH_TOKEN vs API_KEY "
-        "and background task configuration isolates "
-        "which factor causes the 3-minute delays."
+        "timing above for detailed results."
     )
-    report.append("")
+    r.append("")
 
-    return "\n".join(report)
+    return "\n".join(r)
 
 
-def main():
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+def _make_error_result(
+    label: str, error: str,
+) -> dict:
+    return {
+        "label": label,
+        "env_vars": {"error": error},
+        "total_time_s": 0,
+        "timed_out": False,
+        "num_steps": 0,
+        "gaps_over_2min": 0,
+        "steps": [{
+            "elapsed_s": 0,
+            "gap_s": 0,
+            "event": f"ERROR: {error}",
+            "has_3min_gap": False,
+        }],
+    }
+
+
+def main() -> None:
+    """Run all A/B experiments."""
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     key = get_nvidia_key()
-    results = []
+    results: list[dict] = []
 
     print(
         f"Starting A/B experiments at "
@@ -655,83 +542,33 @@ def main():
     print(f"Results dir: {RESULTS_DIR}")
     print(f"Timeout per test: {TIMEOUT_SECS}s")
 
-    # Test A: Baseline
-    try:
-        results.append(run_test_a(key))
-    except Exception as e:
-        print(f"  TEST A FAILED: {e}")
-        results.append({
-            "label": "test_a",
-            "env_vars": {"error": str(e)},
-            "total_time_s": 0,
-            "timed_out": False,
-            "num_steps": 0,
-            "gaps_over_2min": 0,
-            "steps": [{"elapsed_s": 0, "gap_s": 0, "event": f"ERROR: {e}", "has_3min_gap": False}],
-        })
+    for test_fn, label in [
+        (run_test_a, "test_a"),
+        (run_test_b, "test_b"),
+        (run_test_c, "test_c"),
+        (run_test_d, "test_d"),
+    ]:
+        try:
+            results.append(test_fn(key))
+        except (
+            OSError, ValueError,
+            subprocess.SubprocessError,
+        ) as e:
+            print(f"  {label.upper()} FAILED: {e}")
+            results.append(
+                _make_error_result(label, str(e))
+            )
 
-    # Test B: API_KEY
-    try:
-        results.append(run_test_b(key))
-    except Exception as e:
-        print(f"  TEST B FAILED: {e}")
-        results.append({
-            "label": "test_b",
-            "env_vars": {"error": str(e)},
-            "total_time_s": 0,
-            "timed_out": False,
-            "num_steps": 0,
-            "gaps_over_2min": 0,
-            "steps": [{"elapsed_s": 0, "gap_s": 0, "event": f"ERROR: {e}", "has_3min_gap": False}],
-        })
-
-    # Test C: No bg tasks
-    try:
-        results.append(run_test_c(key))
-    except Exception as e:
-        print(f"  TEST C FAILED: {e}")
-        results.append({
-            "label": "test_c",
-            "env_vars": {"error": str(e)},
-            "total_time_s": 0,
-            "timed_out": False,
-            "num_steps": 0,
-            "gaps_over_2min": 0,
-            "steps": [{"elapsed_s": 0, "gap_s": 0, "event": f"ERROR: {e}", "has_3min_gap": False}],
-        })
-
-    # Test D: Baseline + tcpdump
-    try:
-        results.append(run_test_d(key))
-    except Exception as e:
-        print(f"  TEST D FAILED: {e}")
-        results.append({
-            "label": "test_d",
-            "env_vars": {"error": str(e)},
-            "total_time_s": 0,
-            "timed_out": False,
-            "num_steps": 0,
-            "gaps_over_2min": 0,
-            "steps": [{"elapsed_s": 0, "gap_s": 0, "event": f"ERROR: {e}", "has_3min_gap": False}],
-        })
-
-    # Generate and save report
     report = generate_report(results)
-    report_path = os.path.join(
-        RESULTS_DIR, "ab_test_results.md"
-    )
-    with open(report_path, "w") as f:
-        f.write(report)
+    report_path = RESULTS_DIR / "ab_test_results.md"
+    report_path.write_text(report)
     print(f"\nReport saved to {report_path}")
 
-    # Save raw JSON results
-    json_path = os.path.join(
-        RESULTS_DIR, "ab_test_results.json"
+    json_path = RESULTS_DIR / "ab_test_results.json"
+    json_path.write_text(
+        json.dumps(results, indent=2) + "\n"
     )
-    with open(json_path, "w") as f:
-        json.dump(results, f, indent=2)
     print(f"JSON results saved to {json_path}")
-
     print("\n=== All experiments complete ===")
 
 
