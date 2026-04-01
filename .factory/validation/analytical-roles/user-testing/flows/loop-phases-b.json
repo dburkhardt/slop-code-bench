@@ -1,0 +1,111 @@
+{
+  "groupId": "loop-phases-b",
+  "milestone": "analytical-roles",
+  "assignedAssertions": [
+    "VAL-LOOP-007",
+    "VAL-LOOP-008",
+    "VAL-LOOP-009",
+    "VAL-LOOP-010",
+    "VAL-LOOP-011",
+    "VAL-LOOP-012"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-LOOP-007",
+      "status": "fail",
+      "reason": "Phase 3 convoy execution is not evidenced for experiment batches. The only convoy entry is hq-cv-clkii (\"Work: Test dispatch bead\") with no tracked work items and no batch-linked convoy artifacts.",
+      "evidence": [
+        "analytical-roles/loop-phases-b/VAL-LOOP-007-008-convoy-list-all.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-007-008-convoy-status.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-007-009-batch-title-search.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-008",
+      "status": "fail",
+      "reason": "No Phase 3 molecule references mol-scbench-experiment. The only attached formula evidence in the dataset is mol-polecat-work on a test dispatch bead.",
+      "evidence": [
+        "analytical-roles/loop-phases-b/VAL-LOOP-008-attached-formula-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-008-mol-scbench-experiment-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-007-008-molecule-list.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-009",
+      "status": "blocked",
+      "reason": "No Review Board conclusion artifacts were found after execution, so Phase 4 analysis dispatch with validation-filtered outputs could not be validated from user-surface data.",
+      "evidence": [
+        "analytical-roles/loop-phases-b/VAL-LOOP-009-conclusion-title-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-009-review-board-assignee-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-009-validation-filter-notes-search.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-010",
+      "status": "blocked",
+      "reason": "No Red Team post-mortem dispatch artifacts were found, and no Mayor research-log references indicate post-mortem review before a Phase 5 decision.",
+      "evidence": [
+        "analytical-roles/loop-phases-b/VAL-LOOP-010-post-mortem-title-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-010-postmortem-title-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-010-red-team-assignee-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-010-011-phase4-notes-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-010-011-research-log.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-011",
+      "status": "fail",
+      "reason": "The Mayor research log contains only initialization text and does not include Phase 5 conclusions, post-mortem findings, strategy updates, or explicit decision entries.",
+      "evidence": [
+        "analytical-roles/loop-phases-b/VAL-LOOP-010-011-research-log.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-011-phase5-notes-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-011-decision-notes-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-011-strategy-notes-search.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-012",
+      "status": "fail",
+      "reason": "Shutdown sequence is incomplete. Summary/final-analysis/shutdown beads are absent, FINAL_REPORT.md is missing, and gt status shows the system still running. Critical escalation evidence exists but does not satisfy all required shutdown steps.",
+      "evidence": [
+        "analytical-roles/loop-phases-b/VAL-LOOP-012-summary-title-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-012-final-analysis-title-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-012-shutdown-title-search.json",
+        "analytical-roles/loop-phases-b/VAL-LOOP-012-final-report-exists.txt",
+        "analytical-roles/loop-phases-b/VAL-LOOP-012-escalations-list.json",
+        "analytical-roles/loop-phases-b/gt-status.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "gt",
+    "bd"
+  ],
+  "frictions": [
+    {
+      "description": "The installed bd CLI does not support an older --full flag variant used in prior evidence workflows.",
+      "resolved": true,
+      "resolution": "Used current read-only flags (--all, --limit 0, --json) to gather equivalent evidence.",
+      "affectedAssertions": [
+        "VAL-LOOP-007",
+        "VAL-LOOP-008",
+        "VAL-LOOP-009",
+        "VAL-LOOP-010",
+        "VAL-LOOP-011",
+        "VAL-LOOP-012"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "description": "No completed loop-phase execution artifacts exist for Review Board conclusions or Red Team post-mortem in the current scbench beads dataset.",
+      "affectedAssertions": [
+        "VAL-LOOP-009",
+        "VAL-LOOP-010"
+      ],
+      "quickFixAttempted": "Searched all statuses by title, assignee, and notes content and inspected full bead listings; required artifacts were absent."
+    }
+  ],
+  "summary": "Validated 6 loop assertions using shell-only read checks. VAL-LOOP-007, VAL-LOOP-008, VAL-LOOP-011, and VAL-LOOP-012 failed due to missing required Phase 3 to 5 behaviors, while VAL-LOOP-009 and VAL-LOOP-010 are blocked because the needed conclusion/post-mortem artifacts are not present."
+}

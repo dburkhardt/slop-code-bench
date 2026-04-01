@@ -1,0 +1,166 @@
+{
+  "milestone": "analytical-roles",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 23,
+    "passed": 1,
+    "failed": 10,
+    "blocked": 12
+  },
+  "passedAssertions": [
+    "VAL-ROLES-001"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-LOOP-001",
+      "reason": "The Mayor research log exists but contains only initialization text and no per-iteration Phase 0 budget-check entries, so the required budget-check-before-dispatch behavior is not evidenced."
+    },
+    {
+      "id": "VAL-LOOP-005",
+      "reason": "Mechanical Red Team gating is not evidenced for a batch bead: the Red Team review bead sc-d6f has no dependencies/dependents, current ready output shows no blocked batch transition, and the only dependency in the database is unrelated (sc-yfn -> sc-wisp-w45q)."
+    },
+    {
+      "id": "VAL-LOOP-006",
+      "reason": "The Red Team review artifact sc-d6f contains only a short test description with no numbered objections and no comments; no Mayor objection-response pairs are present."
+    },
+    {
+      "id": "VAL-LOOP-007",
+      "reason": "Phase 3 convoy execution is not evidenced for experiment batches. The only convoy entry is hq-cv-clkii (\"Work: Test dispatch bead\") with no tracked work items and no batch-linked convoy artifacts."
+    },
+    {
+      "id": "VAL-LOOP-008",
+      "reason": "No Phase 3 molecule references mol-scbench-experiment. The only attached formula evidence in the dataset is mol-polecat-work on a test dispatch bead."
+    },
+    {
+      "id": "VAL-LOOP-011",
+      "reason": "The Mayor research log contains only initialization text and does not include Phase 5 conclusions, post-mortem findings, strategy updates, or explicit decision entries."
+    },
+    {
+      "id": "VAL-LOOP-012",
+      "reason": "Shutdown sequence is incomplete. Summary/final-analysis/shutdown beads are absent, FINAL_REPORT.md is missing, and gt status shows the system still running. Critical escalation evidence exists but does not satisfy all required shutdown steps."
+    },
+    {
+      "id": "VAL-ROLES-005",
+      "reason": "The only Red Team review bead found (sc-d6f) has no dependency links, so no review->batch blocking dependency exists and readiness gating cannot be enforced."
+    },
+    {
+      "id": "VAL-ROLES-006",
+      "reason": "The Red Team review bead content is only 'Testing blocking review' with no numbered objections, no problem/impact/suggested-fix structure, and no comments, which violates the actionable-objections contract."
+    },
+    {
+      "id": "VAL-ROLES-011",
+      "reason": "Review Board role instructions do not include explicit bd context-reconstruction commands, so the stateless rebuild-from-beads contract is not fully satisfied for this role."
+    }
+  ],
+  "blockedAssertions": [
+    {
+      "id": "VAL-LOOP-002",
+      "blockedBy": "No proposed-batch artifacts were found in the scbench beads data, so low-budget batch-size reduction behavior and rationale could not be validated."
+    },
+    {
+      "id": "VAL-LOOP-003",
+      "blockedBy": "Only static role beads were found for Review Board and Idea Factory; no Phase 1 dispatch/wait-for-completion entries were present to validate synchronized dispatch behavior."
+    },
+    {
+      "id": "VAL-LOOP-004",
+      "blockedBy": "No batch bead body artifacts were present, so required fields (rationale, configs, expected outcomes, budget estimate) could not be checked."
+    },
+    {
+      "id": "VAL-LOOP-009",
+      "blockedBy": "No Review Board conclusion artifacts were found after execution, so Phase 4 analysis dispatch with validation-filtered outputs could not be validated from user-surface data."
+    },
+    {
+      "id": "VAL-LOOP-010",
+      "blockedBy": "No Red Team post-mortem dispatch artifacts were found, and no Mayor research-log references indicate post-mortem review before a Phase 5 decision."
+    },
+    {
+      "id": "VAL-ROLES-002",
+      "blockedBy": "No conclusion beads were found, so there were no Review Board conclusion artifacts to verify that executed queries only referenced validated experiments."
+    },
+    {
+      "id": "VAL-ROLES-003",
+      "blockedBy": "No conclusion beads were found, so exclusion-count reporting in conclusions could not be tested."
+    },
+    {
+      "id": "VAL-ROLES-004",
+      "blockedBy": "No conclusion beads were found, so pass-rate delta, erosion slope comparison, and budget-efficiency values in conclusions could not be validated."
+    },
+    {
+      "id": "VAL-ROLES-007",
+      "blockedBy": "No Red Team post-mortem beads are present in the current beads data, so advisory non-blocking dependency behavior cannot be validated."
+    },
+    {
+      "id": "VAL-ROLES-008",
+      "blockedBy": "No child beads exist under sc-research-kb, so there are no Idea Factory session artifacts to verify per-session KB growth or taxonomy-labeled additions."
+    },
+    {
+      "id": "VAL-ROLES-009",
+      "blockedBy": "No hypothesis child beads exist under sc-hypotheses, so provenance metadata fields cannot be validated on real hypothesis artifacts."
+    },
+    {
+      "id": "VAL-ROLES-010",
+      "blockedBy": "No web-search labeled KB beads and no hypothesis beads were found, so timestamp ordering between web search and hypothesis creation cannot be tested."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Documented scbench rig working-directory requirement for gt/bd checks and noted missing analytical-role artifacts that block assertion execution.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null,
+  "testedAt": "2026-04-01T06:38:06.865438+00:00",
+  "flowReports": [
+    ".factory/validation/analytical-roles/user-testing/flows/loop-phases-a.json",
+    ".factory/validation/analytical-roles/user-testing/flows/loop-phases-b.json",
+    ".factory/validation/analytical-roles/user-testing/flows/roles-idea-factory.json",
+    ".factory/validation/analytical-roles/user-testing/flows/roles-red-team.json",
+    ".factory/validation/analytical-roles/user-testing/flows/roles-review-board.json"
+  ],
+  "dedupedBlockers": [
+    {
+      "description": "No Phase 0-2.5 loop execution artifacts (batch beads, dispatch records, or wait-for-completion notes) were present in the scbench beads dataset.",
+      "affectedAssertions": [
+        "VAL-LOOP-002",
+        "VAL-LOOP-003",
+        "VAL-LOOP-004"
+      ],
+      "quickFixAttempted": "Searched by notes text and keywords (Phase 0, budget check, proposed batch, batch, review board, idea factory) and listed all issues with --all --include-infra --include-gates --include-templates; no matching loop artifacts were found."
+    },
+    {
+      "description": "No completed loop-phase execution artifacts exist for Review Board conclusions or Red Team post-mortem in the current scbench beads dataset.",
+      "affectedAssertions": [
+        "VAL-LOOP-009",
+        "VAL-LOOP-010"
+      ],
+      "quickFixAttempted": "Searched all statuses by title, assignee, and notes content and inspected full bead listings; required artifacts were absent."
+    },
+    {
+      "description": "The scbench beads database currently has no Idea Factory output artifacts under sc-research-kb or sc-hypotheses.",
+      "affectedAssertions": [
+        "VAL-ROLES-008",
+        "VAL-ROLES-009",
+        "VAL-ROLES-010"
+      ],
+      "quickFixAttempted": "Queried parent-child listings, taxonomy-label filters, and full issue listings in /home/ubuntu/gt/scbench; all required artifact sets were empty."
+    },
+    {
+      "description": "No post-mortem bead artifacts were found for Red Team in the scbench beads workspace.",
+      "affectedAssertions": [
+        "VAL-ROLES-007"
+      ],
+      "quickFixAttempted": "Searched with both 'post-mortem' and 'postmortem' terms across all statuses and reviewed full issue listings; no post-mortem artifacts were present."
+    },
+    {
+      "description": "No Review Board conclusion beads exist yet in the scbench beads database.",
+      "affectedAssertions": [
+        "VAL-ROLES-002",
+        "VAL-ROLES-003",
+        "VAL-ROLES-004"
+      ],
+      "quickFixAttempted": "Searched all statuses and listed all issues in the rig database; only 13 beads were present and none were conclusion artifacts."
+    }
+  ]
+}

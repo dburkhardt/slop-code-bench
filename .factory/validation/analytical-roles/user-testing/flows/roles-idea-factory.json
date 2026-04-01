@@ -1,0 +1,62 @@
+{
+  "groupId": "roles-idea-factory",
+  "milestone": "analytical-roles",
+  "assignedAssertions": [
+    "VAL-ROLES-008",
+    "VAL-ROLES-009",
+    "VAL-ROLES-010"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-ROLES-008",
+      "status": "blocked",
+      "reason": "No child beads exist under sc-research-kb, so there are no Idea Factory session artifacts to verify per-session KB growth or taxonomy-labeled additions.",
+      "evidence": [
+        "analytical-roles/roles-idea-factory/VAL-ROLES-008-kb-children.json",
+        "analytical-roles/roles-idea-factory/VAL-ROLES-008-kb-list-parent.json",
+        "analytical-roles/roles-idea-factory/VAL-ROLES-008-kb-taxonomy-labeled.json",
+        "analytical-roles/roles-idea-factory/assertion-check-summaries.txt"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-009",
+      "status": "blocked",
+      "reason": "No hypothesis child beads exist under sc-hypotheses, so provenance metadata fields cannot be validated on real hypothesis artifacts.",
+      "evidence": [
+        "analytical-roles/roles-idea-factory/VAL-ROLES-009-hypothesis-children.json",
+        "analytical-roles/roles-idea-factory/VAL-ROLES-009-hypothesis-list-parent.json",
+        "analytical-roles/roles-idea-factory/VAL-ROLES-009-hypothesis-required-metadata.json",
+        "analytical-roles/roles-idea-factory/assertion-check-summaries.txt"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-010",
+      "status": "blocked",
+      "reason": "No web-search labeled KB beads and no hypothesis beads were found, so timestamp ordering between web search and hypothesis creation cannot be tested.",
+      "evidence": [
+        "analytical-roles/roles-idea-factory/VAL-ROLES-010-web-search-kb-beads.json",
+        "analytical-roles/roles-idea-factory/VAL-ROLES-009-hypothesis-list-parent.json",
+        "analytical-roles/roles-idea-factory/VAL-ROLES-008-010-idea-factory-role.json",
+        "analytical-roles/roles-idea-factory/assertion-check-summaries.txt"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "gt",
+    "bd"
+  ],
+  "frictions": [],
+  "blockers": [
+    {
+      "description": "The scbench beads database currently has no Idea Factory output artifacts under sc-research-kb or sc-hypotheses.",
+      "affectedAssertions": [
+        "VAL-ROLES-008",
+        "VAL-ROLES-009",
+        "VAL-ROLES-010"
+      ],
+      "quickFixAttempted": "Queried parent-child listings, taxonomy-label filters, and full issue listings in /home/ubuntu/gt/scbench; all required artifact sets were empty."
+    }
+  ],
+  "summary": "Validated 3 assigned Idea Factory assertions via shell/bd checks. All three are blocked because no KB/hypothesis session artifacts exist yet in the scbench beads database to evaluate the required behaviors."
+}

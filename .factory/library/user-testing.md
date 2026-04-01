@@ -67,3 +67,8 @@ This is a CLI/infrastructure project with no web UI. All testing is done via she
   conflicts with assertions expecting implementer-only boundary behavior.
 - Foundation pipeline validation remains blocked until Dolt research tables
   `experiments` and `budget` are present in the `scbench` database.
+- Run `gt` and `bd` validation commands from `/home/ubuntu/gt/scbench`.
+  Running from `/home/ubuntu/gt` targets the HQ dataset and can miss rig beads.
+- Analytical-roles validation can remain blocked when no loop execution artifacts
+  exist. Missing artifacts include batch beads, Review Board conclusions, and
+  Red Team post-mortem beads in the `scbench` rig.

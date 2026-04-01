@@ -1,0 +1,83 @@
+{
+  "groupId": "roles-review-board",
+  "milestone": "analytical-roles",
+  "assignedAssertions": [
+    "VAL-ROLES-001",
+    "VAL-ROLES-002",
+    "VAL-ROLES-003",
+    "VAL-ROLES-004",
+    "VAL-ROLES-011"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-ROLES-001",
+      "status": "pass",
+      "reason": "sc-review-board-role exists and its description explicitly requires Dolt experiments-table queries, validation filters, and filing conclusion beads.",
+      "evidence": [
+        "analytical-roles/roles-review-board/VAL-ROLES-001-011-review-board-role.json",
+        "analytical-roles/roles-review-board/rig-bd-context.log"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-002",
+      "status": "blocked",
+      "reason": "No conclusion beads were found, so there were no Review Board conclusion artifacts to verify that executed queries only referenced validated experiments.",
+      "evidence": [
+        "analytical-roles/roles-review-board/VAL-ROLES-002-003-004-issue-search.log",
+        "analytical-roles/roles-review-board/all-issues-flat.log"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-003",
+      "status": "blocked",
+      "reason": "No conclusion beads were found, so exclusion-count reporting in conclusions could not be tested.",
+      "evidence": [
+        "analytical-roles/roles-review-board/VAL-ROLES-002-003-004-issue-search.log",
+        "analytical-roles/roles-review-board/all-issues-flat.log"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-004",
+      "status": "blocked",
+      "reason": "No conclusion beads were found, so pass-rate delta, erosion slope comparison, and budget-efficiency values in conclusions could not be validated.",
+      "evidence": [
+        "analytical-roles/roles-review-board/VAL-ROLES-002-003-004-issue-search.log",
+        "analytical-roles/roles-review-board/all-issues-flat.log"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-011",
+      "status": "fail",
+      "reason": "Review Board role instructions do not include explicit bd context-reconstruction commands, so the stateless rebuild-from-beads contract is not fully satisfied for this role.",
+      "evidence": [
+        "analytical-roles/roles-review-board/VAL-ROLES-001-011-review-board-role.json",
+        "analytical-roles/roles-review-board/VAL-ROLES-011-review-board-role-history.log",
+        "analytical-roles/roles-review-board/all-analytical-role-beads.jsonl"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "gt",
+    "bd"
+  ],
+  "frictions": [
+    {
+      "description": "Running bd from /home/ubuntu/gt resolved the hq town database, which did not contain the assigned sc-* role beads; validation had to be executed from /home/ubuntu/gt/scbench to target the scbench beads database.",
+      "resolved": true,
+      "resolution": "Switched command context to /home/ubuntu/gt/scbench and re-ran bd checks."
+    }
+  ],
+  "blockers": [
+    {
+      "description": "No Review Board conclusion beads exist yet in the scbench beads database.",
+      "affectedAssertions": [
+        "VAL-ROLES-002",
+        "VAL-ROLES-003",
+        "VAL-ROLES-004"
+      ],
+      "quickFixAttempted": "Searched all statuses and listed all issues in the rig database; only 13 beads were present and none were conclusion artifacts."
+    }
+  ],
+  "summary": "Validated 5 assigned assertions through shell commands. VAL-ROLES-001 passed, VAL-ROLES-011 failed, and VAL-ROLES-002/003/004 were blocked due to missing conclusion beads."
+}

@@ -1,0 +1,116 @@
+{
+  "groupId": "loop-phases-a",
+  "milestone": "analytical-roles",
+  "assignedAssertions": [
+    "VAL-LOOP-001",
+    "VAL-LOOP-002",
+    "VAL-LOOP-003",
+    "VAL-LOOP-004",
+    "VAL-LOOP-005",
+    "VAL-LOOP-006"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-LOOP-001",
+      "status": "fail",
+      "reason": "The Mayor research log exists but contains only initialization text and no per-iteration Phase 0 budget-check entries, so the required budget-check-before-dispatch behavior is not evidenced.",
+      "evidence": [
+        "analytical-roles/loop-phases-a/VAL-LOOP-001-research-log.json",
+        "analytical-roles/loop-phases-a/VAL-LOOP-001-budget-check-notes-search.json",
+        "analytical-roles/loop-phases-a/VAL-LOOP-001-phase-0-notes-search.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-002",
+      "status": "blocked",
+      "reason": "No proposed-batch artifacts were found in the scbench beads data, so low-budget batch-size reduction behavior and rationale could not be validated.",
+      "evidence": [
+        "analytical-roles/loop-phases-a/VAL-LOOP-002-004-proposed-batch-search.json",
+        "analytical-roles/loop-phases-a/VAL-LOOP-002-004-batch-search.json",
+        "analytical-roles/loop-phases-a/bd-list-all-full.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-003",
+      "status": "blocked",
+      "reason": "Only static role beads were found for Review Board and Idea Factory; no Phase 1 dispatch/wait-for-completion entries were present to validate synchronized dispatch behavior.",
+      "evidence": [
+        "analytical-roles/loop-phases-a/VAL-LOOP-003-review-board-search.json",
+        "analytical-roles/loop-phases-a/VAL-LOOP-003-idea-factory-search.json",
+        "analytical-roles/loop-phases-a/VAL-LOOP-001-research-log.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-004",
+      "status": "blocked",
+      "reason": "No batch bead body artifacts were present, so required fields (rationale, configs, expected outcomes, budget estimate) could not be checked.",
+      "evidence": [
+        "analytical-roles/loop-phases-a/VAL-LOOP-002-004-proposed-batch-search.json",
+        "analytical-roles/loop-phases-a/VAL-LOOP-002-004-batch-search.json",
+        "analytical-roles/loop-phases-a/bd-list-all-full.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-005",
+      "status": "fail",
+      "reason": "Mechanical Red Team gating is not evidenced for a batch bead: the Red Team review bead sc-d6f has no dependencies/dependents, current ready output shows no blocked batch transition, and the only dependency in the database is unrelated (sc-yfn -> sc-wisp-w45q).",
+      "evidence": [
+        "analytical-roles/loop-phases-a/VAL-LOOP-005-sc-d6f-dependencies-down.json",
+        "analytical-roles/loop-phases-a/VAL-LOOP-005-sc-d6f-dependencies-up.json",
+        "analytical-roles/loop-phases-a/VAL-LOOP-005-ready-current.log",
+        "analytical-roles/loop-phases-a/bd-sql-dependencies.txt",
+        "analytical-roles/loop-phases-a/VAL-LOOP-006-sc-d6f-show.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-006",
+      "status": "fail",
+      "reason": "The Red Team review artifact sc-d6f contains only a short test description with no numbered objections and no comments; no Mayor objection-response pairs are present.",
+      "evidence": [
+        "analytical-roles/loop-phases-a/VAL-LOOP-006-sc-d6f-show.json",
+        "analytical-roles/loop-phases-a/VAL-LOOP-006-sc-d6f-comments.json",
+        "analytical-roles/loop-phases-a/VAL-LOOP-001-research-log.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "gt",
+    "bd"
+  ],
+  "frictions": [
+    {
+      "description": "Running bd commands from /home/ubuntu/gt initially targeted the hq workspace rather than the assigned scbench rig database.",
+      "resolved": true,
+      "resolution": "Switched shell context to /home/ubuntu/gt/scbench for all assertion checks.",
+      "affectedAssertions": [
+        "VAL-LOOP-001",
+        "VAL-LOOP-002",
+        "VAL-LOOP-003",
+        "VAL-LOOP-004",
+        "VAL-LOOP-005",
+        "VAL-LOOP-006"
+      ]
+    },
+    {
+      "description": "bd dep list did not expose any historical closed gating links, so direct SQL inspection of the dependencies table was required to confirm existing dependency records.",
+      "resolved": true,
+      "resolution": "Used read-only bd sql queries and captured dependency-table output as evidence.",
+      "affectedAssertions": [
+        "VAL-LOOP-005"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "description": "No Phase 0-2.5 loop execution artifacts (batch beads, dispatch records, or wait-for-completion notes) were present in the scbench beads dataset.",
+      "affectedAssertions": [
+        "VAL-LOOP-002",
+        "VAL-LOOP-003",
+        "VAL-LOOP-004"
+      ],
+      "quickFixAttempted": "Searched by notes text and keywords (Phase 0, budget check, proposed batch, batch, review board, idea factory) and listed all issues with --all --include-infra --include-gates --include-templates; no matching loop artifacts were found."
+    }
+  ],
+  "summary": "Validated 6 loop-phase assertions via shell/gt/bd checks. VAL-LOOP-001, VAL-LOOP-005, and VAL-LOOP-006 failed due to missing required loop/gating/objection-response behavior, and VAL-LOOP-002/003/004 are blocked because no corresponding phase artifacts were present to evaluate."
+}

@@ -1,0 +1,68 @@
+{
+  "groupId": "roles-red-team",
+  "milestone": "analytical-roles",
+  "assignedAssertions": [
+    "VAL-ROLES-005",
+    "VAL-ROLES-006",
+    "VAL-ROLES-007"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-ROLES-005",
+      "status": "fail",
+      "reason": "The only Red Team review bead found (sc-d6f) has no dependency links, so no review->batch blocking dependency exists and readiness gating cannot be enforced.",
+      "evidence": [
+        "analytical-roles/roles-red-team/VAL-ROLES-red-team-search.json",
+        "analytical-roles/roles-red-team/VAL-ROLES-005-sc-d6f-dependencies.json",
+        "analytical-roles/roles-red-team/all-issues.json",
+        "analytical-roles/roles-red-team/VAL-ROLES-005-ready-current.log"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-006",
+      "status": "fail",
+      "reason": "The Red Team review bead content is only 'Testing blocking review' with no numbered objections, no problem/impact/suggested-fix structure, and no comments, which violates the actionable-objections contract.",
+      "evidence": [
+        "analytical-roles/roles-red-team/VAL-ROLES-005-006-sc-d6f-show-long.json",
+        "analytical-roles/roles-red-team/VAL-ROLES-006-sc-d6f-comments.json",
+        "analytical-roles/roles-red-team/VAL-ROLES-red-team-search.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-007",
+      "status": "blocked",
+      "reason": "No Red Team post-mortem beads are present in the current beads data, so advisory non-blocking dependency behavior cannot be validated.",
+      "evidence": [
+        "analytical-roles/roles-red-team/VAL-ROLES-007-post-mortem-search.json",
+        "analytical-roles/roles-red-team/VAL-ROLES-007-postmortem-search.json",
+        "analytical-roles/roles-red-team/all-issues.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "bd"
+  ],
+  "frictions": [
+    {
+      "description": "The local bd CLI version does not support some older list-output flags used in prior evidence conventions, so equivalent commands had to use current flags (--flat/--all) for reproducible output capture.",
+      "resolved": true,
+      "resolution": "Switched to bd list --all --flat and continued validation with equivalent read-only checks.",
+      "affectedAssertions": [
+        "VAL-ROLES-005",
+        "VAL-ROLES-006",
+        "VAL-ROLES-007"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "description": "No post-mortem bead artifacts were found for Red Team in the scbench beads workspace.",
+      "affectedAssertions": [
+        "VAL-ROLES-007"
+      ],
+      "quickFixAttempted": "Searched with both 'post-mortem' and 'postmortem' terms across all statuses and reviewed full issue listings; no post-mortem artifacts were present."
+    }
+  ],
+  "summary": "Validated 3 assertions via shell/bd checks. VAL-ROLES-005 and VAL-ROLES-006 failed due to missing dependency gate wiring and missing structured objections, and VAL-ROLES-007 is blocked because no post-mortem bead exists to inspect."
+}
