@@ -172,6 +172,74 @@ def check_api_key(model_name: str) -> None:
         ) from exc
 
 
+def validate_nvidia_api_key() -> None:
+    """Make a lightweight test call to the NVIDIA endpoint.
+
+    Sends a minimal chat completion request with
+    ``max_tokens=1`` to verify that
+    ``NVIDIA_INFERENCE_KEY`` is accepted.  Skipped
+    silently when the key is not set.
+
+    Raises ``CanaryError`` with component="API" on
+    authentication failure.
+    """
+    api_key = os.environ.get("NVIDIA_INFERENCE_KEY")
+    if not api_key:
+        return
+
+    import urllib.request
+    import urllib.error
+
+    url = (
+        "https://inference-api.nvidia.com"
+        "/v1/chat/completions"
+    )
+    payload = json.dumps({
+        "model": "meta/llama-3.1-8b-instruct",
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 1,
+    }).encode()
+
+    req = urllib.request.Request(  # noqa: S310
+        url,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(  # noqa: S310
+            req, timeout=15,
+        ) as resp:
+            if resp.status < 200 or resp.status >= 300:
+                raise CanaryError(
+                    "API",
+                    "NVIDIA API key validation failed "
+                    f"with status {resp.status}.",
+                )
+    except urllib.error.HTTPError as exc:
+        raise CanaryError(
+            "API",
+            f"NVIDIA API key validation failed: "
+            f"HTTP {exc.code} — {exc.reason}. "
+            f"Check NVIDIA_INFERENCE_KEY.",
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise CanaryError(
+            "API",
+            f"NVIDIA API endpoint unreachable: {exc}",
+        ) from exc
+    except TimeoutError:
+        raise CanaryError(
+            "API",
+            "NVIDIA API key validation timed out "
+            "after 15 s.",
+        )
+
+
 def check_claude_cli() -> None:
     """Verify that the Claude Code CLI is reachable.
 
@@ -208,12 +276,13 @@ def check_claude_cli() -> None:
 def run_preflight_checks(model_name: str) -> None:
     """Run all canary preflight checks in order.
 
-    Checks: Docker -> API key -> Claude CLI.
+    Checks: Docker -> API key -> NVIDIA key -> Claude CLI.
     Stops on the first failure with a descriptive
     ``CanaryError``.
     """
     check_docker()
     check_api_key(model_name)
+    validate_nvidia_api_key()
     check_claude_cli()
 
 
@@ -295,11 +364,14 @@ class RunState(BaseModel):
 
 
 def validate_budget_split(value: int) -> int:
-    """Ensure *value* is in [1, 99]. Exits on failure."""
-    if value < 1 or value > 99:
+    """Ensure *value* is in [1, 100]. Exits on failure.
+
+    A value of 100 means implementer-only (no reviewer).
+    """
+    if value < 1 or value > 100:
         typer.echo(
-            f"Error: --budget-split must be in range 1-99, "
-            f"got {value}",
+            f"Error: --budget-split must be in range "
+            f"1-100, got {value}",
             err=True,
         )
         raise SystemExit(1)
@@ -773,11 +845,17 @@ def run_two_agent(
     ``None``).  The id is embedded in Docker container names
     so that parallel runs never collide.
 
+    When *budget_split* is 100, the reviewer phase is
+    skipped entirely (implementer-only mode).
+
     For each checkpoint:
       1. Implementer runs with budget_split% of the budget.
-      2. Reviewer runs with (100-budget_split)% of the budget.
-      3. Per-checkpoint metrics recorded.
-      4. Reviewer output fed back as context for next iteration.
+      2. Budget check after implementer API call.
+      3. Reviewer runs with (100-budget_split)% of the
+         budget (skipped when budget_split=100).
+      4. Per-checkpoint metrics recorded.
+      5. Reviewer output fed back as context for next
+         iteration.
 
     Returns the accumulated ``RunState``.
     """
@@ -812,6 +890,10 @@ def run_two_agent(
     problem_dir = PROBLEMS_DIR / problem
     checkpoints = discover_checkpoints(problem, problem_dir)
 
+    # Copy environment.yaml from the problem definition
+    # into the output directory for eval compatibility.
+    _copy_environment_yaml(problem_dir, output_dir)
+
     # Optionally constrain the number of checkpoints
     # (used by canary to limit to checkpoint_1 only).
     if max_checkpoints is not None:
@@ -819,6 +901,7 @@ def run_two_agent(
 
     _implementer_fraction = budget_split / 100.0
     _reviewer_fraction = 1.0 - _implementer_fraction
+    skip_reviewer = budget_split == 100
 
     for idx, checkpoint_name in enumerate(checkpoints):
         # Skip already-completed checkpoints (resume)
@@ -856,6 +939,18 @@ def run_two_agent(
         )
 
         # -- Implementer phase --
+        if state.last_reviewer_suggestions:
+            logger.info(
+                "[REVIEWER->IMPLEMENTER] Injecting "
+                "reviewer suggestions into %s prompt",
+                checkpoint_name,
+            )
+            typer.echo(
+                f"  [{checkpoint_name}] "
+                "[REVIEWER->IMPLEMENTER] Injecting "
+                "prior reviewer suggestions",
+            )
+
         rendered_impl_prompt = build_implementer_prompt(
             spec_text=spec_text,
             is_continuation=is_continuation,
@@ -911,57 +1006,160 @@ def run_two_agent(
             target_dir=output_dir,
         )
 
-        # -- Reviewer phase --
-        build_reviewer_prompt(
-            spec_text=spec_text,
-            is_continuation=is_continuation,
-        )
+        # Mid-execution budget check after implementer
+        # API call. Accumulate cost so far and abort
+        # with partial results when budget is exceeded.
+        running_cost = state.cumulative_cost + impl_cost
+        if is_budget_exceeded(running_cost, budget):
+            typer.echo(
+                f"Budget exceeded after implementer "
+                f"phase of {checkpoint_name}: "
+                f"${running_cost:.2f} > ${budget:.2f}. "
+                f"Saving partial results.",
+                err=True,
+            )
+            # Save partial metrics for this checkpoint
+            metrics = CheckpointMetrics(
+                pass_rate=impl_result.get(
+                    "pass_rate", 0.0,
+                ),
+                erosion=impl_result.get("erosion", 0.0),
+                verbosity=impl_result.get(
+                    "verbosity", 0.0,
+                ),
+                tokens_implementer=impl_tokens,
+                tokens_reviewer=0,
+                cost=impl_cost,
+            )
+            state.checkpoint_metrics[
+                checkpoint_name
+            ] = metrics
+            state.budget_exceeded = True
+            state.save_results()
+            raise SystemExit(1)
 
-        typer.echo(
-            f"  [{checkpoint_name}] Reviewer phase "
-            f"(budget: ${budget * _reviewer_fraction:.2f})"
-            " ...",
-        )
+        # -- Reviewer phase (skipped when budget_split=100)
+        review_cost = 0.0
+        review_tokens = 0
+        review_result: dict = {}
 
-        review_result = run_slop_code(
-            problem=problem,
-            model=model,
-            prompt_template=reviewer_prompt,
-            output_dir=output_dir,
-            budget_fraction=_reviewer_fraction,
-            total_budget=budget,
-            run_id=state.run_id,
-            phase="reviewer",
-        )
-
-        # Check reviewer exit code
-        review_exit = review_result.get("exit_code", 0)
-        if review_exit != 0 and canary_mode:
-            raise CanaryError(
-                "Reviewer",
-                f"Reviewer exited with code "
-                f"{review_exit} at {checkpoint_name}.",
+        if not skip_reviewer:
+            build_reviewer_prompt(
+                spec_text=spec_text,
+                is_continuation=is_continuation,
             )
 
-        review_cost = review_result.get("cost", 0.0)
-        review_tokens = review_result.get("tokens", 0)
-
-        # Parse reviewer suggestions from output and
-        # propagate to next implementer iteration.
-        state.last_reviewer_suggestions = (
-            _extract_reviewer_suggestions(
-                review_result,
+            typer.echo(
+                f"  [{checkpoint_name}] Reviewer phase "
+                f"(budget: "
+                f"${budget * _reviewer_fraction:.2f})"
+                " ...",
             )
-        )
 
-        # Copy reviewer artifacts (may overwrite
-        # implementer snapshot with improved code)
-        _copy_checkpoint_artifacts(
-            problem=problem,
-            checkpoint_name=checkpoint_name,
-            source_output=review_result.get("output_dir"),
-            target_dir=output_dir,
-        )
+            review_result = run_slop_code(
+                problem=problem,
+                model=model,
+                prompt_template=reviewer_prompt,
+                output_dir=output_dir,
+                budget_fraction=_reviewer_fraction,
+                total_budget=budget,
+                run_id=state.run_id,
+                phase="reviewer",
+            )
+
+            # Check reviewer exit code
+            review_exit = review_result.get(
+                "exit_code", 0,
+            )
+            if review_exit != 0 and canary_mode:
+                raise CanaryError(
+                    "Reviewer",
+                    f"Reviewer exited with code "
+                    f"{review_exit} at "
+                    f"{checkpoint_name}.",
+                )
+
+            review_cost = review_result.get("cost", 0.0)
+            review_tokens = review_result.get("tokens", 0)
+
+            # Mid-execution budget check after reviewer
+            running_cost = (
+                state.cumulative_cost
+                + impl_cost
+                + review_cost
+            )
+            if is_budget_exceeded(running_cost, budget):
+                typer.echo(
+                    f"Budget exceeded after reviewer "
+                    f"phase of {checkpoint_name}: "
+                    f"${running_cost:.2f} > "
+                    f"${budget:.2f}. "
+                    f"Saving partial results.",
+                    err=True,
+                )
+                # Save metrics for this checkpoint
+                metrics = CheckpointMetrics(
+                    pass_rate=(
+                        review_result.get(
+                            "pass_rate", 0.0,
+                        )
+                        or impl_result.get(
+                            "pass_rate", 0.0,
+                        )
+                    ),
+                    erosion=(
+                        review_result.get(
+                            "erosion", 0.0,
+                        )
+                        or impl_result.get(
+                            "erosion", 0.0,
+                        )
+                    ),
+                    verbosity=(
+                        review_result.get(
+                            "verbosity", 0.0,
+                        )
+                        or impl_result.get(
+                            "verbosity", 0.0,
+                        )
+                    ),
+                    tokens_implementer=impl_tokens,
+                    tokens_reviewer=review_tokens,
+                    cost=impl_cost + review_cost,
+                )
+                state.checkpoint_metrics[
+                    checkpoint_name
+                ] = metrics
+                state.budget_exceeded = True
+                state.save_results()
+                raise SystemExit(1)
+
+            # Parse reviewer suggestions from output and
+            # propagate to next implementer iteration.
+            state.last_reviewer_suggestions = (
+                _extract_reviewer_suggestions(
+                    review_result,
+                )
+            )
+
+            # Persist reviewer suggestions to file
+            _save_reviewer_suggestions(
+                output_dir=output_dir,
+                checkpoint_name=checkpoint_name,
+                suggestions=state.last_reviewer_suggestions,
+                review_result=review_result,
+            )
+
+            # Copy reviewer artifacts (may overwrite
+            # implementer snapshot with improved code)
+            _copy_checkpoint_artifacts(
+                problem=problem,
+                checkpoint_name=checkpoint_name,
+                source_output=review_result.get(
+                    "output_dir",
+                ),
+                target_dir=output_dir,
+            )
 
         # Use the best available pass_rate (prefer
         # reviewer if it ran successfully, else
@@ -1006,6 +1204,79 @@ def run_two_agent(
 # ---------------------------------------------------------------------------
 # Artifact helpers
 # ---------------------------------------------------------------------------
+
+
+def _copy_environment_yaml(
+    problem_dir: Path,
+    output_dir: Path,
+) -> None:
+    """Copy environment.yaml into *output_dir* for eval.
+
+    The ``slop-code eval`` command expects an
+    ``environment.yaml`` in the run directory.  We look
+    for it in the problem directory first, then fall back
+    to the default Docker environment config.
+    """
+    dst = output_dir / "environment.yaml"
+    if dst.exists():
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check the problem directory first
+    src = problem_dir / "environment.yaml"
+    if src.is_file():
+        shutil.copy2(src, dst)
+        return
+
+    # Fall back to the default Docker environment config
+    default_env = (
+        CONFIGS_DIR / "environments"
+        / "docker-python3.12-uv.yaml"
+    )
+    if default_env.is_file():
+        shutil.copy2(default_env, dst)
+        return
+
+    # Last resort: write a minimal environment.yaml
+    dst.write_text(
+        "type: docker\n"
+        "name: python3.12\n"
+        "docker:\n"
+        "  image: ghcr.io/astral-sh/uv:"
+        "python3.12-trixie-slim\n"
+        "  workdir: /workspace\n"
+        "  mount_workspace: true\n",
+    )
+
+
+def _save_reviewer_suggestions(
+    output_dir: Path,
+    checkpoint_name: str,
+    suggestions: str | None,
+    review_result: dict,
+) -> None:
+    """Persist reviewer output to a JSON file.
+
+    Writes ``reviewer_suggestions_<checkpoint_name>.json``
+    in *output_dir* containing the reviewer's suggestions
+    and metadata.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filename = (
+        f"reviewer_suggestions_{checkpoint_name}.json"
+    )
+    payload = {
+        "checkpoint": checkpoint_name,
+        "suggestions": suggestions,
+        "exit_code": review_result.get("exit_code"),
+        "cost": review_result.get("cost", 0.0),
+        "tokens": review_result.get("tokens", 0),
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
+    (output_dir / filename).write_text(
+        json.dumps(payload, indent=2) + "\n",
+    )
 
 
 def _copy_checkpoint_artifacts(
@@ -1349,7 +1620,7 @@ def main(
         "--budget-split",
         help=(
             "Percentage of per-checkpoint budget for the "
-            "implementer (1-99)."
+            "implementer (1-100). 100 = implementer-only."
         ),
     ),
     budget: float | None = typer.Option(
