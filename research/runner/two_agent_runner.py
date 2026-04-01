@@ -15,10 +15,12 @@ Usage::
 """
 
 import json
+import logging
 import os
 import shutil
 import subprocess
 import sys
+import uuid
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +28,8 @@ from pathlib import Path
 import typer
 from pydantic import BaseModel
 from pydantic import Field
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Repo root (two levels up from research/runner/)
@@ -211,6 +215,9 @@ class RunState(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True}
 
+    run_id: str = Field(
+        default_factory=lambda: uuid.uuid4().hex[:12],
+    )
     problem: str
     model: str
     budget: float
@@ -228,10 +235,16 @@ class RunState(BaseModel):
             m.cost for m in self.checkpoint_metrics.values()
         )
 
+    @property
+    def container_name_prefix(self) -> str:
+        """Unique Docker container name prefix for this run."""
+        return f"scbench-{self.run_id}"
+
     def save_results(self) -> None:
         """Persist metrics to *output_dir*/two_agent_metrics.json."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
         payload = {
+            "run_id": self.run_id,
             "problem": self.problem,
             "model": self.model,
             "budget": self.budget,
@@ -352,21 +365,76 @@ def build_output_dir(
     problem: str,
     model: str,
     base: Path | None = None,
+    run_id: str | None = None,
 ) -> Path:
     """Build an output directory path compatible with slop-code eval.
 
+    A short *run_id* suffix is appended so that parallel runs
+    never collide even when started in the same second.
+
     Layout::
 
-        outputs/two_agent_<model>_<problem>_<timestamp>/
+        outputs/two_agent_<model>_<problem>_<ts>_<run_id>/
             <problem>/
                 checkpoint_N/
                     snapshot/
     """
     if base is None:
         base = OUTPUTS_DIR
+    if run_id is None:
+        run_id = uuid.uuid4().hex[:8]
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    run_name = f"two_agent_{model}_{problem}_{ts}"
+    run_name = (
+        f"two_agent_{model}_{problem}_{ts}_{run_id}"
+    )
     return base / run_name
+
+
+# ---------------------------------------------------------------------------
+# Resume helpers
+# ---------------------------------------------------------------------------
+
+
+def detect_completed_checkpoints(
+    output_dir: Path,
+) -> dict[str, CheckpointMetrics]:
+    """Detect already-completed checkpoints in *output_dir*.
+
+    Reads ``two_agent_metrics.json`` if it exists and returns
+    a dict mapping checkpoint names to their saved metrics.
+    Returns an empty dict when no prior state is found.
+    """
+    metrics_file = output_dir / "two_agent_metrics.json"
+    if not metrics_file.is_file():
+        return {}
+    try:
+        data = json.loads(metrics_file.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+    checkpoints: dict[str, CheckpointMetrics] = {}
+    for name, raw in data.get("checkpoints", {}).items():
+        try:
+            checkpoints[name] = CheckpointMetrics(**raw)
+        except Exception:  # noqa: BLE001, S112
+            continue
+    return checkpoints
+
+
+def load_resume_state(
+    output_dir: Path,
+) -> dict | None:
+    """Load the full metrics payload from a prior run.
+
+    Returns the parsed JSON dict, or ``None`` when no
+    resumable state exists.
+    """
+    metrics_file = output_dir / "two_agent_metrics.json"
+    if not metrics_file.is_file():
+        return None
+    try:
+        return json.loads(metrics_file.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -417,8 +485,14 @@ def run_slop_code(
     output_dir: Path,
     budget_fraction: float,
     total_budget: float,
+    run_id: str | None = None,
 ) -> dict:
     """Invoke ``slop-code run`` as a subprocess.
+
+    When *run_id* is provided it is passed via the
+    ``SCBENCH_RUN_ID`` environment variable so that
+    downstream Docker containers receive a unique name
+    prefix, preventing collisions between parallel runs.
 
     Returns a dict with keys:
         cost, tokens, pass_rate, erosion, verbosity, exit_code
@@ -433,12 +507,17 @@ def run_slop_code(
         "--evaluate",
     ]
 
+    env = {**os.environ}
+    if run_id:
+        env["SCBENCH_RUN_ID"] = run_id
+
     result = subprocess.run(  # noqa: S603
         cmd,
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
         timeout=3600,
+        env=env,
     )
 
     return {
@@ -463,8 +542,17 @@ def run_two_agent(
     budget_split: int,
     budget: float,
     output_dir: Path,
+    run_id: str | None = None,
 ) -> RunState:
     """Execute the two-agent loop over all checkpoints.
+
+    If *output_dir* already contains results from a prior
+    (crashed) run, completed checkpoints are preserved and
+    execution resumes from the next incomplete checkpoint.
+
+    Each run is identified by *run_id* (auto-generated when
+    ``None``).  The id is embedded in Docker container names
+    so that parallel runs never collide.
 
     For each checkpoint:
       1. Implementer runs with budget_split% of the budget.
@@ -480,7 +568,23 @@ def run_two_agent(
         budget=budget,
         budget_split=budget_split,
         output_dir=output_dir,
+        **({"run_id": run_id} if run_id else {}),
     )
+
+    # -- Resume: detect previously completed checkpoints --
+    completed = detect_completed_checkpoints(output_dir)
+    if completed:
+        state.checkpoint_metrics.update(completed)
+        logger.info(
+            "Resuming run: %d completed checkpoint(s) "
+            "found in %s",
+            len(completed),
+            output_dir,
+        )
+        typer.echo(
+            f"Resuming: {len(completed)} completed "
+            f"checkpoint(s) found, skipping them.",
+        )
 
     # Discover checkpoints from problem config
     problem_dir = PROBLEMS_DIR / problem
@@ -501,6 +605,14 @@ def run_two_agent(
     _implementer_fraction = budget_split / 100.0
 
     for idx, checkpoint_name in enumerate(checkpoints):
+        # Skip already-completed checkpoints (resume)
+        if checkpoint_name in completed:
+            logger.info(
+                "Skipping completed checkpoint: %s",
+                checkpoint_name,
+            )
+            continue
+
         # Check budget before each checkpoint
         if is_budget_exceeded(state.cumulative_cost, budget):
             typer.echo(
@@ -518,7 +630,9 @@ def run_two_agent(
         spec_file = problem_dir / f"{checkpoint_name}.md"
         if not spec_file.exists():
             # Some problems use nested structure
-            spec_file = problem_dir / checkpoint_name / "spec.md"
+            spec_file = (
+                problem_dir / checkpoint_name / "spec.md"
+            )
         spec_text = (
             spec_file.read_text()
             if spec_file.exists()
@@ -526,7 +640,6 @@ def run_two_agent(
         )
 
         # -- Implementer phase --
-        # Build prompt (used by canary-mode / actual runs)
         build_implementer_prompt(
             spec_text=spec_text,
             is_continuation=is_continuation,
@@ -930,6 +1043,15 @@ def main(
             "Docker, API keys, and pipeline."
         ),
     ),
+    output_dir: str | None = typer.Option(
+        None,
+        "--output-dir",
+        help=(
+            "Resume a prior run by pointing to its "
+            "output directory. Completed checkpoints "
+            "are preserved."
+        ),
+    ),
 ) -> None:
     """Run a two-agent experiment on a SlopCodeBench problem."""
 
@@ -1007,16 +1129,28 @@ def main(
         reviewer_prompt,
     )
 
-    output_dir = build_output_dir(problem, model)
+    # Generate a unique run_id for concurrent isolation
+    rid = uuid.uuid4().hex[:12]
+
+    # Use explicit --output-dir for resume, otherwise create
+    # a fresh directory with the run_id embedded.
+    if output_dir is not None:
+        resolved_output = Path(output_dir)
+        if not resolved_output.is_absolute():
+            resolved_output = REPO_ROOT / resolved_output
+    else:
+        resolved_output = build_output_dir(
+            problem, model, run_id=rid,
+        )
 
     typer.echo(
-        f"Starting two-agent run\n"
+        f"Starting two-agent run  (run_id={rid})\n"
         f"  problem:      {problem}\n"
         f"  model:        {model}\n"
         f"  budget:       ${budget:.2f}\n"
         f"  budget_split: {budget_split}% implementer / "
         f"{100 - budget_split}% reviewer\n"
-        f"  output:       {output_dir}\n"
+        f"  output:       {resolved_output}\n"
     )
 
     state = run_two_agent(
@@ -1026,7 +1160,8 @@ def main(
         reviewer_prompt=rev_prompt_path,
         budget_split=budget_split,
         budget=budget,
-        output_dir=output_dir,
+        output_dir=resolved_output,
+        run_id=rid,
     )
 
     typer.echo(
