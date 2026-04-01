@@ -813,7 +813,10 @@ def _parse_slop_code_output(
     """Parse metrics from the latest slop-code output dir.
 
     Reads ``checkpoint_results.jsonl`` from the most recent
-    output directory matching the problem name.
+    output directory matching the problem name.  Aggregates
+    cost and tokens across all checkpoint entries and uses
+    the last entry's pass_rate, erosion, and verbosity
+    (representing the final checkpoint state).
 
     Returns a dict with cost, tokens, pass_rate, erosion,
     verbosity, and output_dir.
@@ -838,22 +841,59 @@ def _parse_slop_code_output(
     results_file = run_dir_path / "checkpoint_results.jsonl"
     if results_file.exists():
         try:
-            for line in results_file.read_text().splitlines():
+            total_cost = 0.0
+            total_tokens = 0
+            for line in (
+                results_file.read_text().splitlines()
+            ):
                 if not line.strip():
                     continue
                 data = json.loads(line)
-                # Use flattened metric keys if available
+
+                # Accumulate cost across checkpoints
+                if "cost" in data:
+                    total_cost += float(data["cost"])
+
+                # Accumulate token counts
+                for tok_key in (
+                    "input", "output",
+                    "cache_read", "cache_write",
+                    "reasoning",
+                ):
+                    if tok_key in data:
+                        total_tokens += int(
+                            data[tok_key],
+                        )
+
+                # Use the latest checkpoint's quality
+                # metrics (last line wins).
                 if "strict_pass_rate" in data:
                     result["pass_rate"] = float(
                         data["strict_pass_rate"],
                     )
                 elif "total_counts" in data:
-                    total = data.get("total_counts", 0)
-                    passed = data.get("pass_counts", 0)
+                    total = data.get(
+                        "total_counts", 0,
+                    )
+                    passed = data.get(
+                        "pass_counts", 0,
+                    )
                     if total > 0:
                         result["pass_rate"] = round(
                             passed / total, 4,
                         )
+                elif "total_tests" in data:
+                    total = data.get(
+                        "total_tests", 0,
+                    )
+                    passed = data.get(
+                        "passed_tests", 0,
+                    )
+                    if total > 0:
+                        result["pass_rate"] = round(
+                            passed / total, 4,
+                        )
+
                 if "erosion" in data:
                     result["erosion"] = float(
                         data["erosion"],
@@ -862,9 +902,9 @@ def _parse_slop_code_output(
                     result["verbosity"] = float(
                         data["verbosity"],
                     )
-                if "cost" in data:
-                    result["cost"] = float(data["cost"])
-                break  # Use first checkpoint line
+
+            result["cost"] = total_cost
+            result["tokens"] = total_tokens
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -1666,17 +1706,43 @@ def _find_latest_run_dir(
 ) -> tuple[Path, Path] | None:
     """Find the most recent slop-code output containing *problem*.
 
+    ``slop-code run`` creates output directories at::
+
+        outputs/{model_name}/{agent}_{prompt}_{ts}/
+
+    so we search up to two levels below ``OUTPUTS_DIR``
+    for a directory that contains a ``{problem}/``
+    subdirectory (indicating a valid run for that
+    problem).
+
     Returns ``(run_dir, problem_dir)`` or ``None``.
     """
     if not OUTPUTS_DIR.exists():
         return None
     candidates: list[tuple[float, Path]] = []
-    for d in OUTPUTS_DIR.iterdir():
-        if not d.is_dir():
+
+    for child in OUTPUTS_DIR.iterdir():
+        if not child.is_dir():
             continue
-        problem_dir = d / problem
+        # Level 1: direct child (e.g. canary_* or
+        # two_agent_* dirs created by the runner itself)
+        problem_dir = child / problem
         if problem_dir.is_dir():
-            candidates.append((d.stat().st_mtime, d))
+            candidates.append(
+                (child.stat().st_mtime, child),
+            )
+            continue
+        # Level 2: nested under model name dir
+        # (e.g. outputs/nvidia-bedrock-.../run_dir/)
+        for sub in child.iterdir():
+            if not sub.is_dir():
+                continue
+            problem_dir = sub / problem
+            if problem_dir.is_dir():
+                candidates.append(
+                    (sub.stat().st_mtime, sub),
+                )
+
     if not candidates:
         return None
     candidates.sort(reverse=True)
@@ -1690,10 +1756,10 @@ def _update_metrics_from_results(
 ) -> None:
     """Parse *checkpoint_results.jsonl* and update *metrics*.
 
-    Reads the first matching line and extracts pass_rate
-    using the flattened metric schema (``strict_pass_rate``,
-    ``total_tests``, ``passed_tests``).  Falls back to
-    ``pass_counts``/``total_counts`` for legacy data.
+    Reads checkpoint entries and extracts pass_rate, cost,
+    erosion, and verbosity using flattened metric keys.
+    Falls back to ``pass_counts``/``total_counts`` for
+    legacy data.
     """
     try:
         for line in results_file.read_text().splitlines():
@@ -1705,7 +1771,7 @@ def _update_metrics_from_results(
                 metrics.pass_rate = float(
                     data["strict_pass_rate"],
                 )
-            else:
+            elif "total_tests" in data:
                 total = data.get("total_tests", 0)
                 passed = data.get("passed_tests", 0)
                 if total > 0:
@@ -1714,6 +1780,14 @@ def _update_metrics_from_results(
                     )
             if "cost" in data:
                 metrics.cost = float(data["cost"])
+            if "erosion" in data:
+                metrics.erosion = float(
+                    data["erosion"],
+                )
+            if "verbosity" in data:
+                metrics.verbosity = float(
+                    data["verbosity"],
+                )
             break
     except (json.JSONDecodeError, OSError):
         pass

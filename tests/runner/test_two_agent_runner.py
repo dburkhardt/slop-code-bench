@@ -1529,6 +1529,312 @@ class TestParseSlipCodeOutput:
 
 
 # ---------------------------------------------------------------------------
+# _find_latest_run_dir — nested model directory support
+# ---------------------------------------------------------------------------
+
+
+class TestFindLatestRunDirNested:
+    """_find_latest_run_dir searches nested model dirs."""
+
+    def test_finds_in_nested_model_dir(self, tmp_path):
+        """Finds run dir nested under model name dir.
+
+        Layout: outputs/{model}/{run_dir}/{problem}/
+        """
+        mod = _load_runner_module()
+
+        outputs = tmp_path / "outputs"
+        run_dir = (
+            outputs
+            / "nvidia-bedrock-claude-sonnet-4-6"
+            / "claude_code_default_20260401T1649"
+        )
+        (run_dir / "file_backup" / "checkpoint_1").mkdir(
+            parents=True,
+        )
+
+        with patch.object(mod, "OUTPUTS_DIR", outputs):
+            result = mod._find_latest_run_dir(
+                "file_backup",
+            )
+
+        assert result is not None
+        run_path, prob_path = result
+        assert run_path == run_dir
+        assert prob_path == run_dir / "file_backup"
+
+    def test_finds_direct_child(self, tmp_path):
+        """Still finds run dir as direct child of outputs.
+
+        Layout: outputs/{run_dir}/{problem}/
+        """
+        mod = _load_runner_module()
+
+        outputs = tmp_path / "outputs"
+        run_dir = outputs / "canary_20260401"
+        (run_dir / "file_backup").mkdir(parents=True)
+
+        with patch.object(mod, "OUTPUTS_DIR", outputs):
+            result = mod._find_latest_run_dir(
+                "file_backup",
+            )
+
+        assert result is not None
+        run_path, prob_path = result
+        assert run_path == run_dir
+        assert prob_path == run_dir / "file_backup"
+
+    def test_prefers_newest_nested(self, tmp_path):
+        """Returns the most recently modified nested dir."""
+        mod = _load_runner_module()
+        import time
+
+        outputs = tmp_path / "outputs"
+
+        # Create older run
+        old_dir = (
+            outputs / "model" / "run_old"
+        )
+        (old_dir / "prob").mkdir(parents=True)
+
+        time.sleep(0.05)
+
+        # Create newer run
+        new_dir = (
+            outputs / "model" / "run_new"
+        )
+        (new_dir / "prob").mkdir(parents=True)
+
+        with patch.object(mod, "OUTPUTS_DIR", outputs):
+            result = mod._find_latest_run_dir("prob")
+
+        assert result is not None
+        assert result[0] == new_dir
+
+    def test_returns_none_for_empty_outputs(
+        self, tmp_path,
+    ):
+        """Returns None when outputs/ is empty."""
+        mod = _load_runner_module()
+        outputs = tmp_path / "outputs"
+        outputs.mkdir()
+
+        with patch.object(mod, "OUTPUTS_DIR", outputs):
+            result = mod._find_latest_run_dir(
+                "file_backup",
+            )
+
+        assert result is None
+
+    def test_returns_none_when_outputs_missing(
+        self, tmp_path,
+    ):
+        """Returns None when outputs/ doesn't exist."""
+        mod = _load_runner_module()
+
+        with patch.object(
+            mod, "OUTPUTS_DIR",
+            tmp_path / "nonexistent",
+        ):
+            result = mod._find_latest_run_dir(
+                "file_backup",
+            )
+
+        assert result is None
+
+    def test_prefers_nested_over_direct(self, tmp_path):
+        """When both direct and nested matches exist,
+        returns the most recently modified one."""
+        mod = _load_runner_module()
+        import time
+
+        outputs = tmp_path / "outputs"
+
+        # Create older direct child
+        direct = outputs / "old_run"
+        (direct / "prob").mkdir(parents=True)
+
+        time.sleep(0.05)
+
+        # Create newer nested
+        nested = outputs / "model" / "new_run"
+        (nested / "prob").mkdir(parents=True)
+
+        with patch.object(mod, "OUTPUTS_DIR", outputs):
+            result = mod._find_latest_run_dir("prob")
+
+        assert result is not None
+        assert result[0] == nested
+
+
+# ---------------------------------------------------------------------------
+# _parse_slop_code_output — multi-checkpoint aggregation
+# ---------------------------------------------------------------------------
+
+
+class TestParseSlipCodeOutputAggregation:
+    """_parse_slop_code_output aggregates metrics across
+    multiple checkpoint entries in JSONL."""
+
+    def test_accumulates_cost_across_lines(
+        self, tmp_path,
+    ):
+        """Sums cost across all JSONL entries."""
+        mod = _load_runner_module()
+
+        run_dir = tmp_path / "run"
+        (run_dir / "prob").mkdir(parents=True)
+        results = run_dir / "checkpoint_results.jsonl"
+        lines = [
+            json.dumps({
+                "strict_pass_rate": 0.5,
+                "cost": 0.10,
+            }),
+            json.dumps({
+                "strict_pass_rate": 0.8,
+                "cost": 0.15,
+            }),
+        ]
+        results.write_text("\n".join(lines) + "\n")
+
+        with patch.object(
+            mod, "_find_latest_run_dir",
+            return_value=(run_dir, run_dir / "prob"),
+        ):
+            result = mod._parse_slop_code_output(
+                "prob", "",
+            )
+
+        assert result["cost"] == pytest.approx(0.25)
+        # Last line's pass_rate wins
+        assert result["pass_rate"] == pytest.approx(0.8)
+
+    def test_accumulates_tokens(self, tmp_path):
+        """Sums token counts across all entries."""
+        mod = _load_runner_module()
+
+        run_dir = tmp_path / "run"
+        (run_dir / "prob").mkdir(parents=True)
+        results = run_dir / "checkpoint_results.jsonl"
+        results.write_text(
+            json.dumps({
+                "strict_pass_rate": 0.5,
+                "cost": 0.0,
+                "input": 100,
+                "output": 50,
+                "cache_read": 10,
+            }) + "\n",
+        )
+
+        with patch.object(
+            mod, "_find_latest_run_dir",
+            return_value=(run_dir, run_dir / "prob"),
+        ):
+            result = mod._parse_slop_code_output(
+                "prob", "",
+            )
+
+        assert result["tokens"] == 160
+
+    def test_parses_real_world_jsonl(self, tmp_path):
+        """Parses a real-world checkpoint_results.jsonl
+        line with all flattened fields."""
+        mod = _load_runner_module()
+
+        run_dir = tmp_path / "run"
+        (run_dir / "file_backup").mkdir(parents=True)
+        results = run_dir / "checkpoint_results.jsonl"
+        # Simulated real data from evidence
+        results.write_text(
+            json.dumps({
+                "problem": "file_backup",
+                "checkpoint": "checkpoint_1",
+                "strict_pass_rate": 0.125,
+                "total_tests": 32,
+                "passed_tests": 4,
+                "cost": 0.0,
+                "input": 0,
+                "output": 0,
+                "erosion": 0.0,
+                "verbosity": 0.0,
+            }) + "\n",
+        )
+
+        with patch.object(
+            mod, "_find_latest_run_dir",
+            return_value=(
+                run_dir, run_dir / "file_backup",
+            ),
+        ):
+            result = mod._parse_slop_code_output(
+                "file_backup", "",
+            )
+
+        assert result["pass_rate"] == pytest.approx(
+            0.125,
+        )
+        assert result["output_dir"] == str(run_dir)
+
+    def test_total_tests_fallback(self, tmp_path):
+        """Falls back to total_tests/passed_tests when
+        strict_pass_rate is absent."""
+        mod = _load_runner_module()
+
+        run_dir = tmp_path / "run"
+        (run_dir / "prob").mkdir(parents=True)
+        results = run_dir / "checkpoint_results.jsonl"
+        results.write_text(
+            json.dumps({
+                "total_tests": 20,
+                "passed_tests": 16,
+            }) + "\n",
+        )
+
+        with patch.object(
+            mod, "_find_latest_run_dir",
+            return_value=(run_dir, run_dir / "prob"),
+        ):
+            result = mod._parse_slop_code_output(
+                "prob", "",
+            )
+
+        assert result["pass_rate"] == pytest.approx(0.8)
+
+
+# ---------------------------------------------------------------------------
+# _update_metrics_from_results — erosion/verbosity
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateMetricsErosionVerbosity:
+    """_update_metrics_from_results extracts erosion and
+    verbosity in addition to pass_rate and cost."""
+
+    def test_updates_erosion_and_verbosity(
+        self, tmp_path,
+    ):
+        """Extracts erosion and verbosity from JSONL."""
+        mod = _load_runner_module()
+        results_file = tmp_path / "results.jsonl"
+        results_file.write_text(
+            json.dumps({
+                "strict_pass_rate": 0.7,
+                "cost": 0.10,
+                "erosion": 0.15,
+                "verbosity": 0.22,
+            }) + "\n",
+        )
+        metrics = mod.CheckpointMetrics()
+        mod._update_metrics_from_results(
+            metrics, results_file,
+        )
+        assert metrics.pass_rate == pytest.approx(0.7)
+        assert metrics.cost == pytest.approx(0.10)
+        assert metrics.erosion == pytest.approx(0.15)
+        assert metrics.verbosity == pytest.approx(0.22)
+
+
+# ---------------------------------------------------------------------------
 # _extract_reviewer_suggestions
 # ---------------------------------------------------------------------------
 
