@@ -101,11 +101,17 @@ Every KB bead must include exactly one taxonomy label from this set:
 
 | Label | Use when |
 |-------|----------|
-| `literature` | Academic papers, preprints, technical reports |
+| `literature` | Academic papers, preprints, technical reports (only for formal publications with DOIs or arXiv IDs) |
 | `strategy` | Multi-agent patterns, prompt strategies, architectural approaches |
 | `best-practice` | Validated techniques from industry or research |
 | `dead-end` | Approaches that failed or were debunked |
-| `web-search` | Raw web search results, blog posts, discussions, forum threads |
+| `web-search` | Web search results, blog posts, discussions, forum threads, informal sources |
+
+**IMPORTANT: Web search findings must use label `web-search`, not
+`literature`.** The `literature` label is reserved for formal
+academic publications (papers with DOIs, arXiv preprints, technical
+reports). Blog posts, forum threads, GitHub discussions, and other
+informal web sources must always use `web-search`.
 
 #### Creating a KB Bead
 
@@ -287,9 +293,21 @@ EOF
    with `bd show <bead-id>` before filing the hypothesis.
 3. In the "KB Provenance" section, explain how each referenced KB
    bead contributed to this hypothesis.
-4. Web search beads must have been created (Phase 3) BEFORE any
-   hypothesis that cites them (Phase 4). This ensures the timestamp
-   ordering required by the research protocol.
+4. **Timestamp ordering is mandatory.** Every KB bead referenced
+   in a hypothesis's `discovered_from` must have a `created_at`
+   timestamp that strictly precedes the hypothesis bead's
+   `created_at`. This means all web search and KB beads must be
+   created in Phase 3 BEFORE any hypothesis is created in Phase 4.
+   Never create a hypothesis and then backfill KB beads afterward.
+   Verify ordering with:
+   ```bash
+   bd show <kb-bead-id> --json | python3 -c "
+     import sys, json
+     d = json.load(sys.stdin)
+     b = d[0] if isinstance(d, list) else d
+     print(b['created_at'])
+   "
+   ```
 
 ### Phase 5: Report to Mayor
 

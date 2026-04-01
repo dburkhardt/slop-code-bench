@@ -106,6 +106,38 @@ def test_exclusion_counts_is_unfiltered(mock_conn):
     )[-1].split("SELECT")[0]
 
 
+def test_exclusion_counts_references_validation_filter(
+    mock_conn,
+):
+    """Exclusion count uses COUNT(*) - COUNT(filtered)
+    pattern referencing the validation filter."""
+    conn, cursor = mock_conn
+    cursor.fetchone.return_value = (10, 7, 3, 2, 1)
+
+    query_exclusion_counts(conn)
+
+    sql = cursor.execute.call_args[0][0]
+    # The SQL should reference the validation filter
+    # conditions inside CASE WHEN expressions.
+    assert "manipulation_check = 'passed'" in sql, (
+        "Exclusion query must reference "
+        "manipulation_check filter"
+    )
+    assert "results_valid = true" in sql, (
+        "Exclusion query must reference "
+        "results_valid filter"
+    )
+    # It should use COUNT(*) for total and
+    # COUNT(*) - COUNT(CASE WHEN ...) for excluded.
+    assert "COUNT(*)" in sql, (
+        "Must use COUNT(*) for total"
+    )
+    flat_sql = " ".join(sql.split())
+    assert "COUNT(*) - COUNT(" in flat_sql, (
+        "Must use COUNT(*) - COUNT(filtered) pattern"
+    )
+
+
 # ── query_validated_experiments ──────────────────────
 
 

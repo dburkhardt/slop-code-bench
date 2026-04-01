@@ -177,17 +177,19 @@ def query_exclusion_counts(
 
     This is the ONE permitted unfiltered query. It scans
     all rows to compute how many were excluded.
+
+    Uses the ``COUNT(*) - COUNT(filtered)`` pattern so
+    the exclusion arithmetic references the same
+    ``VALIDATION_FILTER`` used by every other query.
     """
-    sql = """
+    sql = f"""
     SELECT
       COUNT(*) AS total_experiments,
-      SUM(CASE WHEN manipulation_check = 'passed'
-                AND results_valid = true
-           THEN 1 ELSE 0 END) AS valid_experiments,
-      COUNT(*) - SUM(
-        CASE WHEN manipulation_check = 'passed'
-                  AND results_valid = true
-        THEN 1 ELSE 0 END
+      COUNT(CASE WHEN {VALIDATION_FILTER}
+           THEN 1 END) AS valid_experiments,
+      COUNT(*) - COUNT(
+        CASE WHEN {VALIDATION_FILTER}
+        THEN 1 END
       ) AS excluded_experiments,
       SUM(CASE WHEN manipulation_check != 'passed'
            THEN 1 ELSE 0 END)
@@ -196,7 +198,7 @@ def query_exclusion_counts(
            THEN 1 ELSE 0 END)
         AS excluded_invalid_results
     FROM experiments
-    """
+    """  # noqa: S608
     with conn.cursor() as cur:
         cur.execute(sql)
         row = cur.fetchone()

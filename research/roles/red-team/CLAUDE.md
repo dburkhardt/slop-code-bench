@@ -62,8 +62,10 @@ blocking dependency yourself.
      --labels "red-team-review,blocking" \
      --description "Pre-dispatch blocking review for batch <BATCH_ID>"
 
-   # Link the review bead so it blocks the batch bead
-   bd link <review-bead-id> <batch-bead-id> --type blocks
+   # Link the review bead so it blocks the batch bead.
+   # bd link <id1> <id2> means "id2 blocks id1",
+   # so the batch is id1 and the review is id2.
+   bd link <batch-bead-id> <review-bead-id> --type blocks
    ```
    The batch bead will not appear in `bd ready` until the review bead
    is closed.
