@@ -1,0 +1,112 @@
+{
+  "milestone": "scale-report",
+  "groupId": "runner-k2",
+  "surface": "shell",
+  "assertions": [
+    {
+      "id": "VAL-RUNNER-002",
+      "status": "fail",
+      "reason": "Happy-path single-problem run exited 0, but output was not eval-compatible. `slop-code eval` failed with 'No problems to evaluate', and the output tree lacked problem checkpoint directories.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-002-happy-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-002-happy-run.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-002-output-tree.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-002-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-002-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-003",
+      "status": "blocked",
+      "reason": "Budget split enforcement could not be validated because telemetry recorded zero implementer/reviewer tokens and cost across checkpoints, and reviewer artifacts showed `No module named slop_code.__main__` errors.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-003-budget-split-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-003-telemetry-files.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-003-slop-code-main-error-scan.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-005",
+      "status": "fail",
+      "reason": "With `--budget 0.01`, the run completed all checkpoints and exited 0 without a budget-exceeded abort or partial-results termination.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-005-budget-cap-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-005-budget-cap-run.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-005-budget-overrun-scan.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-005-output-tree.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-006",
+      "status": "fail",
+      "reason": "`--canary` did not complete the capped run. Preflight passed, but implementer stage failed with non-zero exit before eval-compatible output was produced.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-006-canary-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-006-canary-run.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-006-canary-output-discovery.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-007",
+      "status": "blocked",
+      "reason": "Component-specific diagnostics were observed for API-key and Docker failure scenarios, but full canary pipeline validation remains blocked because normal canary execution fails during implementer stage.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-007-canary-invalid-key.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-007-canary-invalid-key.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-007-canary-docker-unavailable.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-007-canary-docker-unavailable.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-007-component-diagnostics.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-006-canary-run.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-008",
+      "status": "fail",
+      "reason": "Output layout was not `slop-code eval` compatible. `checkpoint_results.jsonl` and problem checkpoint snapshots were missing.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-008-structure-compare.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-002-output-tree.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-002-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-002-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-009",
+      "status": "fail",
+      "reason": "`--budget-split 100` correctly skipped reviewer phases, but output remained non-evaluable (`No problems to evaluate`).",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-009-split100-run.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-009-split100-run.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-009-split100-reviewer-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-009-split100-eval.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-009-split100-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-011",
+      "status": "blocked",
+      "reason": "Concurrent runs produced distinct output directories and run IDs, but container-level and spend-isolation verification is blocked because both runs reported zero spend and no active Docker containers were observed.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-011-concurrent-a.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-011-concurrent-a.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-011-concurrent-b.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-011-concurrent-b.exitcode",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-011-isolation-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-011-docker-ps.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/runner-k2/VAL-RUNNER-011-docker-ps.exitcode"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [
+    "Using system python3 (3.10) is incompatible with runner imports; commands had to use `uv run python` per mission guidance.",
+    "Runner logs show checkpoint completion with zero spend while reviewer artifacts contain `No module named slop_code.__main__`, which obscures budget telemetry assertions."
+  ],
+  "blockers": [
+    "Internal subprocess invocation (`python -m slop_code run`) fails with `No module named slop_code.__main__`, preventing eval-compatible run artifacts and per-phase cost/tokens.",
+    "Canary mode cannot complete full pipeline path because implementer stage exits non-zero before evaluation.",
+    "Concurrent isolation checks cannot confirm container-level separation when no containers remain observable and run spend remains zero."
+  ]
+}

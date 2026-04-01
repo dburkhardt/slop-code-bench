@@ -1,0 +1,97 @@
+{
+  "milestone": "scale-report",
+  "groupId": "loop-b2",
+  "testedAt": "2026-04-01T12:43:09+00:00",
+  "surface": "shell",
+  "isolation": {
+    "missionDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63",
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench",
+    "workspace": "/tmp/scbench-user-testing/loop-b2",
+    "rigDir": "/home/ubuntu/gt/scbench",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b2"
+  },
+  "toolsUsed": [
+    "shell",
+    "gt",
+    "bd"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-LOOP-007",
+      "status": "fail",
+      "reason": "Only one convoy exists (hq-cv-clkii), it tracks zero items, and no non-review batch bead is present, so Phase 3 parallel experiment dispatch via gt convoy is not evidenced.",
+      "evidence": [
+        "scale-report/loop-b2/VAL-LOOP-007-convoy-list.json",
+        "scale-report/loop-b2/VAL-LOOP-007-convoy-status-hq-cv-clkii.json",
+        "scale-report/loop-b2/VAL-LOOP-007-batch-title-list.json",
+        "scale-report/loop-b2/VAL-LOOP-007-proposed-batch-title-list.json",
+        "scale-report/loop-b2/VAL-LOOP-007-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-008",
+      "status": "fail",
+      "reason": "Formula mol-scbench-experiment is registered, but no experiment molecule or convoy artifact references it, so Phase 3 formula usage cannot be demonstrated.",
+      "evidence": [
+        "scale-report/loop-b2/VAL-LOOP-008-formula-list.json",
+        "scale-report/loop-b2/VAL-LOOP-008-molecule-list.json",
+        "scale-report/loop-b2/VAL-LOOP-008-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-009",
+      "status": "fail",
+      "reason": "A single Review Board conclusion bead exists, but no batch execution artifacts are present and the conclusion text does not include explicit validation-filter evidence, so Phase 4 sequencing is not satisfied.",
+      "evidence": [
+        "scale-report/loop-b2/VAL-LOOP-009-conclusion-list.json",
+        "scale-report/loop-b2/VAL-LOOP-009-review-board-title-list.json",
+        "scale-report/loop-b2/VAL-LOOP-007-proposed-batch-title-list.json",
+        "scale-report/loop-b2/VAL-LOOP-009-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-010",
+      "status": "fail",
+      "reason": "No Red Team post-mortem bead was found and the Mayor research log does not reference a post-mortem read before Phase 5.",
+      "evidence": [
+        "scale-report/loop-b2/VAL-LOOP-010-post-mortem-title-list.json",
+        "scale-report/loop-b2/VAL-LOOP-010-postmortem-nohyphen-title-list.json",
+        "scale-report/loop-b2/VAL-LOOP-010-post-mortem-search.json",
+        "scale-report/loop-b2/VAL-LOOP-010-research-log-show.json",
+        "scale-report/loop-b2/VAL-LOOP-010-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-011",
+      "status": "fail",
+      "reason": "The Mayor research log remains the initialization note and lacks a concrete Phase 5 entry with conclusions, post-mortem findings, strategy update, and decision record.",
+      "evidence": [
+        "scale-report/loop-b2/VAL-LOOP-010-research-log-show.json",
+        "scale-report/loop-b2/VAL-LOOP-011-phase5-elements-check.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-012",
+      "status": "fail",
+      "reason": "Shutdown sequence is incomplete: no summary/final-analysis/final-report beads, FINAL_REPORT.md is missing, no critical budget-exhausted or research-complete escalation exists, and gt remains running.",
+      "evidence": [
+        "scale-report/loop-b2/VAL-LOOP-012-summary-title-list.json",
+        "scale-report/loop-b2/VAL-LOOP-012-final-analysis-title-list.json",
+        "scale-report/loop-b2/VAL-LOOP-012-final-report-title-list.json",
+        "scale-report/loop-b2/VAL-LOOP-012-final-report-file.log",
+        "scale-report/loop-b2/VAL-LOOP-012-critical-budget-or-research-complete-escalations.json",
+        "scale-report/loop-b2/VAL-LOOP-012-escalate-list.json",
+        "scale-report/loop-b2/VAL-LOOP-012-gt-status.json",
+        "scale-report/loop-b2/VAL-LOOP-012-analysis.json"
+      ]
+    }
+  ],
+  "frictions": [
+    "gt commands emit a build-signature warning on every invocation, adding noise to stderr evidence files.",
+    "Even when run from /home/ubuntu/gt/scbench, convoy listing surfaced only an HQ test convoy with zero tracked work, so batch-to-convoy linkage could not be corroborated from rig artifacts."
+  ],
+  "blockers": [
+    "Phase 3-5 loop execution artifacts are absent for this window (no experiment batch beads, no Red Team post-mortem bead, no Phase 5 research-log entry), which leaves the assigned assertions unmet."
+  ],
+  "summary": "Validated VAL-LOOP-007 through VAL-LOOP-012 on shell surface for loop-b2; all 6 assertions failed against current artifacts."
+}

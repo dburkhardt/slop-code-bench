@@ -76,3 +76,7 @@ This is a CLI/infrastructure project with no web UI. All testing is done via she
 - Analytical-roles validation can remain blocked when no loop execution artifacts
   exist. Missing artifacts include batch beads, Review Board conclusions, and
   Red Team post-mortem beads in the `scbench` rig.
+- In this environment, `bd list` does not support `--search` and `--where`.
+  Use supported filters such as `--title-contains`, `--parent`, and `--type`.
+- `gt`/`bd` commands emit repeated unsigned-binary warnings on stderr.
+  Treat these as noise unless the exit code is non-zero.

@@ -1,0 +1,97 @@
+{
+  "milestone": "scale-report",
+  "groupId": "loop-a2",
+  "testedAt": "2026-04-01T12:35:59+00:00",
+  "surface": "shell",
+  "isolation": {
+    "missionDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63",
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench",
+    "workspace": "/tmp/scbench-user-testing/loop-a2",
+    "rigDir": "/home/ubuntu/gt/scbench",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a2"
+  },
+  "toolsUsed": [
+    "shell",
+    "gt",
+    "bd",
+    "dolt"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-LOOP-001",
+      "status": "fail",
+      "reason": "Mayor research log contains only initialization text and no Phase 0 budget-check evidence (no budget check, remaining-budget, Dolt-gate, or shutdown-on-empty entries).",
+      "evidence": [
+        "scale-report/loop-a2/VAL-LOOP-001-research-log-show.log",
+        "scale-report/loop-a2/VAL-LOOP-001-research-log-history.log",
+        "scale-report/loop-a2/VAL-LOOP-001-budget-check-analysis.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-002",
+      "status": "blocked",
+      "reason": "No low-budget loop state is present to exercise proportional batch reduction. Budget remains 500.00 with 0 experiments and no reduced/proposed batch artifact.",
+      "evidence": [
+        "scale-report/loop-a2/VAL-LOOP-002-budget-table.log",
+        "scale-report/loop-a2/VAL-LOOP-002-experiments-cost.log",
+        "scale-report/loop-a2/VAL-LOOP-002-batch-title-list.log",
+        "scale-report/loop-a2/VAL-LOOP-002-batch-desc-list.log",
+        "scale-report/loop-a2/VAL-LOOP-002-low-budget-rationale-scan.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-003",
+      "status": "fail",
+      "reason": "Review Board and Idea Factory artifacts exist, but no loop-phase record shows Mayor dispatching both and waiting for completion before advancing to Phase 2.",
+      "evidence": [
+        "scale-report/loop-a2/VAL-LOOP-003-gt-audit-72h.log",
+        "scale-report/loop-a2/VAL-LOOP-003-audit-summary.log",
+        "scale-report/loop-a2/VAL-LOOP-003-review-board-search.log",
+        "scale-report/loop-a2/VAL-LOOP-003-idea-factory-search.log",
+        "scale-report/loop-a2/VAL-LOOP-003-research-log-wait-analysis.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-004",
+      "status": "blocked",
+      "reason": "No \"Proposed Batch\" bead was found, so required fields (rationale, configs, expected outcomes, budget estimate) could not be validated.",
+      "evidence": [
+        "scale-report/loop-a2/VAL-LOOP-004-proposed-batch-search.log",
+        "scale-report/loop-a2/VAL-LOOP-004-proposed-batch-title-list.log",
+        "scale-report/loop-a2/VAL-LOOP-004-required-fields-analysis.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-005",
+      "status": "fail",
+      "reason": "Observed Red Team review bead (sc-d6f) has no blocks dependencies in either direction, so the mechanical gate condition is not enforced.",
+      "evidence": [
+        "scale-report/loop-a2/VAL-LOOP-005-red-team-review-search.log",
+        "scale-report/loop-a2/VAL-LOOP-005-red-team-review-deps-down.log",
+        "scale-report/loop-a2/VAL-LOOP-005-red-team-review-deps-up.log",
+        "scale-report/loop-a2/VAL-LOOP-005-bd-ready-snapshot.log",
+        "scale-report/loop-a2/VAL-LOOP-005-gate-analysis.log"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-006",
+      "status": "blocked",
+      "reason": "No Red Team objection/response artifact pair was found. Objection/response searches returned no rows and review comments are empty, so per-objection Mayor responses cannot be validated.",
+      "evidence": [
+        "scale-report/loop-a2/VAL-LOOP-006-objection-search.log",
+        "scale-report/loop-a2/VAL-LOOP-006-response-search.log",
+        "scale-report/loop-a2/VAL-LOOP-006-red-team-review-comments.log",
+        "scale-report/loop-a2/VAL-LOOP-006-objection-response-analysis.log"
+      ]
+    }
+  ],
+  "frictions": [
+    "gt audit produced a warning about querying beads from /home/ubuntu/gt/gastown/mayor/rig, but still returned an audit event stream for evidence collection.",
+    "bd list does not support a --search flag in this environment; evidence queries were adjusted to supported title filters and full-list analysis."
+  ],
+  "blockers": [
+    "Loop execution artifacts required for full loop-phase validation are missing in this validation window (no proposed batch bead, no objection/response pair).",
+    "Budget remains at initial state (spent 0, remaining 500) with zero experiment rows, so low-budget behavior cannot be exercised."
+  ],
+  "summary": "Validated VAL-LOOP-001..006 on shell surface for loop-a2. Results: 3 failed (001, 003, 005) and 3 blocked (002, 004, 006)."
+}

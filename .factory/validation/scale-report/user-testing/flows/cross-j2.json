@@ -1,0 +1,93 @@
+{
+  "milestone": "scale-report",
+  "groupId": "cross-j2",
+  "testedAt": "2026-04-01T12:49:20Z",
+  "surface": "shell",
+  "isolation": {
+    "missionDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63",
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench",
+    "tempWorkspace": "/tmp/scbench-user-testing/cross-j2",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-j2"
+  },
+  "assertions": [
+    {
+      "id": "VAL-CROSS-001",
+      "status": "blocked",
+      "reason": "Hypothesis and formula artifacts exist, but no experiment molecules, no experiment rows with hypothesis IDs, and no conclusion beads were found, so the end-to-end hypothesis lifecycle chain cannot be completed.",
+      "evidence": [
+        "scale-report/cross-j2/VAL-CROSS-001-hypothesis-sample-show.log",
+        "scale-report/cross-j2/VAL-CROSS-001-hypothesis-children.log",
+        "scale-report/cross-j2/VAL-CROSS-001-formula-list.log",
+        "scale-report/cross-j2/VAL-CROSS-001-experiment-molecule-title-list.log",
+        "scale-report/cross-j2/VAL-CROSS-001-hypothesis-row-count.log",
+        "scale-report/cross-j2/VAL-CROSS-001-conclusion-title-list.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "status": "blocked",
+      "reason": "Budget table is present, but experiment count and total_cost are both zero, and Mayor research log has no budget-check history, so cost propagation into the next Mayor gate cannot be exercised.",
+      "evidence": [
+        "scale-report/cross-j2/VAL-CROSS-002-budget-table.log",
+        "scale-report/cross-j2/VAL-CROSS-002-experiments-cost.log",
+        "scale-report/cross-j2/VAL-CROSS-002-research-log-show.log",
+        "scale-report/cross-j2/VAL-CROSS-002-research-log-history.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "status": "blocked",
+      "reason": "No Red Team review beads were found, only one unrelated blocks dependency exists, and convoy evidence does not show gated batch execution, so the required Red Team gate timestamp sequence cannot be validated.",
+      "evidence": [
+        "scale-report/cross-j2/VAL-CROSS-003-red-team-title-list.log",
+        "scale-report/cross-j2/VAL-CROSS-003-red-team-review-title-list.log",
+        "scale-report/cross-j2/VAL-CROSS-003-blocks-only.log",
+        "scale-report/cross-j2/VAL-CROSS-003-dependencies-all.log",
+        "scale-report/cross-j2/VAL-CROSS-003-comments-all.log",
+        "scale-report/cross-j2/VAL-CROSS-003-convoy-list.log",
+        "scale-report/cross-j2/VAL-CROSS-003-convoy-status-hq-cv-clkii.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-006",
+      "status": "blocked",
+      "reason": "KB and hypothesis provenance links exist, but there are zero experiment rows tied to hypothesis IDs, no conclusion beads, and no FINAL_REPORT.md, so the full backward provenance chain cannot be completed.",
+      "evidence": [
+        "scale-report/cross-j2/VAL-CROSS-006-kb-children.log",
+        "scale-report/cross-j2/VAL-CROSS-001-hypothesis-sample-show.log",
+        "scale-report/cross-j2/VAL-CROSS-001-hypothesis-row-count.log",
+        "scale-report/cross-j2/VAL-CROSS-001-conclusion-title-list.log",
+        "scale-report/cross-j2/VAL-CROSS-006-final-report-presence.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-008",
+      "status": "blocked",
+      "reason": "Critical escalation routing includes human channels (email and SMS), and critical escalations exist, but no critical events matching budget exhausted or research complete were found.",
+      "evidence": [
+        "scale-report/cross-j2/VAL-CROSS-008-escalation-routing-file.log",
+        "scale-report/cross-j2/VAL-CROSS-008-escalate-list.log",
+        "scale-report/cross-j2/VAL-CROSS-008-critical-escalations-only.log",
+        "scale-report/cross-j2/VAL-CROSS-008-required-event-search.log"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "gt",
+    "bd",
+    "dolt",
+    "python3"
+  ],
+  "frictions": [
+    "The current bd CLI does not support --where, so filters had to be translated to supported flags (--parent, --type, --title-contains).",
+    "gt commands emit a repeated unsigned-binary warning on stderr, adding non-failure noise to logs.",
+    "No SQL escalations table was available in this rig database, so critical-event filtering was derived from gt escalate list JSON output."
+  ],
+  "blockers": [
+    "Experiments table currently has zero rows and total_cost remains 0, which blocks lifecycle, budget-flow, and provenance-chain assertions.",
+    "No Red Team gate workflow artifacts (review beads, objection/response trail, gated convoy execution) were present for sequencing validation.",
+    "No critical escalations for the specific events 'budget exhausted' or 'research complete' were present during this validation window."
+  ],
+  "summary": "Tested 5 assigned cross-area assertions on shell surface. All 5 are blocked due to missing lifecycle execution artifacts and missing required critical-event escalations."
+}

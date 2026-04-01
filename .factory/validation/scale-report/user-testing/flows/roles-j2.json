@@ -1,0 +1,90 @@
+{
+  "milestone": "scale-report",
+  "groupId": "roles-j2",
+  "surface": "shell",
+  "assertions": [
+    {
+      "id": "VAL-ROLES-002",
+      "status": "blocked",
+      "reason": "Blocked by missing experiment data. The rig has zero validated experiments, so Review Board conclusions cannot be checked for validated-only experiment references.",
+      "evidence": [
+        "scale-report/roles-j2/VAL-ROLES-002-004-conclusion-list.json",
+        "scale-report/roles-j2/VAL-ROLES-002-004-conclusion-shows.json",
+        "scale-report/roles-j2/VAL-ROLES-002-experiment-validation-count.log",
+        "scale-report/roles-j2/VAL-ROLES-002-004-conclusion-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-004",
+      "status": "blocked",
+      "reason": "Blocked by missing experiment data. The only Review Board conclusion is a no-data note and does not contain pass-rate delta, erosion slope comparison, or budget efficiency metrics.",
+      "evidence": [
+        "scale-report/roles-j2/VAL-ROLES-002-004-conclusion-shows.json",
+        "scale-report/roles-j2/VAL-ROLES-004-required-statistics-analysis.json",
+        "scale-report/roles-j2/VAL-ROLES-002-experiment-validation-count.log"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-005",
+      "status": "fail",
+      "reason": "Red Team review bead does not block any batch work. No blocks dependencies were found.",
+      "evidence": [
+        "scale-report/roles-j2/VAL-ROLES-005-006-red-team-review-list.json",
+        "scale-report/roles-j2/VAL-ROLES-005-006-red-team-review-shows.json",
+        "scale-report/roles-j2/VAL-ROLES-005-006-red-team-review-deps-up-blocks.json",
+        "scale-report/roles-j2/VAL-ROLES-005-bd-ready-snapshot.json",
+        "scale-report/roles-j2/VAL-ROLES-005-blocking-gate-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-006",
+      "status": "fail",
+      "reason": "Red Team review bead does not contain numbered actionable objections with problem, impact, and suggested fix.",
+      "evidence": [
+        "scale-report/roles-j2/VAL-ROLES-005-006-red-team-review-shows.json",
+        "scale-report/roles-j2/VAL-ROLES-006-objection-structure-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-007",
+      "status": "blocked",
+      "reason": "Blocked because no Red Team post-mortem beads were found by title, label, or text search.",
+      "evidence": [
+        "scale-report/roles-j2/VAL-ROLES-007-post-mortem-title-list.json",
+        "scale-report/roles-j2/VAL-ROLES-007-post-mortem-label-list.json",
+        "scale-report/roles-j2/VAL-ROLES-007-red-team-post-search.json",
+        "scale-report/roles-j2/VAL-ROLES-007-post-mortem-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-009",
+      "status": "fail",
+      "reason": "Hypothesis metadata contract is not uniformly satisfied. 7 hypothesis beads are missing one or more required metadata fields.",
+      "evidence": [
+        "scale-report/roles-j2/VAL-ROLES-009-010-hypotheses-children.json",
+        "scale-report/roles-j2/VAL-ROLES-009-hypothesis-metadata-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-010",
+      "status": "fail",
+      "reason": "Provenance-linked evidence does not satisfy web-search-before-hypothesis ordering. 32 hypothesis-to-KB links violate label or timestamp requirements.",
+      "evidence": [
+        "scale-report/roles-j2/VAL-ROLES-010-kb-children.json",
+        "scale-report/roles-j2/VAL-ROLES-009-010-hypotheses-children.json",
+        "scale-report/roles-j2/VAL-ROLES-010-web-search-order-analysis.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [
+    "The experiments table has zero validated rows, which limits direct role-behavior verification for Review Board analytical assertions.",
+    "No post-mortem bead artifacts were discoverable via title, label, or text search in the current rig dataset."
+  ],
+  "blockers": [
+    "Missing validated experiment data blocked VAL-ROLES-002 and VAL-ROLES-004 from full behavioral verification.",
+    "No Red Team post-mortem bead artifacts were found, blocking VAL-ROLES-007."
+  ]
+}
