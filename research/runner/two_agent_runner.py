@@ -187,8 +187,8 @@ def validate_nvidia_api_key() -> None:
     if not api_key:
         return
 
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     url = (
         "https://inference-api.nvidia.com"

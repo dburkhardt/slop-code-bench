@@ -217,16 +217,20 @@ class TestBudgetEnforcement:
     """VAL-RUNNER-005: cost cap aborts and saves partial results."""
 
     def test_validate_budget_split_func(self):
-        """Internal budget split validation works."""
+        """Internal budget split validation works.
+
+        Range is [1, 100]. 100 = implementer-only.
+        """
         mod = _load_runner_module()
         validate = mod.validate_budget_split
         assert validate(1) == 1
         assert validate(70) == 70
         assert validate(99) == 99
+        assert validate(100) == 100
         with pytest.raises(SystemExit):
             validate(0)
         with pytest.raises(SystemExit):
-            validate(100)
+            validate(101)
 
     def test_cost_cap_check_func(self):
         """is_budget_exceeded returns True when exceeded."""
@@ -311,9 +315,14 @@ class TestMetricsTracking:
 class TestBudgetSplitBoundary:
     """VAL-RUNNER-009 / VAL-RUNNER-010: Boundary splits."""
 
-    def test_budget_split_100_rejected(self):
+    def test_budget_split_100_accepted(self):
+        """budget_split=100 is valid (implementer-only)."""
+        mod = _load_runner_module()
+        assert mod.validate_budget_split(100) == 100
+
+    def test_budget_split_101_rejected(self):
         result = _run_cli(
-            "--budget-split", "100",
+            "--budget-split", "101",
             "--problem", "test",
             "--model", "test",
             "--budget", "1.0",
@@ -2381,3 +2390,462 @@ class TestPymysqlAvailable:
         import pymysql
 
         assert pymysql.__version__
+
+
+# ---------------------------------------------------------------------------
+# Environment YAML copying
+# ---------------------------------------------------------------------------
+
+
+class TestCopyEnvironmentYaml:
+    """environment.yaml is copied into output dir."""
+
+    def test_copies_from_problem_dir(self, tmp_path):
+        """Copies environment.yaml from problem dir."""
+        mod = _load_runner_module()
+        problem_dir = tmp_path / "problem"
+        problem_dir.mkdir()
+        env_src = problem_dir / "environment.yaml"
+        env_src.write_text("type: docker\nname: test\n")
+
+        out = tmp_path / "output"
+        out.mkdir()
+        mod._copy_environment_yaml(problem_dir, out)
+
+        dst = out / "environment.yaml"
+        assert dst.exists()
+        assert "type: docker" in dst.read_text()
+
+    def test_falls_back_to_default(self, tmp_path):
+        """Falls back to default config when problem has
+        no environment.yaml."""
+        mod = _load_runner_module()
+        problem_dir = tmp_path / "problem"
+        problem_dir.mkdir()
+
+        out = tmp_path / "output"
+        out.mkdir()
+        mod._copy_environment_yaml(problem_dir, out)
+
+        dst = out / "environment.yaml"
+        assert dst.exists()
+        content = dst.read_text()
+        assert "type: docker" in content
+
+    def test_does_not_overwrite(self, tmp_path):
+        """Does not overwrite existing environment.yaml."""
+        mod = _load_runner_module()
+        problem_dir = tmp_path / "problem"
+        problem_dir.mkdir()
+        (problem_dir / "environment.yaml").write_text(
+            "type: new\n",
+        )
+
+        out = tmp_path / "output"
+        out.mkdir()
+        existing = out / "environment.yaml"
+        existing.write_text("type: existing\n")
+
+        mod._copy_environment_yaml(problem_dir, out)
+        assert existing.read_text() == "type: existing\n"
+
+
+# ---------------------------------------------------------------------------
+# Reviewer suggestions persistence
+# ---------------------------------------------------------------------------
+
+
+class TestReviewerSuggestionsPersistence:
+    """Reviewer output persisted to JSON files."""
+
+    def test_save_reviewer_suggestions(self, tmp_path):
+        """Saves suggestions to
+        reviewer_suggestions_checkpoint_N.json."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        mod._save_reviewer_suggestions(
+            output_dir=out,
+            checkpoint_name="checkpoint_1",
+            suggestions="Reduce complexity in foo()",
+            review_result={
+                "exit_code": 0,
+                "cost": 0.05,
+                "tokens": 100,
+            },
+        )
+
+        path = out / "reviewer_suggestions_checkpoint_1.json"
+        assert path.exists()
+        data = json.loads(path.read_text())
+        assert data["checkpoint"] == "checkpoint_1"
+        assert data["suggestions"] == (
+            "Reduce complexity in foo()"
+        )
+        assert data["cost"] == 0.05
+        assert data["tokens"] == 100
+        assert "timestamp" in data
+
+    def test_save_none_suggestions(self, tmp_path):
+        """Handles None suggestions gracefully."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        mod._save_reviewer_suggestions(
+            output_dir=out,
+            checkpoint_name="checkpoint_2",
+            suggestions=None,
+            review_result={"exit_code": 0},
+        )
+
+        path = out / "reviewer_suggestions_checkpoint_2.json"
+        assert path.exists()
+        data = json.loads(path.read_text())
+        assert data["suggestions"] is None
+
+
+# ---------------------------------------------------------------------------
+# NVIDIA API key validation
+# ---------------------------------------------------------------------------
+
+
+class TestNvidiaApiKeyValidation:
+    """Canary validates NVIDIA API key with test call."""
+
+    def test_skipped_when_no_key(self):
+        """No error when NVIDIA_INFERENCE_KEY is unset."""
+        mod = _load_runner_module()
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k != "NVIDIA_INFERENCE_KEY"
+        }
+        with patch.dict(os.environ, env, clear=True):
+            # Should not raise
+            mod.validate_nvidia_api_key()
+
+    def test_raises_on_bad_key(self):
+        """CanaryError on invalid NVIDIA key."""
+        mod = _load_runner_module()
+        with patch.dict(
+            os.environ,
+            {"NVIDIA_INFERENCE_KEY": "bad-key"},
+        ):
+            with pytest.raises(mod.CanaryError) as exc:
+                mod.validate_nvidia_api_key()
+            assert exc.value.component == "API"
+            assert "NVIDIA" in exc.value.detail
+
+    def test_preflight_includes_nvidia_check(self):
+        """run_preflight_checks calls
+        validate_nvidia_api_key."""
+        mod = _load_runner_module()
+        with (
+            patch.object(mod, "check_docker"),
+            patch.object(mod, "check_api_key"),
+            patch.object(
+                mod, "validate_nvidia_api_key",
+            ) as mock_nv,
+            patch.object(mod, "check_claude_cli"),
+        ):
+            mod.run_preflight_checks("test-model")
+            mock_nv.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Budget-split 100 (implementer-only)
+# ---------------------------------------------------------------------------
+
+
+class TestBudgetSplit100:
+    """VAL-RUNNER-009: budget_split=100 runs without
+    reviewer."""
+
+    @pytest.fixture()
+    def fake_problem(self, tmp_path):
+        """Create a fake problem with 1 checkpoint."""
+        mod = _load_runner_module()
+        p = Path(mod.PROBLEMS_DIR) / "test_problem_100"
+        p.mkdir(parents=True, exist_ok=True)
+        (p / "config.yaml").write_text(
+            "version: 1\nname: test_problem_100\n"
+            "checkpoints:\n"
+            "  checkpoint_1:\n"
+            "    version: 1\n"
+            "    order: 1\n",
+        )
+        (p / "checkpoint_1.md").write_text("Spec text\n")
+        yield p
+        import shutil
+        shutil.rmtree(p, ignore_errors=True)
+
+    def test_no_reviewer_calls_when_100(
+        self, tmp_path, fake_problem,
+    ):
+        """With budget_split=100, reviewer phase is
+        skipped and run_slop_code is called only for
+        implementer."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        call_args = []
+
+        def fake_run_slop(*a, **kw):
+            call_args.append(kw)
+            return {
+                "exit_code": 0,
+                "stdout": "",
+                "stderr": "",
+                "cost": 0.05,
+                "tokens": 50,
+                "pass_rate": 0.8,
+                "erosion": 0.1,
+                "verbosity": 0.2,
+                "output_dir": None,
+            }
+
+        with patch.object(
+            mod, "run_slop_code", side_effect=fake_run_slop,
+        ):
+            state = mod.run_two_agent(
+                problem="test_problem_100",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=100,
+                budget=10.0,
+                output_dir=out,
+            )
+
+        # Only 1 call (implementer), no reviewer
+        assert len(call_args) == 1
+        assert call_args[0]["phase"] == "implementer"
+        assert state.checkpoint_metrics[
+            "checkpoint_1"
+        ].tokens_reviewer == 0
+
+
+# ---------------------------------------------------------------------------
+# Mid-execution budget check
+# ---------------------------------------------------------------------------
+
+
+class TestMidExecutionBudgetCheck:
+    """Budget cap aborts DURING checkpoint execution."""
+
+    @pytest.fixture()
+    def fake_problem(self, tmp_path):
+        """Create a fake problem with 2 checkpoints."""
+        mod = _load_runner_module()
+        p = Path(mod.PROBLEMS_DIR) / "test_mid_budget"
+        p.mkdir(parents=True, exist_ok=True)
+        (p / "config.yaml").write_text(
+            "version: 1\nname: test_mid_budget\n"
+            "checkpoints:\n"
+            "  checkpoint_1:\n"
+            "    version: 1\n"
+            "    order: 1\n"
+            "  checkpoint_2:\n"
+            "    version: 1\n"
+            "    order: 2\n",
+        )
+        (p / "checkpoint_1.md").write_text("Spec 1\n")
+        (p / "checkpoint_2.md").write_text("Spec 2\n")
+        yield p
+        import shutil
+        shutil.rmtree(p, ignore_errors=True)
+
+    def test_aborts_after_implementer_exceeds_budget(
+        self, tmp_path, fake_problem,
+    ):
+        """Aborts after implementer phase when cumulative
+        cost exceeds budget, saving partial results."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        call_count = [0]
+
+        def fake_run_slop(*a, **kw):
+            call_count[0] += 1
+            # Implementer costs 0.60 per call
+            return {
+                "exit_code": 0,
+                "stdout": "",
+                "stderr": "",
+                "cost": 0.60,
+                "tokens": 50,
+                "pass_rate": 0.5,
+                "erosion": 0.1,
+                "verbosity": 0.2,
+                "output_dir": None,
+            }
+
+        with (
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=fake_run_slop,
+            ),
+            pytest.raises(SystemExit),
+        ):
+            mod.run_two_agent(
+                problem="test_mid_budget",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=0.50,
+                output_dir=out,
+            )
+
+        # Should have been called once (implementer only)
+        # before budget was exceeded
+        assert call_count[0] == 1
+
+        # Partial results saved
+        metrics_file = out / "two_agent_metrics.json"
+        assert metrics_file.exists()
+        data = json.loads(metrics_file.read_text())
+        assert data["budget_exceeded"] is True
+        assert data["completed_checkpoints"] == 1
+
+    def test_aborts_after_reviewer_exceeds_budget(
+        self, tmp_path, fake_problem,
+    ):
+        """Aborts after reviewer phase when cumulative
+        cost exceeds budget."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        call_count = [0]
+
+        def fake_run_slop(*a, **kw):
+            call_count[0] += 1
+            phase = kw.get("phase", "")
+            cost = 0.20 if phase == "implementer" else 0.40
+            return {
+                "exit_code": 0,
+                "stdout": "",
+                "stderr": "",
+                "cost": cost,
+                "tokens": 50,
+                "pass_rate": 0.5,
+                "erosion": 0.0,
+                "verbosity": 0.0,
+                "output_dir": None,
+            }
+
+        with (
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=fake_run_slop,
+            ),
+            pytest.raises(SystemExit),
+        ):
+            mod.run_two_agent(
+                problem="test_mid_budget",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=0.50,
+                output_dir=out,
+            )
+
+        # Implementer + reviewer = 2 calls before abort
+        assert call_count[0] == 2
+
+        metrics_file = out / "two_agent_metrics.json"
+        assert metrics_file.exists()
+        data = json.loads(metrics_file.read_text())
+        assert data["budget_exceeded"] is True
+
+
+# ---------------------------------------------------------------------------
+# [REVIEWER->IMPLEMENTER] log markers
+# ---------------------------------------------------------------------------
+
+
+class TestReviewerImplementerLogMarkers:
+    """Log markers appear when reviewer suggestions
+    are injected."""
+
+    @pytest.fixture()
+    def fake_problem(self, tmp_path):
+        """Create a fake problem with 2 checkpoints."""
+        mod = _load_runner_module()
+        p = Path(mod.PROBLEMS_DIR) / "test_log_markers"
+        p.mkdir(parents=True, exist_ok=True)
+        (p / "config.yaml").write_text(
+            "version: 1\nname: test_log_markers\n"
+            "checkpoints:\n"
+            "  checkpoint_1:\n"
+            "    version: 1\n"
+            "    order: 1\n"
+            "  checkpoint_2:\n"
+            "    version: 1\n"
+            "    order: 2\n",
+        )
+        (p / "checkpoint_1.md").write_text("Spec 1\n")
+        (p / "checkpoint_2.md").write_text("Spec 2\n")
+        yield p
+        import shutil
+        shutil.rmtree(p, ignore_errors=True)
+
+    def test_reviewer_implementer_marker_present(
+        self, tmp_path, fake_problem, capsys,
+    ):
+        """[REVIEWER->IMPLEMENTER] marker appears in
+        output when injecting reviewer suggestions."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        fake_rev_dir = tmp_path / "rev_out"
+        snap = (
+            fake_rev_dir / "test_log_markers"
+            / "checkpoint_1" / "snapshot"
+        )
+        snap.mkdir(parents=True)
+        (snap / "main.py").write_text(
+            "def improved(): pass\n",
+        )
+
+        def fake_run_slop(*a, **kw):
+            phase = kw.get("phase", "")
+            return {
+                "exit_code": 0,
+                "stdout": "",
+                "stderr": "",
+                "cost": 0.01,
+                "tokens": 10,
+                "pass_rate": 0.5,
+                "erosion": 0.0,
+                "verbosity": 0.0,
+                "output_dir": (
+                    str(fake_rev_dir)
+                    if phase == "reviewer"
+                    else None
+                ),
+            }
+
+        with patch.object(
+            mod, "run_slop_code",
+            side_effect=fake_run_slop,
+        ):
+            mod.run_two_agent(
+                problem="test_log_markers",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+            )
+
+        captured = capsys.readouterr()
+        assert "[REVIEWER->IMPLEMENTER]" in captured.out
