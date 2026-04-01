@@ -625,12 +625,14 @@ class ClaudeCodeAgent(Agent):
                 self.credential.value
             )
             # When using a non-Claude-Code credential, also set
-            # ANTHROPIC_AUTH_TOKEN
+            # ANTHROPIC_API_KEY so the Claude Code CLI can authenticate
+            # against third-party OpenAI-compatible endpoints via
+            # ANTHROPIC_BASE_URL.
             if self.credential.destination_key not in (
                 "ANTHROPIC_API_KEY",
                 "CLAUDE_CODE_OAUTH_TOKEN",
             ):
-                env_overrides["ANTHROPIC_AUTH_TOKEN"] = (
+                env_overrides["ANTHROPIC_API_KEY"] = (
                     self.credential.value
                 )
         if self.max_output_tokens is not None:
