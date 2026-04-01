@@ -56,11 +56,14 @@ This is a CLI/infrastructure project with no web UI. All testing is done via she
 
 - Use `uv run python`, not system `python3`, when importing mission runner modules.
   The runner imports `datetime.UTC`, which is unavailable in Python 3.10.
-- `research/runner/two_agent_runner.py` currently fails checkpoint discovery for
-  problems laid out as `checkpoint_*.md` files, with `Error: no checkpoints found`.
-  This blocks multiple runner and pipeline assertions that require checkpoint
-  execution.
-- Foundation milestone validation can encounter missing Dolt research tables
-  (`experiments`, `budget`). Those tables are created by later setup work.
-- Canary preflight path checks `ANTHROPIC_API_KEY`; if missing, canary fails in
-  preflight before checkpoint execution.
+- `research/runner/two_agent_runner.py` can report successful phase progression
+  while internal subprocess invocation (`python -m slop_code run`) fails in this
+  environment with `No module named slop_code.__main__`. When this happens,
+  metrics remain at zero and eval-compatible run artifacts are not produced.
+- Canary failure diagnostics are asymmetric. Docker failures are component-tagged,
+  while invalid API-key scenarios can surface as a generic implementer-stage
+  failure without explicit auth wording.
+- `--budget-split 100` is rejected by argument validation (`range 1-99`), which
+  conflicts with assertions expecting implementer-only boundary behavior.
+- Foundation pipeline validation remains blocked until Dolt research tables
+  `experiments` and `budget` are present in the `scbench` database.

@@ -1,0 +1,116 @@
+{
+  "groupId": "runner-core",
+  "milestone": "foundation",
+  "testedAt": "2026-04-01T02:19:19.926132+00:00",
+  "assignedAssertions": [
+    "VAL-RUNNER-002",
+    "VAL-RUNNER-003",
+    "VAL-RUNNER-004",
+    "VAL-RUNNER-005",
+    "VAL-RUNNER-011",
+    "VAL-RUNNER-012",
+    "VAL-RUNNER-014"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-RUNNER-002",
+      "status": "fail",
+      "reason": "Two-agent run exited 0 but produced only two_agent_metrics.json; no eval-compatible run structure was created and `slop-code eval` failed (`environment.yaml` missing).",
+      "evidence": [
+        "foundation/runner-core/VAL-RUNNER-002-004-014-run.log",
+        "foundation/runner-core/VAL-RUNNER-002-output-tree.txt",
+        "foundation/runner-core/VAL-RUNNER-002-eval.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-003",
+      "status": "fail",
+      "reason": "Budget split is printed as 70/30, but telemetry has zero implementer/reviewer tokens and zero costs for all checkpoints, so enforcement is not reflected in per-checkpoint token/cost tracking.",
+      "evidence": [
+        "foundation/runner-core/VAL-RUNNER-002-004-014-run.log",
+        "foundation/runner-core/VAL-RUNNER-003-telemetry.txt",
+        "foundation/runner-core/VAL-RUNNER-shared-slop-code-run.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-004",
+      "status": "fail",
+      "reason": "The metrics JSON contains all six required keys, but all values are default zeros across checkpoints, indicating metrics were not actually captured from checkpoint execution.",
+      "evidence": [
+        "foundation/runner-core/VAL-RUNNER-004-metrics-keys.txt",
+        "foundation/runner-core/VAL-RUNNER-004-metrics-values.txt",
+        "foundation/runner-core/VAL-RUNNER-shared-slop-code-run.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-005",
+      "status": "fail",
+      "reason": "With budget=0.01, run should abort non-zero on budget overrun and save partial results, but run completed with exit 0, `budget_exceeded=false`, and all checkpoints marked complete.",
+      "evidence": [
+        "foundation/runner-core/VAL-RUNNER-005-run-budget-cap.log",
+        "foundation/runner-core/VAL-RUNNER-005-budget-state.txt",
+        "foundation/runner-core/VAL-RUNNER-005-output-tree.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-011",
+      "status": "fail",
+      "reason": "Concurrent runs used distinct output directories and run IDs, but no Docker containers were created and both runs recorded zero cost, so full isolation contract (including independent containers and meaningful per-run cost tracking) was not met.",
+      "evidence": [
+        "foundation/runner-core/VAL-RUNNER-011-run1.log",
+        "foundation/runner-core/VAL-RUNNER-011-run2.log",
+        "foundation/runner-core/VAL-RUNNER-011-output-dirs.txt",
+        "foundation/runner-core/VAL-RUNNER-011-docker-containers.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-012",
+      "status": "pass",
+      "reason": "Runner detected existing completed checkpoint state, printed resume/skip messaging, skipped checkpoint_1, and preserved checkpoint_1 metrics unchanged while completing remaining checkpoints.",
+      "evidence": [
+        "foundation/runner-core/VAL-RUNNER-012-initial-seed.txt",
+        "foundation/runner-core/VAL-RUNNER-012-rerun.log",
+        "foundation/runner-core/VAL-RUNNER-012-compare.txt"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-014",
+      "status": "blocked",
+      "reason": "Reviewer-phase lines appear in logs, but no reviewer artifacts were produced and no injected reviewer context could be observed in subsequent implementer inputs through user-surface artifacts.",
+      "evidence": [
+        "foundation/runner-core/VAL-RUNNER-002-004-014-run.log",
+        "foundation/runner-core/VAL-RUNNER-014-reviewer-context.txt",
+        "foundation/runner-core/VAL-RUNNER-shared-slop-code-run.txt"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "uv run",
+    "python",
+    "slop-code CLI",
+    "docker ps"
+  ],
+  "frictions": [
+    {
+      "description": "Non-canary runner flow reports phase completion even when underlying `python -m slop_code run` subprocess invocation fails, which can yield apparently successful runs with zero metrics and no run artifacts.",
+      "resolved": false,
+      "resolution": "Captured evidence and treated impacted assertions as fail/blocked."
+    }
+  ],
+  "blockers": [
+    {
+      "description": "The subprocess form used in validation (`python -m slop_code run`) fails in this environment (`No module named slop_code.__main__`), preventing checkpoint artifacts, eval-compatible outputs, and reviewer artifact generation.",
+      "affectedAssertions": [
+        "VAL-RUNNER-002",
+        "VAL-RUNNER-003",
+        "VAL-RUNNER-004",
+        "VAL-RUNNER-005",
+        "VAL-RUNNER-011",
+        "VAL-RUNNER-014"
+      ],
+      "quickFixAttempted": "Validated behavior repeatedly across normal, low-budget, concurrent, and resume flows; captured direct CLI error evidence."
+    }
+  ],
+  "summary": "Validated 7 assigned assertions via shell CLI. Result: 1 pass (VAL-RUNNER-012), 5 fail (VAL-RUNNER-002/003/004/005/011), 1 blocked (VAL-RUNNER-014). Primary blocker is phase-level subprocess invocation failure that prevents real checkpoint artifacts and telemetry."
+}

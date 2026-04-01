@@ -1,0 +1,74 @@
+{
+  "groupId": "runner-canary",
+  "milestone": "foundation",
+  "assignedAssertions": [
+    "VAL-RUNNER-006",
+    "VAL-RUNNER-007",
+    "VAL-RUNNER-008",
+    "VAL-RUNNER-009"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-RUNNER-006",
+      "status": "fail",
+      "reason": "Canary started with the default $0.50 budget and passed preflight, but failed during checkpoint_1 implementer execution (exit code 1), so it did not complete an eval-compatible run under canary mode.",
+      "evidence": [
+        "foundation/runner-canary/VAL-RUNNER-006-canary-default.log",
+        "foundation/runner-canary/VAL-RUNNER-006-canary-default.exitcode",
+        "foundation/runner-canary/VAL-RUNNER-008-eval.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-007",
+      "status": "fail",
+      "reason": "Docker-unavailable failure was descriptive and component-tagged ([Docker]), but the invalid API key scenario was not surfaced as an API/authentication diagnostic and instead failed later as a generic implementer exit.",
+      "evidence": [
+        "foundation/runner-canary/VAL-RUNNER-007-docker-unavailable.log",
+        "foundation/runner-canary/VAL-RUNNER-007-docker-unavailable.exitcode",
+        "foundation/runner-canary/VAL-RUNNER-007-invalid-api-key.log",
+        "foundation/runner-canary/VAL-RUNNER-007-invalid-api-key.exitcode",
+        "foundation/runner-canary/VAL-RUNNER-007-missing-api-key.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-008",
+      "status": "fail",
+      "reason": "Canary output directory was not compatible with `slop-code eval`; eval failed with missing `environment.yaml`, and required run artifacts/checkpoint outputs were absent.",
+      "evidence": [
+        "foundation/runner-canary/VAL-RUNNER-008-latest-canary-dir.txt",
+        "foundation/runner-canary/VAL-RUNNER-008-output-structure.txt",
+        "foundation/runner-canary/VAL-RUNNER-008-required-files-check.txt",
+        "foundation/runner-canary/VAL-RUNNER-008-eval.log",
+        "foundation/runner-canary/VAL-RUNNER-008-eval.exitcode"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-009",
+      "status": "fail",
+      "reason": "`--budget-split 100` is rejected by argument validation (`must be in range 1-99`) and does not run implementer-only mode.",
+      "evidence": [
+        "foundation/runner-canary/VAL-RUNNER-009-budget-split-100.log",
+        "foundation/runner-canary/VAL-RUNNER-009-budget-split-100.exitcode"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "uv run",
+    "python",
+    "slop-code CLI",
+    "docker"
+  ],
+  "frictions": [
+    {
+      "description": "Canary failure output for implementer errors only reports the phase exit code and omits underlying stderr details, which made root-cause diagnosis for invalid-key behavior indirect.",
+      "resolved": false,
+      "affectedAssertions": [
+        "VAL-RUNNER-006",
+        "VAL-RUNNER-007"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated 4 assigned assertions for runner-canary. Result: 0 pass, 4 fail, 0 blocked. Failures were due to canary implementer-phase failure, incomplete API-key failure diagnostics for invalid key path, eval-incompatible canary output structure, and rejection of budget-split=100."
+}

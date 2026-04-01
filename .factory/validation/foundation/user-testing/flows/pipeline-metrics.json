@@ -1,0 +1,79 @@
+{
+  "groupId": "pipeline-metrics",
+  "milestone": "foundation",
+  "testedAt": "2026-04-01T02:26:37.921878+00:00",
+  "assignedAssertions": [
+    "VAL-PIPELINE-007",
+    "VAL-PIPELINE-008",
+    "VAL-PIPELINE-010",
+    "VAL-PIPELINE-011",
+    "VAL-PIPELINE-012"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-PIPELINE-007",
+      "status": "blocked",
+      "reason": "Could not compare per-checkpoint eval metrics to stored values because querying experiments metrics failed with table-not-found.",
+      "evidence": [
+        "foundation/pipeline-metrics/VAL-PIPELINE-preflight-db.log",
+        "foundation/pipeline-metrics/VAL-PIPELINE-007-metrics-vs-stored.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-008",
+      "status": "blocked",
+      "reason": "Could not validate partial-results persistence for budget-aborted runs because experiments table query failed with table-not-found.",
+      "evidence": [
+        "foundation/pipeline-metrics/VAL-PIPELINE-preflight-db.log",
+        "foundation/pipeline-metrics/VAL-PIPELINE-008-partial-results.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-010",
+      "status": "blocked",
+      "reason": "Could not validate 27-column experiments schema because DESCRIBE experiments failed with table-not-found.",
+      "evidence": [
+        "foundation/pipeline-metrics/VAL-PIPELINE-preflight-db.log",
+        "foundation/pipeline-metrics/VAL-PIPELINE-010-describe-experiments.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-011",
+      "status": "blocked",
+      "reason": "Could not validate manipulation_check propagation/filter behavior because grouped and filtered experiments queries failed with table-not-found.",
+      "evidence": [
+        "foundation/pipeline-metrics/VAL-PIPELINE-preflight-db.log",
+        "foundation/pipeline-metrics/VAL-PIPELINE-011-manipulation-filter.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-012",
+      "status": "blocked",
+      "reason": "Could not validate baseline-vs-two-agent comparable rows and delta fields because experiments comparison query failed with table-not-found.",
+      "evidence": [
+        "foundation/pipeline-metrics/VAL-PIPELINE-preflight-db.log",
+        "foundation/pipeline-metrics/VAL-PIPELINE-012-end-to-end-deltas.log"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "uv run python",
+    "pymysql"
+  ],
+  "frictions": [],
+  "blockers": [
+    {
+      "description": "The Dolt scbench database is reachable but contains only Gas Town tracking tables; experiments is missing, blocking all assigned metrics/storage assertions.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-007",
+        "VAL-PIPELINE-008",
+        "VAL-PIPELINE-010",
+        "VAL-PIPELINE-011",
+        "VAL-PIPELINE-012"
+      ],
+      "quickFixAttempted": "Verified DB connectivity and enumerated tables, then executed assertion-specific SQL; each experiments query returned ProgrammingError 1146 table-not-found."
+    }
+  ],
+  "summary": "Validated 5 assigned pipeline metrics/storage assertions via shell CLI. All 5 are blocked in this environment because the Dolt experiments table does not exist."
+}

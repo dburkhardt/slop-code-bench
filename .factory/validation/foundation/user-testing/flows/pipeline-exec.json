@@ -1,0 +1,98 @@
+{
+  "groupId": "pipeline-exec",
+  "milestone": "foundation",
+  "testedAt": "2026-04-01T02:23:55.551981+00:00",
+  "isolation": {
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench",
+    "missionDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63",
+    "tempWorkspace": "/tmp/scbench-user-testing/pipeline-exec",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/foundation/pipeline-exec"
+  },
+  "assignedAssertions": [
+    "VAL-PIPELINE-002",
+    "VAL-PIPELINE-003",
+    "VAL-PIPELINE-004",
+    "VAL-PIPELINE-005",
+    "VAL-PIPELINE-006"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-PIPELINE-002",
+      "status": "fail",
+      "reason": "Two-agent CLI run exited 0 but produced only two_agent_metrics.json in the specified output directory, so slop-code eval failed (missing environment.yaml) and metric schema parity with baseline could not be established.",
+      "evidence": [
+        "foundation/pipeline-exec/VAL-PIPELINE-002-baseline-run.log",
+        "foundation/pipeline-exec/VAL-PIPELINE-002-baseline-eval.log",
+        "foundation/pipeline-exec/VAL-PIPELINE-002-two-agent-run.log",
+        "foundation/pipeline-exec/VAL-PIPELINE-002-two-agent-eval.log",
+        "foundation/pipeline-exec/VAL-PIPELINE-002-metric-key-compare.log",
+        "foundation/pipeline-exec/VAL-PIPELINE-002-output-tree.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-003",
+      "status": "fail",
+      "reason": "Checkpoint directory listings differ between baseline and two-agent outputs for dag_execution (baseline has checkpoint_1, two-agent has none).",
+      "evidence": [
+        "foundation/pipeline-exec/VAL-PIPELINE-003-checkpoint-diff.log",
+        "foundation/pipeline-exec/VAL-PIPELINE-002-output-tree.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-004",
+      "status": "blocked",
+      "reason": "Dolt connection succeeded but experiments table is absent in scbench, so row insertion validation for both modes cannot be exercised through the user CLI surface.",
+      "evidence": [
+        "foundation/pipeline-exec/VAL-PIPELINE-004-005-006-db-preflight.log",
+        "foundation/pipeline-exec/VAL-PIPELINE-004-experiments-query.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-005",
+      "status": "blocked",
+      "reason": "Budget table is absent in scbench, so spent/remaining before-after budget delta checks cannot be measured.",
+      "evidence": [
+        "foundation/pipeline-exec/VAL-PIPELINE-004-005-006-db-preflight.log",
+        "foundation/pipeline-exec/VAL-PIPELINE-005-budget-query.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-006",
+      "status": "blocked",
+      "reason": "Insufficient-budget gate path cannot be validated because pipeline budget check fails immediately with table-not-found for budget instead of evaluating remaining < estimated.",
+      "evidence": [
+        "foundation/pipeline-exec/VAL-PIPELINE-004-005-006-db-preflight.log",
+        "foundation/pipeline-exec/VAL-PIPELINE-006-insufficient-budget.log"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell",
+    "uv",
+    "slop-code CLI",
+    "pymysql"
+  ],
+  "frictions": [
+    {
+      "description": "Baseline slop-code run for dag_execution errored at checkpoint_1 but still wrote eval artifacts for one checkpoint.",
+      "resolved": true,
+      "resolution": "Used the generated output directory and re-ran slop-code eval --overwrite to collect deterministic evidence.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-002",
+        "VAL-PIPELINE-003"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Required Dolt research tables experiments and budget are missing from the scbench database in this environment.",
+      "affectedAssertions": [
+        "VAL-PIPELINE-004",
+        "VAL-PIPELINE-005",
+        "VAL-PIPELINE-006"
+      ],
+      "quickFixAttempted": "Verified pymysql import and Dolt connectivity, listed tables with SHOW TABLES, and attempted direct SELECT queries on both tables; each query returned table-not-found (1146)."
+    }
+  ],
+  "summary": "Validated 5 assigned assertions via shell CLI. 2 failed (VAL-PIPELINE-002, VAL-PIPELINE-003) due two-agent output/eval incompatibility and checkpoint mismatch. 3 blocked (VAL-PIPELINE-004, VAL-PIPELINE-005, VAL-PIPELINE-006) due missing Dolt experiments/budget tables."
+}
