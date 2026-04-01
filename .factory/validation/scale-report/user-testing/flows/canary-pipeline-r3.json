@@ -1,0 +1,51 @@
+{
+  "milestone": "scale-report",
+  "groupId": "canary-pipeline-r3",
+  "testedAt": "2026-04-01T14:46:14.915130+00:00",
+  "surface": "shell",
+  "isolation": {
+    "surface": "shell",
+    "workingScratchDir": "/tmp/scbench-user-testing/canary-pipeline-r3",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/canary-pipeline-r3"
+  },
+  "assertions": [
+    {
+      "id": "VAL-RUNNER-006",
+      "status": "fail",
+      "reason": "Canary did not complete successfully and did not produce eval-compatible output within the capped run path.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/canary-pipeline-r3/VAL-RUNNER-006-shell-check.log"
+      ]
+    },
+    {
+      "id": "VAL-RUNNER-007",
+      "status": "blocked",
+      "reason": "Component-specific diagnostics are present for API and Docker failure scenarios, but full-pipeline canary validation is blocked by implementer-stage failure in normal canary execution.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/canary-pipeline-r3/VAL-RUNNER-007-shell-check.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-002",
+      "status": "fail",
+      "reason": "Two-agent output is not eval-compatible and lacks required metric artifact parity with baseline.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/canary-pipeline-r3/VAL-PIPELINE-002-shell-check.log"
+      ]
+    },
+    {
+      "id": "VAL-PIPELINE-003",
+      "status": "fail",
+      "reason": "Checkpoint directory sets differ between baseline and two-agent arms, violating arm parity requirements.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/canary-pipeline-r3/VAL-PIPELINE-003-shell-check.log"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 4 assertions: 0 passed, 3 failed, 1 blocked."
+}

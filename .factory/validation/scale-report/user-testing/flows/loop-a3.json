@@ -1,0 +1,85 @@
+{
+  "milestone": "scale-report",
+  "groupId": "loop-a3",
+  "testedAt": "2026-04-01T14:46:14.915130+00:00",
+  "surface": "shell",
+  "isolation": {
+    "surface": "shell",
+    "workingScratchDir": "/tmp/scbench-user-testing/loop-a3",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3"
+  },
+  "assertions": [
+    {
+      "id": "VAL-LOOP-001",
+      "status": "fail",
+      "reason": "Required Phase 0 budget-check evidence is absent from the Mayor research log.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-001-research-log-show.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-001-research-log-history.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-001-budget-check-search.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-001-remaining-budget-search.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-002",
+      "status": "blocked",
+      "reason": "Blocked by missing low-budget runtime state and missing reduced-batch artifacts.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-002-budget-table.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-002-experiments-count.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-002-proposed-batch-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-002-reduce-batch-search.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-002-low-budget-search.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-003",
+      "status": "fail",
+      "reason": "Required explicit Mayor Phase 1 dispatch-and-wait evidence was not found.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-003-gt-audit-mayor.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-003-gt-audit-idea-factory.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-003-gt-audit-review-board.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-003-wait-for-completion-search.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-003-phase1-search.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-004",
+      "status": "blocked",
+      "reason": "Blocked because no proposed batch bead exists to validate required field coverage.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-004-proposed-batch-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-004-proposed-batch-search.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-005",
+      "status": "fail",
+      "reason": "Mechanical gate is not enforced because no blocking dependencies are present.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-005-red-team-review-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-005-red-team-review-show.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-005-red-team-review-deps-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-005-bd-ready-snapshot.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-006",
+      "status": "blocked",
+      "reason": "Blocked because no objection records exist, so objection-response pairing cannot be validated.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-006-red-team-review-comments.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-006-objection-search.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-006-response-search.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-a3/VAL-LOOP-006-red-team-review-search.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 6 assertions: 0 passed, 3 failed, 3 blocked."
+}

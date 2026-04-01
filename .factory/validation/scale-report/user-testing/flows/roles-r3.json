@@ -1,0 +1,93 @@
+{
+  "milestone": "scale-report",
+  "groupId": "roles-r3",
+  "testedAt": "2026-04-01T14:46:14.915130+00:00",
+  "surface": "shell",
+  "isolation": {
+    "surface": "shell",
+    "workingScratchDir": "/tmp/scbench-user-testing/roles-r3",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3"
+  },
+  "assertions": [
+    {
+      "id": "VAL-ROLES-002",
+      "status": "blocked",
+      "reason": "Blocked by missing validated experiment data. No validated experiments were available to verify Review Board validated-only referencing.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-002-004-conclusion-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-002-004-conclusion-shows.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-002-experiment-validation-count.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-002-validated-experiments.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-002-004-conclusion-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-004",
+      "status": "blocked",
+      "reason": "Blocked by missing validated experiment data. Available Review Board conclusion content is no-data and cannot provide required statistics.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-002-004-conclusion-shows.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-004-required-statistics-analysis.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-002-experiment-validation-count.log"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-005",
+      "status": "fail",
+      "reason": "Red Team review bead does not block any downstream batch bead; no blocks dependencies were found.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-005-006-red-team-review-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-005-006-red-team-review-shows.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-005-006-red-team-review-deps-up-blocks.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-005-bd-ready-snapshot.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-005-blocking-gate-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-006",
+      "status": "fail",
+      "reason": "Red Team review beads lack required numbered actionable objections with problem, impact, and suggested fix: ['sc-d6f'].",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-005-006-red-team-review-shows.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-006-objection-structure-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-007",
+      "status": "blocked",
+      "reason": "Blocked because no Red Team post-mortem beads were found by title or label search.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-007-post-mortem-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-007-post-mortem-label-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-007-red-team-post-search.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-007-post-mortem-deps-up-blocks.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-007-post-mortem-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-009",
+      "status": "fail",
+      "reason": "Hypothesis metadata contract failed. 10 hypothesis beads are missing one or more required metadata fields.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-009-010-hypotheses-children.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-009-hypothesis-metadata-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-ROLES-010",
+      "status": "fail",
+      "reason": "Web-search-before-hypothesis ordering failed for 44 provenance links (missing web-search label, missing KB bead, or timestamp order violation).",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-010-kb-children.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-009-010-hypotheses-children.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/roles-r3/VAL-ROLES-010-web-search-order-analysis.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 7 assertions: 0 passed, 4 failed, 3 blocked."
+}

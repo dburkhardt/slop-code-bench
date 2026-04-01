@@ -1,0 +1,91 @@
+{
+  "milestone": "scale-report",
+  "groupId": "loop-b3",
+  "testedAt": "2026-04-01T14:46:14.915130+00:00",
+  "surface": "shell",
+  "isolation": {
+    "surface": "shell",
+    "workingScratchDir": "/tmp/scbench-user-testing/loop-b3",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3"
+  },
+  "assertions": [
+    {
+      "id": "VAL-LOOP-007",
+      "status": "fail",
+      "reason": "Convoy state does not evidence Phase 3 dispatch. Only convoy hq-cv-clkii is present with zero tracked items, and no batch/proposed-batch beads were found.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-007-convoy-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-007-convoy-status-hq-cv-clkii.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-007-batch-title-list-lower.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-007-batch-title-list-upper.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-007-proposed-batch-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-007-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-008",
+      "status": "fail",
+      "reason": "Formula mol-scbench-experiment is registered, but no experiment molecule artifacts were found and convoy artifacts do not show formula-backed execution.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-008-formula-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-008-molecule-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-008-analysis.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-007-convoy-list.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-009",
+      "status": "fail",
+      "reason": "No conclusion beads were found, no Review Board-titled analysis bead was found, and there is no batch execution evidence to show post-experiment Review Board dispatch.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-009-conclusion-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-009-review-board-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-009-task-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-009-analysis.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-007-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-010",
+      "status": "fail",
+      "reason": "No Red Team post-mortem bead was found by title/task scan, and the Mayor research log contains no post-mortem reference.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-010-post-mortem-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-010-postmortem-nohyphen-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-010-post-mortem-search.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-010-research-log-show.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-010-analysis.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-011",
+      "status": "fail",
+      "reason": "The Mayor research log still contains only initialization notes and lacks a Phase 5 entry with conclusions, post-mortem findings, strategy update, and decision outcome.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-010-research-log-show.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-011-phase5-elements-check.json"
+      ]
+    },
+    {
+      "id": "VAL-LOOP-012",
+      "status": "fail",
+      "reason": "Shutdown artifacts are incomplete: no summary/final-analysis/final-report beads, FINAL_REPORT.md is missing in both repo and rig paths, no critical budget-exhausted/research-complete escalation exists, and gt is still running.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-012-summary-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-012-final-analysis-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-012-final-report-title-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-012-final-report-file.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-012-critical-budget-or-research-complete-escalations.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-012-escalate-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-012-gt-status.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/loop-b3/VAL-LOOP-012-analysis.json"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 6 assertions: 0 passed, 6 failed, 0 blocked."
+}

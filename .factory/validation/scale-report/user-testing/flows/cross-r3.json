@@ -1,0 +1,83 @@
+{
+  "milestone": "scale-report",
+  "groupId": "cross-r3",
+  "testedAt": "2026-04-01T14:46:14.915130+00:00",
+  "surface": "shell",
+  "isolation": {
+    "surface": "shell",
+    "workingScratchDir": "/tmp/scbench-user-testing/cross-r3",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3"
+  },
+  "assertions": [
+    {
+      "id": "VAL-CROSS-001",
+      "status": "blocked",
+      "reason": "Lifecycle chain cannot be completed through execution and analysis because hypothesis-linked experiment rows are absent and conclusion artifacts do not reference hypothesis IDs.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-hypothesis-children.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-hypothesis-sample-show.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-formula-list.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-hypothesis-row-count.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-experiments-by-hypothesis.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-conclusion-label-list.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-conclusion-hypothesis-ref-scan.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "status": "blocked",
+      "reason": "No experiment spend exists, so budget propagation into a subsequent Mayor gate could not be exercised.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-002-experiments-cost.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-002-budget-table.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-002-research-log-show.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-002-research-log-history.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "status": "fail",
+      "reason": "Observed Red Team review artifact does not enforce gating mechanics or sequencing evidence required by the contract.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-003-red-team-review-title-list.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-003-red-team-review-show.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-003-red-team-review-deps-down.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-003-red-team-review-deps-up.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-003-red-team-review-comments.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-003-blocks-only.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-003-convoy-list.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-003-convoy-status-hq-cv-clkii.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-006",
+      "status": "blocked",
+      "reason": "Upstream provenance links exist, but experiment, conclusion-reference, and report links are missing, so end-to-end backward trace is incomplete.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-hypothesis-sample-show.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-006-linked-kb-show.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-hypothesis-row-count.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-conclusion-label-list.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-001-conclusion-hypothesis-ref-scan.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-006-final-report-presence.log"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-008",
+      "status": "blocked",
+      "reason": "Routing is configured for human escalation, but required critical event instances were not observed during this validation window.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-008-escalation-routing-file.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-008-escalate-list.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-008-critical-escalations-only.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/cross-r3/VAL-CROSS-008-required-event-search.log"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 5 assertions: 0 passed, 1 failed, 4 blocked."
+}

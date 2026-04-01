@@ -1,0 +1,86 @@
+{
+  "milestone": "scale-report",
+  "groupId": "analysis-r3",
+  "testedAt": "2026-04-01T14:46:14.915130+00:00",
+  "surface": "shell",
+  "isolation": {
+    "surface": "shell",
+    "workingScratchDir": "/tmp/scbench-user-testing/analysis-r3",
+    "evidenceDir": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3"
+  },
+  "assertions": [
+    {
+      "id": "VAL-ANALYSIS-002",
+      "status": "fail",
+      "reason": "Validation-filter exclusivity requirement is violated by an unfiltered analysis query.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-002-sql-filter-audit.log"
+      ]
+    },
+    {
+      "id": "VAL-ANALYSIS-003",
+      "status": "blocked",
+      "reason": "No experiment data exists to validate computed delta results on real matched rows.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-003-pass-rate-delta-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/analysis-db-and-report-generation.log"
+      ]
+    },
+    {
+      "id": "VAL-ANALYSIS-004",
+      "status": "blocked",
+      "reason": "Conclusion-level erosion comparison cannot be validated in the current no-data/no-conclusion state.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-004-erosion-comparison-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-conclusion-bead.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-conclusion-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-conclusion-list-lower.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-review-board-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/analysis-db-and-report-generation.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/FINAL_REPORT.md"
+      ]
+    },
+    {
+      "id": "VAL-ANALYSIS-005",
+      "status": "blocked",
+      "reason": "No validated experiment rows or conclusion artifacts are available for budget-efficiency validation.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-005-budget-efficiency-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-conclusion-bead.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-conclusion-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/analysis-db-and-report-generation.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/FINAL_REPORT.md"
+      ]
+    },
+    {
+      "id": "VAL-ANALYSIS-009",
+      "status": "blocked",
+      "reason": "Conclusion-bead exclusion breakdown cannot be validated because no conclusion beads exist.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-009-exclusion-counts-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-conclusion-bead.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-conclusion-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/analysis-db-and-report-generation.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/FINAL_REPORT.md"
+      ]
+    },
+    {
+      "id": "VAL-ANALYSIS-010",
+      "status": "blocked",
+      "reason": "Conclusion-level verbosity-slope reporting cannot be validated in the current no-data/no-conclusion state.",
+      "evidence": [
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-010-verbosity-slope-check.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-conclusion-bead.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/VAL-ANALYSIS-conclusion-list.json",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/analysis-db-and-report-generation.log",
+        "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/evidence/scale-report/analysis-r3/FINAL_REPORT.md"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "shell"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 6 assertions: 0 passed, 1 failed, 5 blocked."
+}
