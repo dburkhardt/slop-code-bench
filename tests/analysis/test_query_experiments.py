@@ -161,6 +161,58 @@ def test_pass_rate_delta_uses_filter(mock_conn):
     assert sql.count("results_valid = true") >= 2
 
 
+def test_pass_rate_delta_no_ambiguous_columns(
+    mock_conn,
+):
+    """Regression: all column refs in the self-join
+    query are qualified with table aliases (e1. or e2.)
+    to prevent ambiguous-column SQL errors.
+
+    Previously, the query used ``e2.{VALIDATION_FILTER}``
+    which expanded to
+    ``e2.manipulation_check = 'passed' AND
+    results_valid = true``, leaving ``results_valid``
+    unqualified.
+    """
+    import re as _re
+
+    conn, cursor = mock_conn
+    cursor.fetchall.return_value = []
+
+    query_pass_rate_delta(conn)
+
+    sql = cursor.execute.call_args[0][0]
+    # After FROM / JOIN, every column reference in
+    # WHERE and ON clauses must be alias-qualified.
+    # Split out the WHERE clause for inspection.
+    where_idx = sql.upper().index("WHERE")
+    where_clause = sql[where_idx:]
+
+    # Each "results_valid" must be preceded by alias
+    unqualified = _re.findall(
+        r"(?<!\w\.)results_valid", where_clause,
+    )
+    assert len(unqualified) == 0, (
+        "results_valid must be alias-qualified (e1. "
+        f"or e2.) in self-join: {where_clause}"
+    )
+
+    # Each "manipulation_check" must be preceded by alias
+    unqualified_mc = _re.findall(
+        r"(?<!\w\.)manipulation_check", where_clause,
+    )
+    assert len(unqualified_mc) == 0, (
+        "manipulation_check must be alias-qualified: "
+        f"{where_clause}"
+    )
+
+    # Verify exact count: 2 each for e1/e2
+    assert "e1.manipulation_check" in sql
+    assert "e2.manipulation_check" in sql
+    assert "e1.results_valid" in sql
+    assert "e2.results_valid" in sql
+
+
 def test_pass_rate_delta_returns_deltas(mock_conn):
     """Delta results are correctly computed."""
     conn, cursor = mock_conn

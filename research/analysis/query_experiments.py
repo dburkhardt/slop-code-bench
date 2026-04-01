@@ -283,8 +283,12 @@ def query_pass_rate_delta(
     Joins two-agent and baseline rows matched on
     problem_id, model, and hypothesis_id. Both sides
     must pass validation filters.
+
+    All column references are fully qualified with table
+    aliases to avoid ambiguous-column errors in the
+    self-join.
     """
-    sql = f"""
+    sql = """
     SELECT
       e2.problem_id,
       e2.model,
@@ -302,8 +306,10 @@ def query_pass_rate_delta(
                AND e2.hypothesis_id IS NULL))
     WHERE e2.mode = 'two-agent'
       AND e1.mode = 'single'
-      AND e2.{VALIDATION_FILTER}
-      AND e1.{VALIDATION_FILTER}
+      AND e2.manipulation_check = 'passed'
+      AND e2.results_valid = true
+      AND e1.manipulation_check = 'passed'
+      AND e1.results_valid = true
     ORDER BY pass_rate_delta DESC
     """  # noqa: S608
     with conn.cursor() as cur:

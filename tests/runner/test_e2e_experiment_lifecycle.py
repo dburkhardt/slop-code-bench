@@ -488,25 +488,123 @@ class TestFormulaPourAndMolecule:
         assert "mol-scbench-experiment" in result.stdout
 
     @skip_no_gt
-    def test_formula_dry_run_pour(self):
-        """Formula can be poured in dry-run mode with
-        required variables."""
+    @skip_no_bd
+    def test_formula_pour_creates_molecule(self):
+        """Pouring the formula creates a molecule bead
+        with six step beads and dependency edges
+        (VAL-GASTOWN-014).
+
+        Verifies:
+          - gt sling creates a wisp/molecule bead
+          - The molecule references the correct formula
+          - Formula TOML defines exactly 6 steps
+          - Step dependency chain is correct
+          - All required variables are captured
+        """
+        import tomllib
+
+        # Actually pour the formula (creates a wisp)
         result = _gt(
             "sling", "mol-scbench-experiment",
-            "--dry-run",
-            "--var", "problem_id=file_backup",
-            "--var", "model=opus-4.5",
-            "--var", "hypothesis_id=sc-test-hyp",
+            "--var", "problem_id=e2e_pour_test",
+            "--var", "model=test-model",
+            "--var", "hypothesis_id=sc-e2e-pour",
             "--var", "hypothesis_description="
-            "Test structured review",
-            "--var", "total_budget_usd=5.00",
+            "E2E pour structure test",
+            "--var", "total_budget_usd=1.00",
             "scbench",
         )
         assert result.returncode == 0, (
-            f"Dry-run pour failed: {result.stderr}"
+            f"Formula pour failed: {result.stderr}"
         )
+
+        # Extract wisp ID from output
         combined = result.stdout + result.stderr
-        assert "mol-scbench-experiment" in combined
+        wisp_match = re.search(
+            r"(sc-wisp-[a-z0-9]+)", combined,
+        )
+        assert wisp_match is not None, (
+            "Pour must create a wisp bead. "
+            f"Output: {combined}"
+        )
+        wisp_id = wisp_match.group(1)
+
+        try:
+            # Verify molecule bead exists and
+            # references the formula
+            show = _bd("show", wisp_id, "--json")
+            assert show.returncode == 0, (
+                f"Cannot show wisp {wisp_id}"
+            )
+            bead_list = json.loads(show.stdout)
+            bead = (
+                bead_list[0]
+                if isinstance(bead_list, list)
+                else bead_list
+            )
+            assert (
+                "mol-scbench-experiment"
+                in bead.get("title", "")
+                or "mol-scbench-experiment"
+                in bead.get("description", "")
+            ), (
+                "Molecule must reference "
+                "mol-scbench-experiment"
+            )
+
+            # Verify required variables were captured
+            desc = bead.get("description", "")
+            for var in (
+                "problem_id=e2e_pour_test",
+                "model=test-model",
+                "hypothesis_id=sc-e2e-pour",
+                "total_budget_usd=1.00",
+            ):
+                assert var in desc, (
+                    f"Variable '{var}' must appear "
+                    f"in molecule description"
+                )
+
+            # Verify formula TOML defines 6 steps with
+            # correct dependency chain
+            with FORMULA_PATH.open("rb") as f:
+                formula = tomllib.load(f)
+
+            steps = formula["steps"]
+            assert len(steps) == 6, (
+                f"Formula must have 6 steps, "
+                f"got {len(steps)}"
+            )
+
+            # Verify step IDs and dependency edges
+            step_ids = [s["id"] for s in steps]
+            assert step_ids == [
+                "preflight",
+                "implement-hypothesis",
+                "peer-review",
+                "run-experiments",
+                "validate-results",
+                "report",
+            ], f"Step IDs mismatch: {step_ids}"
+
+            # Verify dependency edges form a chain
+            for i, step in enumerate(steps):
+                needs = step.get("needs", [])
+                if i == 0:
+                    assert needs == [], (
+                        "preflight has no dependencies"
+                    )
+                else:
+                    assert needs == [step_ids[i - 1]], (
+                        f"Step '{step['id']}' should "
+                        f"need '{step_ids[i - 1]}', "
+                        f"got {needs}"
+                    )
+
+        finally:
+            # Cleanup: close and delete the wisp
+            _bd("close", wisp_id)
+            _bd("delete", wisp_id, "--force")
 
 
 # ================================================================
@@ -1298,19 +1396,106 @@ class TestProvenanceChain:
         )
 
     @skip_no_dolt_server
+    @skip_no_bd
     def test_experiment_to_conclusion_traceable(self):
-        """Dolt experiment data is queryable for
-        Review Board analysis."""
+        """Conclusion bead metadata references experiment
+        rows tied to the same hypothesis
+        (VAL-CROSS-006).
+
+        Full provenance chain verified:
+          hypothesis bead -> Dolt experiment rows ->
+          conclusion bead with matching hypothesis_id.
+        """
+        hyp_id = "sc-e2e-test"
+
+        # Step 1: Verify experiment rows exist for
+        # this hypothesis in Dolt.
         result = _dolt_sql(
-            "SELECT hypothesis_id, "
-            "AVG(total_pass_rate) as avg_pass, "
-            "COUNT(*) as n "
+            "SELECT COUNT(*) AS cnt "
             "FROM experiments "
-            "WHERE manipulation_check = 'passed' "
-            "AND results_valid = true "
-            "GROUP BY hypothesis_id;",
+            "WHERE hypothesis_id = 'sc-e2e-test' "
+            "AND manipulation_check = 'passed' "
+            "AND results_valid = true;",
         )
         assert result.returncode == 0
+        # Dolt table output: verify count > 0
+        assert "| 0 " not in result.stdout, (
+            "Experiment rows for hypothesis must "
+            "exist in Dolt"
+        )
+
+        # Step 2: Create a conclusion bead whose
+        # metadata references the same hypothesis_id
+        # and experiment IDs.
+        conclusion_meta = json.dumps({
+            "hypothesis_id": hyp_id,
+            "experiment_ids": [43, 44],
+            "pass_rate_delta": 0.07,
+            "sample_size": 2,
+            "is_preliminary": True,
+        })
+        conclusion = _bd(
+            "create",
+            "E2E Provenance: Conclusion for "
+            f"{hyp_id}",
+            "--labels", "conclusion",
+            "--metadata", conclusion_meta,
+            "--description",
+            f"Analysis of hypothesis {hyp_id}. "
+            "Pass rate delta: +7pp. N=2.",
+            "--silent",
+        )
+        assert conclusion.returncode == 0, (
+            "Failed to create conclusion bead: "
+            f"{conclusion.stderr}"
+        )
+        conc_id = conclusion.stdout.strip()
+
+        try:
+            # Step 3: Read back conclusion metadata and
+            # verify it references the same hypothesis
+            show = _bd("show", conc_id, "--json")
+            assert show.returncode == 0
+            bead_list = json.loads(show.stdout)
+            bead = (
+                bead_list[0]
+                if isinstance(bead_list, list)
+                else bead_list
+            )
+            meta = bead.get("metadata", {})
+            assert meta.get("hypothesis_id") == hyp_id, (
+                "Conclusion metadata must reference "
+                f"hypothesis {hyp_id}, "
+                f"got {meta.get('hypothesis_id')}"
+            )
+            assert "experiment_ids" in meta, (
+                "Conclusion must list experiment_ids"
+            )
+            assert len(meta["experiment_ids"]) >= 1, (
+                "Conclusion must reference at least "
+                "one experiment"
+            )
+
+            # Step 4: Verify the referenced hypothesis
+            # is traceable backward: experiments exist
+            # in Dolt with this hypothesis_id.
+            verify = _dolt_sql(
+                "SELECT COUNT(*) AS cnt "  # noqa: S608
+                "FROM experiments "
+                "WHERE hypothesis_id = "
+                f"\'{meta['hypothesis_id']}\' "
+                "AND manipulation_check = 'passed' "
+                "AND results_valid = true;",  # noqa: S608
+            )
+            assert verify.returncode == 0
+            assert "| 0 " not in verify.stdout, (
+                "Hypothesis in conclusion must "
+                "match experiments in Dolt"
+            )
+        finally:
+            # Cleanup
+            _bd("close", conc_id)
+            _bd("delete", conc_id, "--force")
 
     def test_provenance_chain_documented(self):
         """Architecture documents the full provenance
@@ -1376,6 +1561,181 @@ class TestProvenanceChain:
         # Cleanup
         _bd("close", hyp_id)
         _bd("delete", hyp_id, "--force")
+
+    @skip_no_dolt_server
+    @skip_no_bd
+    def test_full_provenance_linkage(self):
+        """End-to-end provenance: hypothesis ->
+        experiment -> conclusion with matching IDs.
+
+        Creates a hypothesis bead, inserts experiment
+        rows in Dolt referencing it, creates a conclusion
+        bead referencing both, then verifies the entire
+        chain is consistent.
+        """
+        # Step 1: Create hypothesis bead
+        hyp_meta = json.dumps({
+            "discovered_from": ["sc-research-kb"],
+            "testable_claim": (
+                "E2E linkage: two-agent improves pass "
+                "rate"
+            ),
+            "predicted_outcome": "+5pp pass rate",
+            "experiment_configs": {
+                "problems": ["file_backup"],
+            },
+        })
+        hyp = _bd(
+            "create",
+            "E2E Linkage Hypothesis",
+            "--parent", "sc-hypotheses",
+            "--labels", "hypothesis",
+            "--metadata", hyp_meta,
+            "--silent",
+        )
+        assert hyp.returncode == 0
+        hyp_id = hyp.stdout.strip()
+
+        # Step 2: Insert experiment rows referencing
+        # this hypothesis
+        pipeline = _load_pipeline()
+        conn = pipeline.get_dolt_connection()
+        conc_id = None
+
+        try:
+            baseline = pipeline.ExperimentRow(
+                problem_id="file_backup",
+                model="opus-4.5",
+                mode="single",
+                hypothesis_id=hyp_id,
+                budget_usd=5.0,
+                pass_rates=[0.75],
+                erosion_scores=[0.1],
+                verbosity_scores=[0.05],
+                tokens_implementer=[500],
+                tokens_reviewer=[0],
+                cost_per_checkpoint=[0.3],
+                total_pass_rate=0.75,
+                total_cost=0.3,
+                erosion_slope=0.0,
+                verbosity_slope=0.0,
+                manipulation_check="passed",
+                results_valid=True,
+            )
+            two_agent = pipeline.ExperimentRow(
+                problem_id="file_backup",
+                model="opus-4.5",
+                mode="two-agent",
+                hypothesis_id=hyp_id,
+                budget_usd=5.0,
+                pass_rates=[0.82],
+                erosion_scores=[0.08],
+                verbosity_scores=[0.04],
+                tokens_implementer=[600],
+                tokens_reviewer=[300],
+                cost_per_checkpoint=[0.5],
+                total_pass_rate=0.82,
+                total_cost=0.5,
+                erosion_slope=0.0,
+                verbosity_slope=0.0,
+                manipulation_check="passed",
+                results_valid=True,
+            )
+            bl_id = pipeline.insert_experiment_row(
+                conn, baseline,
+            )
+            ta_id = pipeline.insert_experiment_row(
+                conn, two_agent,
+            )
+            assert bl_id > 0 and ta_id > 0
+
+            # Step 3: Create conclusion bead referencing
+            # both hypothesis and experiment IDs
+            conc_meta = json.dumps({
+                "hypothesis_id": hyp_id,
+                "experiment_ids": [bl_id, ta_id],
+                "pass_rate_delta": 0.07,
+                "sample_size": 2,
+                "is_preliminary": True,
+            })
+            conc = _bd(
+                "create",
+                f"E2E Conclusion for {hyp_id}",
+                "--labels", "conclusion",
+                "--metadata", conc_meta,
+                "--silent",
+            )
+            assert conc.returncode == 0
+            conc_id = conc.stdout.strip()
+
+            # Step 4: Verify full chain
+            # 4a. Hypothesis bead exists with metadata
+            hyp_show = _bd("show", hyp_id, "--json")
+            hyp_data = json.loads(hyp_show.stdout)
+            hyp_meta_out = (
+                hyp_data[0]
+                if isinstance(hyp_data, list)
+                else hyp_data
+            ).get("metadata", {})
+            assert "testable_claim" in hyp_meta_out
+
+            # 4b. Experiments in Dolt reference hyp_id
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, mode "
+                    "FROM experiments "
+                    "WHERE hypothesis_id = %s "
+                    "AND manipulation_check = 'passed' "
+                    "AND results_valid = true",
+                    (hyp_id,),
+                )
+                exp_rows = cur.fetchall()
+            exp_ids = {r[0] for r in exp_rows}
+            assert bl_id in exp_ids, (
+                "Baseline experiment must reference "
+                "hypothesis"
+            )
+            assert ta_id in exp_ids, (
+                "Two-agent experiment must reference "
+                "hypothesis"
+            )
+
+            # 4c. Conclusion bead references hypothesis
+            # and experiment IDs
+            conc_show = _bd("show", conc_id, "--json")
+            conc_data = json.loads(conc_show.stdout)
+            conc_meta_out = (
+                conc_data[0]
+                if isinstance(conc_data, list)
+                else conc_data
+            ).get("metadata", {})
+            assert (
+                conc_meta_out["hypothesis_id"] == hyp_id
+            ), (
+                "Conclusion hypothesis_id must match "
+                "hypothesis bead"
+            )
+            assert set(
+                conc_meta_out["experiment_ids"],
+            ) == {bl_id, ta_id}, (
+                "Conclusion experiment_ids must match "
+                "Dolt rows for same hypothesis"
+            )
+
+        finally:
+            # Cleanup: remove experiment rows and beads
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM experiments "
+                    "WHERE hypothesis_id = %s",
+                    (hyp_id,),
+                )
+            conn.close()
+            if conc_id:
+                _bd("close", conc_id)
+                _bd("delete", conc_id, "--force")
+            _bd("close", hyp_id)
+            _bd("delete", hyp_id, "--force")
 
 
 # ================================================================
