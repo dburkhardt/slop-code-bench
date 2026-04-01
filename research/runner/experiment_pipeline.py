@@ -303,7 +303,10 @@ def parse_eval_results(
 ) -> EvalMetrics:
     """Parse ``checkpoint_results.jsonl`` from an eval run.
 
-    Extracts per-checkpoint pass rates and computes aggregates.
+    Extracts per-checkpoint pass rates, erosion, verbosity,
+    and cost metrics.  Works for both single-agent baseline
+    runs and two-agent runs by reading all flattened metric
+    keys from the JSONL.
     """
     results_file = output_dir / "checkpoint_results.jsonl"
     metrics = EvalMetrics()
@@ -343,6 +346,22 @@ def parse_eval_results(
             )
         metrics.pass_rates.append(pr)
 
+        # Extract erosion, verbosity, and cost from
+        # flattened JSONL keys (available in both
+        # baseline and two-agent eval output).
+        if "erosion" in data:
+            metrics.erosion_scores.append(
+                float(data["erosion"]),
+            )
+        if "verbosity" in data:
+            metrics.verbosity_scores.append(
+                float(data["verbosity"]),
+            )
+        if "cost" in data:
+            metrics.cost_per_checkpoint.append(
+                float(data["cost"]),
+            )
+
     metrics.checkpoint_count = len(metrics.pass_rates)
     if metrics.pass_rates:
         metrics.total_pass_rate = round(
@@ -377,30 +396,50 @@ def _merge_two_agent_metrics(
     metrics: EvalMetrics,
     ta_metrics_file: Path,
 ) -> None:
-    """Merge per-checkpoint data from two_agent_metrics.json."""
+    """Merge per-checkpoint data from two_agent_metrics.json.
+
+    Only fills in fields not already populated from the
+    JSONL eval output.  Erosion, verbosity, and cost are
+    extracted from the JSONL when available, so we skip
+    them here if already present.  Token counts are only
+    available in two_agent_metrics.json.
+    """
     try:
         data = json.loads(ta_metrics_file.read_text())
     except (json.JSONDecodeError, OSError):
         return
 
     checkpoints = data.get("checkpoints", {})
+
+    # Determine which fields were already populated
+    # from the JSONL eval output.
+    has_erosion = bool(metrics.erosion_scores)
+    has_verbosity = bool(metrics.verbosity_scores)
+    has_cost = bool(metrics.cost_per_checkpoint)
+
     for _name, cp in sorted(checkpoints.items()):
         if isinstance(cp, dict):
-            metrics.erosion_scores.append(
-                cp.get("erosion", 0.0),
-            )
-            metrics.verbosity_scores.append(
-                cp.get("verbosity", 0.0),
-            )
+            # Only fill erosion/verbosity/cost from
+            # the runner if JSONL didn't provide them.
+            if not has_erosion:
+                metrics.erosion_scores.append(
+                    cp.get("erosion", 0.0),
+                )
+            if not has_verbosity:
+                metrics.verbosity_scores.append(
+                    cp.get("verbosity", 0.0),
+                )
+            # Token counts are always from the runner.
             metrics.tokens_implementer.append(
                 cp.get("tokens_implementer", 0),
             )
             metrics.tokens_reviewer.append(
                 cp.get("tokens_reviewer", 0),
             )
-            metrics.cost_per_checkpoint.append(
-                cp.get("cost", 0.0),
-            )
+            if not has_cost:
+                metrics.cost_per_checkpoint.append(
+                    cp.get("cost", 0.0),
+                )
 
     metrics.total_cost = round(
         data.get("cumulative_cost", 0.0), 6,

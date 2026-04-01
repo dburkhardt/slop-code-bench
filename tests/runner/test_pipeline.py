@@ -1784,3 +1784,186 @@ class TestFindLatestRunDir:
             )
 
         assert result is None
+
+
+# -------------------------------------------------------------------
+# Fix 4: Eval parsing extracts flattened erosion/verbosity/cost
+# -------------------------------------------------------------------
+
+
+class TestEvalParsingFlattenedMetrics:
+    """Eval parsing extracts erosion, verbosity, cost from
+    flattened checkpoint_results.jsonl for both modes."""
+
+    def test_baseline_extracts_erosion_verbosity_cost(
+        self, tmp_path: Path,
+    ):
+        """Baseline (no two_agent_metrics.json) extracts
+        erosion, verbosity, cost from JSONL."""
+        mod = _load_pipeline()
+        results = tmp_path / "checkpoint_results.jsonl"
+        lines = [
+            json.dumps({
+                "strict_pass_rate": 0.8,
+                "erosion": 0.12,
+                "verbosity": 0.18,
+                "cost": 0.25,
+            }),
+            json.dumps({
+                "strict_pass_rate": 0.9,
+                "erosion": 0.15,
+                "verbosity": 0.22,
+                "cost": 0.30,
+            }),
+        ]
+        results.write_text("\n".join(lines) + "\n")
+
+        metrics = mod.parse_eval_results(tmp_path, "p")
+
+        assert len(metrics.pass_rates) == 2
+        assert metrics.erosion_scores == [0.12, 0.15]
+        assert metrics.verbosity_scores == [0.18, 0.22]
+        assert metrics.cost_per_checkpoint == [0.25, 0.30]
+        assert metrics.total_cost == pytest.approx(0.55)
+        assert metrics.erosion_slope != 0.0
+        assert metrics.verbosity_slope != 0.0
+
+    def test_baseline_no_erosion_in_jsonl(
+        self, tmp_path: Path,
+    ):
+        """Baseline JSONL without erosion/verbosity/cost
+        leaves those lists empty."""
+        mod = _load_pipeline()
+        results = tmp_path / "checkpoint_results.jsonl"
+        results.write_text(
+            json.dumps({
+                "pass_counts": 8,
+                "total_counts": 10,
+            }) + "\n",
+        )
+
+        metrics = mod.parse_eval_results(tmp_path, "p")
+
+        assert len(metrics.pass_rates) == 1
+        assert metrics.erosion_scores == []
+        assert metrics.verbosity_scores == []
+        assert metrics.cost_per_checkpoint == []
+
+    def test_two_agent_no_double_count(
+        self, tmp_path: Path,
+    ):
+        """When JSONL has erosion/verbosity/cost, the
+        two_agent_metrics.json merge does NOT duplicate
+        those values."""
+        mod = _load_pipeline()
+
+        # JSONL with erosion/verbosity/cost
+        results = tmp_path / "checkpoint_results.jsonl"
+        results.write_text(
+            json.dumps({
+                "strict_pass_rate": 0.8,
+                "erosion": 0.12,
+                "verbosity": 0.18,
+                "cost": 0.25,
+            }) + "\n",
+        )
+
+        # two_agent_metrics.json with different values
+        ta = {
+            "cumulative_cost": 0.30,
+            "checkpoints": {
+                "checkpoint_1": {
+                    "erosion": 0.99,
+                    "verbosity": 0.99,
+                    "tokens_implementer": 500,
+                    "tokens_reviewer": 200,
+                    "cost": 0.99,
+                },
+            },
+        }
+        (tmp_path / "two_agent_metrics.json").write_text(
+            json.dumps(ta),
+        )
+
+        metrics = mod.parse_eval_results(tmp_path, "p")
+
+        # Erosion/verbosity/cost from JSONL (not doubled)
+        assert metrics.erosion_scores == [0.12]
+        assert metrics.verbosity_scores == [0.18]
+        assert metrics.cost_per_checkpoint == [0.25]
+        # Token counts from two_agent_metrics.json
+        assert metrics.tokens_implementer == [500]
+        assert metrics.tokens_reviewer == [200]
+        # Total cost from JSONL cost_per_checkpoint sum
+        # (JSONL eval output is authoritative when present)
+        assert metrics.total_cost == pytest.approx(0.25)
+
+    def test_two_agent_fills_missing_from_runner(
+        self, tmp_path: Path,
+    ):
+        """When JSONL has no erosion/verbosity/cost,
+        two_agent_metrics.json fills them in."""
+        mod = _load_pipeline()
+
+        # JSONL without erosion/verbosity/cost
+        results = tmp_path / "checkpoint_results.jsonl"
+        results.write_text(
+            json.dumps({
+                "pass_counts": 8,
+                "total_counts": 10,
+            }) + "\n",
+        )
+
+        # two_agent_metrics.json with values
+        ta = {
+            "cumulative_cost": 0.15,
+            "checkpoints": {
+                "checkpoint_1": {
+                    "erosion": 0.10,
+                    "verbosity": 0.20,
+                    "tokens_implementer": 500,
+                    "tokens_reviewer": 200,
+                    "cost": 0.15,
+                },
+            },
+        }
+        (tmp_path / "two_agent_metrics.json").write_text(
+            json.dumps(ta),
+        )
+
+        metrics = mod.parse_eval_results(tmp_path, "p")
+
+        # Filled from two_agent_metrics.json
+        assert metrics.erosion_scores == [0.10]
+        assert metrics.verbosity_scores == [0.20]
+        assert metrics.cost_per_checkpoint == [0.15]
+        assert metrics.tokens_implementer == [500]
+        assert metrics.tokens_reviewer == [200]
+        assert metrics.total_cost == pytest.approx(0.15)
+
+    def test_all_metric_keys_parsed(
+        self, tmp_path: Path,
+    ):
+        """ALL flattened metric keys from eval output
+        are consumed by parse_eval_results."""
+        mod = _load_pipeline()
+        results = tmp_path / "checkpoint_results.jsonl"
+        data = {
+            "strict_pass_rate": 0.85,
+            "isolated_pass_rate": 0.82,
+            "erosion": 0.14,
+            "verbosity": 0.21,
+            "cost": 0.35,
+            "total_tests": 20,
+            "passed_tests": 17,
+        }
+        results.write_text(json.dumps(data) + "\n")
+
+        metrics = mod.parse_eval_results(tmp_path, "p")
+
+        assert metrics.pass_rates == [0.85]
+        assert metrics.erosion_scores == [0.14]
+        assert metrics.verbosity_scores == [0.21]
+        assert metrics.cost_per_checkpoint == [0.35]
+        assert metrics.total_cost == pytest.approx(0.35)
+        assert metrics.checkpoint_count == 1

@@ -1688,3 +1688,536 @@ class TestNvidiaModelConfigs:
         assert model_name.startswith("openai/"), (
             f"Expected openai/ prefix, got: {model_name}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Fix 1: Reviewer feedback injected into implementer prompt
+# ---------------------------------------------------------------------------
+
+
+class TestReviewerFeedbackInjection:
+    """Implementer prompt for checkpoint N+1 contains
+    reviewer feedback from checkpoint N.
+
+    Verifies that build_implementer_prompt return value
+    is actually passed to run_slop_code via the
+    task_prompt parameter.
+    """
+
+    @pytest.fixture()
+    def fake_problem(self, tmp_path):
+        prob = tmp_path / "problems" / "test_problem"
+        for i in range(1, 3):
+            cp = prob / f"checkpoint_{i}"
+            cp.mkdir(parents=True)
+            spec = prob / f"checkpoint_{i}.md"
+            spec.write_text(f"Spec for checkpoint {i}")
+        return prob
+
+    def test_checkpoint_2_prompt_includes_feedback(
+        self, tmp_path, fake_problem,
+    ):
+        """Checkpoint N+1 implementer call receives
+        reviewer suggestions from checkpoint N via
+        the task_prompt parameter."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        # Create a fake reviewer output with suggestions
+        fake_rev_dir = tmp_path / "reviewer_output"
+        snapshot = (
+            fake_rev_dir / "test_problem"
+            / "checkpoint_1" / "snapshot"
+        )
+        snapshot.mkdir(parents=True)
+        (snapshot / "solution.py").write_text(
+            "def refactored():\n    return 'clean'\n",
+        )
+
+        call_args: list[dict] = []
+
+        def capture_call(**kwargs):
+            call_args.append(dict(kwargs))
+            phase = kwargs.get("phase", "implementer")
+            if phase == "reviewer":
+                return _fake_slop_result(
+                    output_dir=str(fake_rev_dir),
+                )
+            return _fake_slop_result()
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR",
+                fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=capture_call,
+            ),
+        ):
+            mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+            )
+
+        # 4 calls: impl1, rev1, impl2, rev2
+        assert len(call_args) == 4
+
+        # First implementer call (checkpoint_1) should
+        # NOT have task_prompt (no prior reviewer feedback)
+        assert call_args[0]["phase"] == "implementer"
+        assert call_args[0].get("task_prompt") is None
+
+        # Second implementer call (checkpoint_2) SHOULD
+        # have task_prompt containing reviewer feedback
+        assert call_args[2]["phase"] == "implementer"
+        task_prompt = call_args[2].get("task_prompt")
+        assert task_prompt is not None
+        assert "reviewer" in task_prompt.lower() or (
+            "refactored" in task_prompt.lower()
+        )
+
+    def test_task_prompt_none_without_feedback(
+        self, tmp_path, fake_problem,
+    ):
+        """When no reviewer feedback exists, task_prompt
+        is None (uses template file directly)."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        call_args: list[dict] = []
+
+        def capture_call(**kwargs):
+            call_args.append(dict(kwargs))
+            return _fake_slop_result()
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR",
+                fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=capture_call,
+            ),
+        ):
+            mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+                max_checkpoints=1,
+            )
+
+        # Only 1 checkpoint: impl1, rev1
+        assert len(call_args) == 2
+        # No prior reviewer feedback, so no task_prompt
+        assert call_args[0].get("task_prompt") is None
+
+
+class TestRunSlopCodeTaskPrompt:
+    """run_slop_code writes temporary template when
+    task_prompt is provided."""
+
+    def test_task_prompt_creates_temp_file(self):
+        """When task_prompt is set, run_slop_code creates
+        a temporary Jinja file and passes it to --prompt."""
+        mod = _load_runner_module()
+        captured_cmd: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            r = MagicMock()
+            r.returncode = 0
+            r.stdout = ""
+            r.stderr = ""
+            return r
+
+        # Create a real template file for the test
+        import tempfile as tf
+        with tf.NamedTemporaryFile(
+            mode="w",
+            suffix=".jinja",
+            delete=False,
+        ) as f:
+            f.write(
+                "Preamble\n{{ spec.strip() }}\nEnd",
+            )
+            template_path = Path(f.name)
+
+        try:
+            with (
+                patch(
+                    "subprocess.run",
+                    side_effect=fake_run,
+                ),
+                patch.object(
+                    mod, "_parse_slop_code_output",
+                    return_value={
+                        "cost": 0.0, "tokens": 0,
+                        "pass_rate": 0.0,
+                        "erosion": 0.0,
+                        "verbosity": 0.0,
+                        "output_dir": None,
+                    },
+                ),
+            ):
+                mod.run_slop_code(
+                    problem="test",
+                    model="test",
+                    prompt_template=template_path,
+                    output_dir=Path("/tmp/out"),  # noqa: S108
+                    budget_fraction=0.7,
+                    total_budget=10.0,
+                    task_prompt="Review: fix the loop",
+                )
+
+            # The --prompt arg should NOT point to the
+            # original template (it should be a temp file)
+            prompt_idx = captured_cmd.index("--prompt")
+            prompt_path = captured_cmd[prompt_idx + 1]
+            assert prompt_path != str(template_path)
+        finally:
+            template_path.unlink(missing_ok=True)
+
+    def test_no_task_prompt_uses_original_template(self):
+        """Without task_prompt, run_slop_code uses the
+        original template path."""
+        mod = _load_runner_module()
+        captured_cmd: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            r = MagicMock()
+            r.returncode = 0
+            r.stdout = ""
+            r.stderr = ""
+            return r
+
+        with (
+            patch(
+                "subprocess.run",
+                side_effect=fake_run,
+            ),
+            patch.object(
+                mod, "_parse_slop_code_output",
+                return_value={
+                    "cost": 0.0, "tokens": 0,
+                    "pass_rate": 0.0, "erosion": 0.0,
+                    "verbosity": 0.0,
+                    "output_dir": None,
+                },
+            ),
+        ):
+            mod.run_slop_code(
+                problem="test",
+                model="test",
+                prompt_template=Path("orig.jinja"),
+                output_dir=Path("/tmp/out"),  # noqa: S108
+                budget_fraction=0.7,
+                total_budget=10.0,
+            )
+
+        prompt_idx = captured_cmd.index("--prompt")
+        prompt_path = captured_cmd[prompt_idx + 1]
+        assert prompt_path == "orig.jinja"
+
+
+# ---------------------------------------------------------------------------
+# Fix 2: Reviewer non-zero exit fatal in canary mode
+# ---------------------------------------------------------------------------
+
+
+class TestReviewerFatalInCanary:
+    """Canary mode: reviewer non-zero exit raises fatal
+    CanaryError with component='Reviewer'."""
+
+    @pytest.fixture()
+    def fake_problem(self, tmp_path):
+        prob = tmp_path / "problems" / "test_problem"
+        cp = prob / "checkpoint_1"
+        cp.mkdir(parents=True)
+        spec = prob / "checkpoint_1.md"
+        spec.write_text("Spec for checkpoint 1")
+        return prob
+
+    def test_reviewer_nonzero_raises_canary_error(
+        self, tmp_path, fake_problem,
+    ):
+        """Non-zero reviewer exit code raises CanaryError
+        with component='Reviewer' in canary mode."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        def phase_aware(**kwargs):
+            phase = kwargs.get("phase", "implementer")
+            if phase == "reviewer":
+                result = _fake_slop_result()
+                result["exit_code"] = 1
+                return result
+            return _fake_slop_result()
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR",
+                fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=phase_aware,
+            ),
+        ):
+            with pytest.raises(
+                mod.CanaryError,
+            ) as exc_info:
+                mod.run_two_agent(
+                    problem="test_problem",
+                    model="opus-4.5",
+                    implementer_prompt=Path("i.jinja"),
+                    reviewer_prompt=Path("r.jinja"),
+                    budget_split=70,
+                    budget=10.0,
+                    output_dir=out,
+                    canary_mode=True,
+                )
+            assert (
+                exc_info.value.component == "Reviewer"
+            )
+
+    def test_implementer_nonzero_raises_canary_error(
+        self, tmp_path, fake_problem,
+    ):
+        """Non-zero implementer exit code raises CanaryError
+        with component='Implementer' in canary mode."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        def impl_fails(**kwargs):
+            result = _fake_slop_result()
+            phase = kwargs.get("phase", "implementer")
+            if phase == "implementer":
+                result["exit_code"] = 1
+            return result
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR",
+                fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=impl_fails,
+            ),
+        ):
+            with pytest.raises(
+                mod.CanaryError,
+            ) as exc_info:
+                mod.run_two_agent(
+                    problem="test_problem",
+                    model="opus-4.5",
+                    implementer_prompt=Path("i.jinja"),
+                    reviewer_prompt=Path("r.jinja"),
+                    budget_split=70,
+                    budget=10.0,
+                    output_dir=out,
+                    canary_mode=True,
+                )
+            assert (
+                exc_info.value.component == "Implementer"
+            )
+
+    def test_nonzero_exit_ignored_without_canary(
+        self, tmp_path, fake_problem,
+    ):
+        """Non-zero exit codes are NOT fatal when
+        canary_mode is False (normal mode)."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        def always_fails(**kwargs):
+            result = _fake_slop_result()
+            result["exit_code"] = 1
+            return result
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR",
+                fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=always_fails,
+            ),
+        ):
+            # Should not raise CanaryError
+            state = mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("i.jinja"),
+                reviewer_prompt=Path("r.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+                canary_mode=False,
+            )
+            assert isinstance(state, mod.RunState)
+
+
+# ---------------------------------------------------------------------------
+# Fix 3: CanaryError preserves originating component
+# ---------------------------------------------------------------------------
+
+
+class TestCanaryErrorComponentPreservation:
+    """CanaryError preserves originating component
+    (Docker, API, Implementer, Reviewer, Evaluation)
+    instead of mapping to generic 'Pipeline'."""
+
+    def test_reviewer_error_preserves_component(self):
+        """run_canary propagates CanaryError with
+        component='Reviewer' from run_two_agent."""
+        mod = _load_runner_module()
+
+        with (
+            patch.object(mod, "run_preflight_checks"),
+            patch.object(
+                mod, "validate_model",
+                return_value="opus-4.5",
+            ),
+            patch.object(
+                mod, "run_two_agent",
+                side_effect=mod.CanaryError(
+                    "Reviewer",
+                    "Reviewer exited with code 1",
+                ),
+            ),
+            patch.object(
+                mod, "OUTPUTS_DIR",
+                Path("/tmp/canary_test"),  # noqa: S108
+            ),
+        ):
+            with pytest.raises(
+                mod.CanaryError,
+            ) as exc_info:
+                mod.run_canary()
+            assert (
+                exc_info.value.component == "Reviewer"
+            )
+
+    def test_implementer_error_preserves_component(self):
+        """run_canary propagates CanaryError with
+        component='Implementer' from run_two_agent."""
+        mod = _load_runner_module()
+
+        with (
+            patch.object(mod, "run_preflight_checks"),
+            patch.object(
+                mod, "validate_model",
+                return_value="opus-4.5",
+            ),
+            patch.object(
+                mod, "run_two_agent",
+                side_effect=mod.CanaryError(
+                    "Implementer",
+                    "Implementer exited with code 1",
+                ),
+            ),
+            patch.object(
+                mod, "OUTPUTS_DIR",
+                Path("/tmp/canary_test"),  # noqa: S108
+            ),
+        ):
+            with pytest.raises(
+                mod.CanaryError,
+            ) as exc_info:
+                mod.run_canary()
+            assert (
+                exc_info.value.component
+                == "Implementer"
+            )
+
+    def test_system_exit_still_maps_to_pipeline(self):
+        """SystemExit (non-CanaryError) still maps to
+        generic 'Pipeline' component."""
+        mod = _load_runner_module()
+
+        with (
+            patch.object(mod, "run_preflight_checks"),
+            patch.object(
+                mod, "validate_model",
+                return_value="opus-4.5",
+            ),
+            patch.object(
+                mod, "run_two_agent",
+                side_effect=SystemExit(1),
+            ),
+            patch.object(
+                mod, "OUTPUTS_DIR",
+                Path("/tmp/canary_test"),  # noqa: S108
+            ),
+        ):
+            with pytest.raises(
+                mod.CanaryError,
+            ) as exc_info:
+                mod.run_canary()
+            assert (
+                exc_info.value.component == "Pipeline"
+            )
+
+    def test_docker_error_preserves_component(self):
+        """Docker preflight failure has component='Docker'.
+        """
+        mod = _load_runner_module()
+
+        with (
+            patch.object(
+                mod, "run_preflight_checks",
+                side_effect=mod.CanaryError(
+                    "Docker", "not running",
+                ),
+            ),
+            patch.object(
+                mod, "validate_model",
+                return_value="opus-4.5",
+            ),
+            patch.object(
+                mod, "OUTPUTS_DIR",
+                Path("/tmp/canary_test"),  # noqa: S108
+            ),
+        ):
+            with pytest.raises(
+                mod.CanaryError,
+            ) as exc_info:
+                mod.run_canary()
+            assert (
+                exc_info.value.component == "Docker"
+            )
+
+    def test_canary_error_has_all_valid_components(self):
+        """CanaryError accepts all documented component
+        names."""
+        mod = _load_runner_module()
+        for component in [
+            "Docker", "API", "Claude CLI",
+            "Implementer", "Reviewer",
+            "Evaluation", "Pipeline",
+        ]:
+            err = mod.CanaryError(
+                component, "test detail",
+            )
+            assert err.component == component
+            assert err.detail == "test detail"
+            assert component in str(err)

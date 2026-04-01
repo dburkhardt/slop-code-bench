@@ -14,12 +14,14 @@ Usage::
         --budget-split 70
 """
 
+import contextlib
 import json
 import logging
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import uuid
 from datetime import UTC
 from datetime import datetime
@@ -487,6 +489,7 @@ def run_slop_code(
     total_budget: float,
     run_id: str | None = None,
     phase: str = "implementer",
+    task_prompt: str | None = None,
 ) -> dict:
     """Invoke ``slop-code run`` as a subprocess.
 
@@ -499,6 +502,12 @@ def run_slop_code(
     the per-phase cost limit so that budget split is
     enforced at the harness level.
 
+    When *task_prompt* is provided, a temporary Jinja
+    template is created that injects the rendered prompt
+    (containing reviewer feedback) as the task text.
+    This ensures reviewer suggestions from checkpoint N
+    are consumed by the implementer in checkpoint N+1.
+
     Returns a dict with keys:
         cost, tokens, pass_rate, erosion, verbosity,
         exit_code, output_dir
@@ -506,33 +515,73 @@ def run_slop_code(
     cost_limit = round(
         total_budget * budget_fraction, 4,
     )
-    cmd = [
-        sys.executable, "-m", "slop_code",
-        "run",
-        "--problem", problem,
-        "--model", model,
-        "--prompt", str(prompt_template),
-        "--evaluate",
-        f"agent.cost_limits.cost_limit={cost_limit}",
-    ]
 
-    env = {
-        **os.environ,
-        "PYTHONPATH": str(REPO_ROOT / "src"),
-    }
-    if run_id:
-        env["SCBENCH_RUN_ID"] = (
-            f"{run_id}-{phase}"
+    # When task_prompt is provided, write a temporary
+    # Jinja template that embeds the rendered prompt
+    # (including reviewer feedback) as the task text.
+    tmp_prompt_path: Path | None = None
+    effective_prompt = str(prompt_template)
+    if task_prompt is not None:
+        fd, tmp_name = tempfile.mkstemp(
+            suffix=".jinja",
+            prefix="scbench_prompt_",
         )
+        os.close(fd)
+        tmp_prompt_path = Path(tmp_name)
+        # Read the original template and replace the
+        # spec variable with our rendered prompt that
+        # includes reviewer feedback.
+        try:
+            original = prompt_template.read_text()
+        except OSError:
+            original = "{{ spec }}"
+        # Replace {{ spec.strip() }} or {{ spec }} with
+        # the task_prompt content, preserving the rest
+        # of the template (role instructions, etc.).
+        patched = original.replace(
+            "{{ spec.strip() }}",
+            task_prompt.replace("\\", "\\\\")
+            .replace("{", "\\{").replace("}", "\\}"),
+        ).replace(
+            "{{ spec }}",
+            task_prompt.replace("\\", "\\\\")
+            .replace("{", "\\{").replace("}", "\\}"),
+        )
+        tmp_prompt_path.write_text(patched)
+        effective_prompt = str(tmp_prompt_path)
 
-    result = subprocess.run(  # noqa: S603
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=str(REPO_ROOT),
-        timeout=3600,
-        env=env,
-    )
+    try:
+        cmd = [
+            sys.executable, "-m", "slop_code",
+            "run",
+            "--problem", problem,
+            "--model", model,
+            "--prompt", effective_prompt,
+            "--evaluate",
+            f"agent.cost_limits.cost_limit={cost_limit}",
+        ]
+
+        env = {
+            **os.environ,
+            "PYTHONPATH": str(REPO_ROOT / "src"),
+        }
+        if run_id:
+            env["SCBENCH_RUN_ID"] = (
+                f"{run_id}-{phase}"
+            )
+
+        result = subprocess.run(  # noqa: S603
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            timeout=3600,
+            env=env,
+        )
+    finally:
+        if tmp_prompt_path is not None:
+            with contextlib.suppress(OSError):
+                tmp_prompt_path.unlink()
 
     # Parse cost and metrics from the output directory
     parsed = _parse_slop_code_output(
@@ -632,6 +681,7 @@ def run_two_agent(
     output_dir: Path,
     run_id: str | None = None,
     max_checkpoints: int | None = None,
+    canary_mode: bool = False,  # noqa: FBT001, FBT002
 ) -> RunState:
     """Execute the two-agent loop over all checkpoints.
 
@@ -735,12 +785,20 @@ def run_two_agent(
         )
 
         # -- Implementer phase --
-        build_implementer_prompt(
+        rendered_impl_prompt = build_implementer_prompt(
             spec_text=spec_text,
             is_continuation=is_continuation,
             reviewer_suggestions=(
                 state.last_reviewer_suggestions
             ),
+        )
+
+        # Only pass task_prompt when reviewer feedback
+        # is present; otherwise use the template as-is.
+        impl_task_prompt = (
+            rendered_impl_prompt
+            if state.last_reviewer_suggestions
+            else None
         )
 
         typer.echo(
@@ -758,7 +816,18 @@ def run_two_agent(
             total_budget=budget,
             run_id=state.run_id,
             phase="implementer",
+            task_prompt=impl_task_prompt,
         )
+
+        # Check implementer exit code
+        impl_exit = impl_result.get("exit_code", 0)
+        if impl_exit != 0 and canary_mode:
+            raise CanaryError(
+                "Implementer",
+                f"Implementer exited with code "
+                f"{impl_exit} at {checkpoint_name}.",
+            )
+
         impl_cost = impl_result.get("cost", 0.0)
         impl_tokens = impl_result.get("tokens", 0)
 
@@ -793,6 +862,16 @@ def run_two_agent(
             run_id=state.run_id,
             phase="reviewer",
         )
+
+        # Check reviewer exit code
+        review_exit = review_result.get("exit_code", 0)
+        if review_exit != 0 and canary_mode:
+            raise CanaryError(
+                "Reviewer",
+                f"Reviewer exited with code "
+                f"{review_exit} at {checkpoint_name}.",
+            )
+
         review_cost = review_result.get("cost", 0.0)
         review_tokens = review_result.get("tokens", 0)
 
@@ -1022,7 +1101,14 @@ def run_canary(
             budget=budget,
             output_dir=output_dir,
             max_checkpoints=1,
+            canary_mode=True,
         )
+    except CanaryError:
+        # Propagate CanaryError with its original
+        # component (Implementer, Reviewer, etc.)
+        # instead of wrapping in a generic Pipeline
+        # error.
+        raise
     except SystemExit as exc:
         raise CanaryError(
             "Pipeline",
