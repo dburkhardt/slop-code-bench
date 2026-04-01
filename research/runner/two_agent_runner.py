@@ -703,7 +703,21 @@ def run_slop_code(
         effective_prompt = str(tmp_prompt_path)
 
     try:
-        cli_model = format_model_for_cli(model)
+        # Format model as {provider}/{model} for the CLI.
+        # parse_model_override() requires this format.
+        if "/" in model:
+            cli_model = model
+        else:
+            _src = str(REPO_ROOT / "src")
+            if _src not in sys.path:
+                sys.path.insert(0, _src)
+            from slop_code.common.llms import ModelCatalog
+            _mdef = ModelCatalog.get(model)
+            if _mdef is not None:
+                cli_model = f"{_mdef.provider}/{model}"
+            else:
+                cli_model = f"nvidia/{model}"
+
         cmd = [
             sys.executable, "-m", "slop_code",
             "run",
