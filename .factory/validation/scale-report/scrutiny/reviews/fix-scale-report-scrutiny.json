@@ -1,0 +1,39 @@
+{
+  "featureId": "fix-scale-report-scrutiny",
+  "reviewedAt": "2026-04-01T07:59:18.915865Z",
+  "commitId": "abc7946c979a19511e20607b9eeea855969821fa",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The fix fully resolves the analysis-scripts SQL ambiguity blocker and adds stronger provenance-chain coverage in e2e tests, including explicit hypothesis/experiment/conclusion ID matching. However, the formula-pour blocker is only partially addressed. The test now performs a real pour and checks wisp creation, but it still validates six steps and dependency edges from the static TOML file rather than asserting the poured molecule's actual created step-bead graph.",
+    "issues": [
+      {
+        "file": "tests/runner/test_e2e_experiment_lifecycle.py",
+        "line": 570,
+        "severity": "blocking",
+        "description": "`test_formula_pour_creates_molecule` still proves step count/dependencies by reading `FORMULA_PATH` (`tomllib.load`) instead of inspecting the poured molecule's created step beads and dependency edges in Gas Town. This does not satisfy the prior scrutiny requirement to validate actual post-pour molecule structure."
+      },
+      {
+        "file": "tests/runner/test_e2e_experiment_lifecycle.py",
+        "line": 1432,
+        "severity": "non_blocking",
+        "description": "`test_experiment_to_conclusion_traceable` still hard-codes `experiment_ids: [43, 44]` and only checks that at least one ID is present, so this specific test does not prove those IDs map to rows for the same hypothesis. The new `test_full_provenance_linkage` does provide that stronger assertion, so this is non-blocking duplication/weakness rather than a remaining feature blocker."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "`python-worker` still conflicts with mission-scoped validator policy and continues to mark TDD deviations as followed procedure, which can reduce consistency of scrutiny expectations.",
+      "evidence": ".factory/skills/python-worker/SKILL.md:39,52-53 requires tests-first and full-repo checks; mission AGENTS.md:37-44 scopes validators; fix handoff marks `followedProcedure=true` while recording `TDD - Write tests first` deviation at handoff lines 70-75."
+    },
+    {
+      "area": "knowledge",
+      "observation": "A pre-existing Gas Town polecat safety-net `git stash` side effect can interfere with worker edits, but this operational hazard is not captured in shared environment/service guidance.",
+      "evidence": "Fix handoff discoveredIssues/suggestedChanges documents concurrent polecat `git stash` interference (handoff lines 65-66, 79), while .factory/services.yaml only documents Dolt lifecycle commands and no polecat coordination guidance."
+    }
+  ],
+  "addressesFailureFrom": ".factory/validation/scale-report/scrutiny/reviews/analysis-scripts.json; .factory/validation/scale-report/scrutiny/reviews/e2e-experiment-lifecycle.json",
+  "summary": "Review result: fail. The rerun fix addresses the analysis SQL ambiguity and the provenance-chain blockers, but the formula-pour blocker remains because the test does not validate the poured molecule's actual step-bead/dependency structure."
+}

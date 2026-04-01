@@ -1,6 +1,6 @@
 {
   "milestone": "scale-report",
-  "round": 1,
+  "round": 2,
   "status": "fail",
   "validatorsRun": {
     "test": {
@@ -20,69 +20,58 @@
     }
   },
   "reviewsSummary": {
-    "total": 3,
-    "passed": 1,
-    "failed": 2,
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
     "failedFeatures": [
-      "analysis-scripts",
-      "e2e-experiment-lifecycle"
+      "fix-scale-report-scrutiny"
     ]
   },
   "blockingIssues": [
     {
-      "featureId": "analysis-scripts",
+      "featureId": "fix-scale-report-scrutiny",
       "severity": "blocking",
-      "description": "research/analysis/query_experiments.py:305 in query_pass_rate_delta uses alias qualification e2.{VALIDATION_FILTER}/e1.{VALIDATION_FILTER}; results_valid remains unqualified in the self-join and raises an ambiguous-column runtime error."
-    },
-    {
-      "featureId": "e2e-experiment-lifecycle",
-      "severity": "blocking",
-      "description": "tests/runner/test_e2e_experiment_lifecycle.py:491 validates only gt sling --dry-run output and does not verify that pouring creates a molecule with six step beads and dependency edges."
-    },
-    {
-      "featureId": "e2e-experiment-lifecycle",
-      "severity": "blocking",
-      "description": "tests/runner/test_e2e_experiment_lifecycle.py:1089 does not validate true conclusion linkage. It creates hard-coded conclusion metadata without verifying referenced experiment rows for the same hypothesis and without backward trace."
-    },
-    {
-      "featureId": "e2e-experiment-lifecycle",
-      "severity": "blocking",
-      "description": "tests/runner/test_e2e_experiment_lifecycle.py:1301 (test_experiment_to_conclusion_traceable) never touches conclusion beads, so the required hypothesis -> experiment -> conclusion provenance chain is not exercised."
+      "description": "tests/runner/test_e2e_experiment_lifecycle.py:570 still validates six steps and dependency chain from the static formula TOML instead of asserting the poured molecule's actual created step-bead graph and edges."
     }
   ],
-  "appliedUpdates": [],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Added a shared-environment warning in .factory/library/environment.md documenting that reactivated polecat safety-net scripts may run git stash and interfere with concurrent worker edits.",
+      "sourceFeature": "fix-scale-report-scrutiny"
+    }
+  ],
   "suggestedGuidanceUpdates": [
     {
       "target": "skills/python-worker",
-      "suggestion": "Add mission-aware validator guidance that explicitly prioritizes .factory/services.yaml commands over generic full-repo checks.",
-      "evidence": "analysis-scripts review observed conflict between python-worker generic guidance (uv run pytest -q, ruff check .) and mission-scoped validator contract in AGENTS.md and .factory/services.yaml.",
+      "suggestion": "Align validator guidance with mission-scoped commands in .factory/services.yaml and make tests-first reporting requirements internally consistent with skill feedback fields.",
+      "evidence": "analysis-scripts and fix-scale-report-scrutiny reviews both observed skill/procedure mismatch between generic full-repo checks and mission-scoped validator commands, plus tests-first deviations marked as followed.",
       "isSystemic": true
     },
     {
       "target": "AGENTS.md",
-      "suggestion": "Clarify boundary wording so mission code may include tests under tests/runner and tests/analysis while implementation logic remains in research/.",
-      "evidence": "crash-resilience review found ambiguity between 'research/-only' boundary text and validator scope that explicitly includes tests/runner and tests/analysis.",
+      "suggestion": "Clarify boundary wording so mission logic stays in research/ while mission validation tests are explicitly permitted under tests/runner and tests/analysis.",
+      "evidence": "crash-resilience review flagged ambiguity between research/-only boundary wording and validator scope that explicitly includes tests/runner and tests/analysis.",
       "isSystemic": true
     },
     {
       "target": "skills/integration-worker",
-      "suggestion": "Document the hq beads DB prerequisite for gt convoy and gt escalate flows (initialize status.custom and issue_prefix or equivalent setup) before attempting those commands.",
-      "evidence": "e2e-experiment-lifecycle review cites repeated convoy/escalation failures tied to missing hq DB initialization, observed in worker handoff/discovered issues.",
+      "suggestion": "Document hq beads DB initialization prerequisites before gt convoy and gt escalate commands.",
+      "evidence": "e2e-experiment-lifecycle review and handoff evidence showed repeated failures tied to missing hq status.custom and issue_prefix initialization.",
       "isSystemic": true
     },
     {
       "target": "AGENTS.md",
-      "suggestion": "Add explicit safe-cleanup conventions for shared beads state in integration tests to avoid broad deletes and accidental removal of mission infrastructure epics.",
-      "evidence": "e2e-experiment-lifecycle review recorded cleanup side effects requiring recreation of sc-hypotheses.",
+      "suggestion": "Add explicit shared-beads cleanup safety conventions for integration tests to prevent accidental deletion of mission infrastructure beads.",
+      "evidence": "e2e-experiment-lifecycle review noted broad cleanup side effects and infrastructure bead recreation during test teardown.",
       "isSystemic": true
-    },
-    {
-      "target": "skills/python-worker",
-      "suggestion": "Enforce consistency between tests-first requirement and skill feedback reporting, or relax wording to match accepted workflow when implementation-first is used.",
-      "evidence": "analysis-scripts review observed implementation occurring before tests while skillFeedback.followedProcedure remained true against tests-first wording.",
-      "isSystemic": false
     }
   ],
-  "rejectedObservations": [],
-  "previousRound": null
+  "rejectedObservations": [
+    {
+      "observation": "Repeated python-worker procedure mismatch observations across multiple review reports",
+      "reason": "duplicate"
+    }
+  ],
+  "previousRound": ".factory/validation/scale-report/scrutiny/synthesis.round1.json"
 }
