@@ -658,7 +658,13 @@ class TestCanaryDefaults:
         assert mod.CANARY_PROBLEM == "file_backup"
         assert mod.CANARY_BUDGET == 0.50
         assert mod.CANARY_BUDGET_SPLIT == 70
-        assert mod.CANARY_DEFAULT_MODEL == "opus-4.5"
+        assert (
+            mod.CANARY_DEFAULT_MODEL_ANTHROPIC == "opus-4.5"
+        )
+        assert (
+            mod.CANARY_DEFAULT_MODEL_NVIDIA
+            == "nvidia-haiku-4.5"
+        )
 
     def test_canary_budget_cap(self):
         """Canary budget defaults to $0.50."""
@@ -2221,3 +2227,157 @@ class TestCanaryErrorComponentPreservation:
             assert err.component == component
             assert err.detail == "test detail"
             assert component in str(err)
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint discovery
+# ---------------------------------------------------------------------------
+
+
+class TestDiscoverCheckpoints:
+    """discover_checkpoints finds checkpoints from
+    config.yaml or checkpoint_*.md files."""
+
+    def test_discovers_from_md_files(self, tmp_path):
+        """Fallback: discovers checkpoints from .md files
+        when config.yaml is absent."""
+        mod = _load_runner_module()
+        prob = tmp_path / "test_prob"
+        prob.mkdir()
+        for i in range(1, 4):
+            (prob / f"checkpoint_{i}.md").write_text(
+                f"Spec {i}",
+            )
+        checkpoints = mod.discover_checkpoints(
+            "test_prob", prob,
+        )
+        assert checkpoints == [
+            "checkpoint_1",
+            "checkpoint_2",
+            "checkpoint_3",
+        ]
+
+    def test_discovers_from_config_yaml(self, tmp_path):
+        """Discovers checkpoints from a proper config.yaml
+        using ProblemConfig."""
+        mod = _load_runner_module()
+        prob = tmp_path / "real_prob"
+        prob.mkdir()
+        cfg = (
+            "version: 1\n"
+            "name: real_prob\n"
+            "description: test\n"
+            "category: test\n"
+            "entry_file: main\n"
+            "checkpoints:\n"
+            "  checkpoint_1:\n"
+            "    version: 1\n"
+            "    order: 1\n"
+            "    state: Core Tests\n"
+            "  checkpoint_2:\n"
+            "    version: 1\n"
+            "    order: 2\n"
+            "    state: Core Tests\n"
+        )
+        (prob / "config.yaml").write_text(cfg)
+        (prob / "checkpoint_1.md").write_text("Spec 1")
+        (prob / "checkpoint_2.md").write_text("Spec 2")
+
+        checkpoints = mod.discover_checkpoints(
+            "real_prob", prob,
+        )
+        assert checkpoints == [
+            "checkpoint_1",
+            "checkpoint_2",
+        ]
+
+    def test_exits_when_no_checkpoints(self, tmp_path):
+        """Exits with SystemExit(1) when no checkpoints
+        are found."""
+        mod = _load_runner_module()
+        prob = tmp_path / "empty_prob"
+        prob.mkdir()
+        with pytest.raises(SystemExit):
+            mod.discover_checkpoints("empty_prob", prob)
+
+    def test_real_problem_file_backup(self):
+        """Discovers checkpoints for real file_backup
+        problem."""
+        mod = _load_runner_module()
+        prob_dir = mod.PROBLEMS_DIR / "file_backup"
+        if prob_dir.exists():
+            checkpoints = mod.discover_checkpoints(
+                "file_backup", prob_dir,
+            )
+            assert len(checkpoints) >= 1
+            assert "checkpoint_1" in checkpoints
+
+
+# ---------------------------------------------------------------------------
+# Canary model selection
+# ---------------------------------------------------------------------------
+
+
+class TestDefaultCanaryModel:
+    """_default_canary_model picks the right model
+    based on available credentials."""
+
+    def test_prefers_anthropic_when_set(self):
+        """Returns Anthropic model when ANTHROPIC_API_KEY
+        is available."""
+        mod = _load_runner_module()
+        with patch.dict(
+            os.environ,
+            {"ANTHROPIC_API_KEY": "sk-test"},
+        ):
+            assert (
+                mod._default_canary_model()
+                == mod.CANARY_DEFAULT_MODEL_ANTHROPIC
+            )
+
+    def test_falls_back_to_nvidia(self):
+        """Returns NVIDIA model when only
+        NVIDIA_INFERENCE_KEY is set."""
+        mod = _load_runner_module()
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k != "ANTHROPIC_API_KEY"
+        }
+        env["NVIDIA_INFERENCE_KEY"] = "nvapi-test"
+        with patch.dict(os.environ, env, clear=True):
+            assert (
+                mod._default_canary_model()
+                == mod.CANARY_DEFAULT_MODEL_NVIDIA
+            )
+
+    def test_falls_back_to_anthropic_when_nothing_set(self):
+        """Returns Anthropic model when no keys are set
+        (credential check will fail later)."""
+        mod = _load_runner_module()
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k
+            not in ("ANTHROPIC_API_KEY", "NVIDIA_INFERENCE_KEY")
+        }
+        with patch.dict(os.environ, env, clear=True):
+            assert (
+                mod._default_canary_model()
+                == mod.CANARY_DEFAULT_MODEL_ANTHROPIC
+            )
+
+
+# ---------------------------------------------------------------------------
+# pymysql availability
+# ---------------------------------------------------------------------------
+
+
+class TestPymysqlAvailable:
+    """pymysql is installed and importable."""
+
+    def test_pymysql_importable(self):
+        """pymysql can be imported."""
+        import pymysql
+
+        assert pymysql.__version__

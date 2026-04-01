@@ -54,7 +54,28 @@ DEFAULT_REVIEWER_PROMPT = (
 CANARY_PROBLEM = "file_backup"
 CANARY_BUDGET = 0.50
 CANARY_BUDGET_SPLIT = 70
-CANARY_DEFAULT_MODEL = "opus-4.5"
+# Default canary model depends on which API key is
+# available.  The NVIDIA inference endpoint is used
+# when ANTHROPIC_API_KEY is absent.
+CANARY_DEFAULT_MODEL_ANTHROPIC = "opus-4.5"
+CANARY_DEFAULT_MODEL_NVIDIA = "nvidia-haiku-4.5"
+
+
+def _default_canary_model() -> str:
+    """Return the cheapest available canary model.
+
+    Prefers the Anthropic direct model when
+    ``ANTHROPIC_API_KEY`` is set.  Falls back to the
+    NVIDIA-hosted Haiku model when only
+    ``NVIDIA_INFERENCE_KEY`` is available.
+    """
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return CANARY_DEFAULT_MODEL_ANTHROPIC
+    if os.environ.get("NVIDIA_INFERENCE_KEY"):
+        return CANARY_DEFAULT_MODEL_NVIDIA
+    # Fall back to Anthropic and let the credential
+    # check produce a descriptive error later.
+    return CANARY_DEFAULT_MODEL_ANTHROPIC
 
 
 # ---------------------------------------------------------------------------
@@ -356,6 +377,65 @@ def is_budget_exceeded(
 ) -> bool:
     """Return True when *cumulative_cost* > *budget*."""
     return cumulative_cost > budget
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint discovery
+# ---------------------------------------------------------------------------
+
+
+def discover_checkpoints(
+    problem: str,
+    problem_dir: Path,
+) -> list[str]:
+    """Discover checkpoint names for *problem*.
+
+    Uses the upstream ``ProblemConfig.from_yaml()`` to parse
+    the problem's ``config.yaml``.  Problems declare
+    checkpoints in YAML (with ``checkpoint_N.md`` spec files
+    alongside ``config.yaml``), so scanning for directories
+    named ``checkpoint_*`` would find nothing.
+
+    Falls back to scanning for ``checkpoint_*.md`` files
+    when the upstream import is unavailable.
+
+    Returns a sorted list of checkpoint names such as
+    ``["checkpoint_1", "checkpoint_2", ...]``.
+
+    Exits with code 1 when no checkpoints are found.
+    """
+    # Try using the upstream ProblemConfig first.
+    src_path = str(REPO_ROOT / "src")
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
+
+    try:
+        from slop_code.evaluation.config import ProblemConfig
+
+        cfg = ProblemConfig.from_yaml(problem_dir)
+        checkpoints = [
+            name
+            for name, _ in cfg.iterate_checkpoint_items()
+        ]
+    except Exception:  # noqa: BLE001
+        # Fallback: scan for checkpoint_*.md files
+        checkpoints = sorted(
+            f.stem
+            for f in problem_dir.iterdir()
+            if f.is_file()
+            and f.name.startswith("checkpoint_")
+            and f.name.endswith(".md")
+        )
+
+    if not checkpoints:
+        typer.echo(
+            f"Error: no checkpoints found for problem "
+            f"'{problem}' in {problem_dir}",
+            err=True,
+        )
+        raise SystemExit(1)
+
+    return checkpoints
 
 
 # ---------------------------------------------------------------------------
@@ -725,21 +805,12 @@ def run_two_agent(
             f"checkpoint(s) found, skipping them.",
         )
 
-    # Discover checkpoints from problem config
+    # Discover checkpoints from problem config.yaml
+    # using the upstream ProblemConfig which parses the
+    # YAML-declared checkpoints (checkpoint_*.md files,
+    # not checkpoint directories).
     problem_dir = PROBLEMS_DIR / problem
-    checkpoints = sorted(
-        d.name
-        for d in problem_dir.iterdir()
-        if d.is_dir() and d.name.startswith("checkpoint_")
-    )
-
-    if not checkpoints:
-        typer.echo(
-            f"Error: no checkpoints found for problem "
-            f"'{problem}' in {problem_dir}",
-            err=True,
-        )
-        raise SystemExit(1)
+    checkpoints = discover_checkpoints(problem, problem_dir)
 
     # Optionally constrain the number of checkpoints
     # (used by canary to limit to checkpoint_1 only).
@@ -1042,7 +1113,7 @@ def _extract_reviewer_suggestions(
 
 def run_canary(
     problem: str = CANARY_PROBLEM,
-    model: str = CANARY_DEFAULT_MODEL,
+    model: str | None = None,
     budget: float = CANARY_BUDGET,
     budget_split: int = CANARY_BUDGET_SPLIT,
     implementer_prompt: Path | None = None,
@@ -1072,7 +1143,11 @@ def run_canary(
         DEFAULT_REVIEWER_PROMPT,
     )
 
-    # Resolve canonical model name
+    # Resolve canonical model name.  When no model was
+    # supplied, pick a default based on which API key
+    # is available.
+    if model is None:
+        model = _default_canary_model()
     model = validate_model(model)
 
     # ── Step 1: Preflight ──────────────────────────────
@@ -1305,7 +1380,7 @@ def main(
     # -- Canary mode --
     if canary:
         canary_problem = problem or CANARY_PROBLEM
-        canary_model = model or CANARY_DEFAULT_MODEL
+        canary_model = model or _default_canary_model()
         canary_budget_val = (
             budget if budget is not None else CANARY_BUDGET
         )

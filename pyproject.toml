@@ -64,6 +64,7 @@ dependencies = [
     "networkx[default,pydot]>=3.6.1",
     "pydot>=4.0.1",
     "scikit-learn>=1.8.0",
+    "pymysql>=1.1.0",
 ]
 
 

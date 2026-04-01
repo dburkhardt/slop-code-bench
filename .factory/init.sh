@@ -10,6 +10,10 @@ cd /home/ubuntu/git-repos/slop-code-bench
 # Install Python dependencies
 uv sync --quiet 2>/dev/null || true
 
+# Ensure pymysql is available for Dolt connectivity
+# (also in pyproject.toml, but needed outside uv venv too)
+python3 -m pip install pymysql --quiet 2>/dev/null || true
+
 # Ensure research directory structure exists
 mkdir -p research/runner research/formulas research/prompts research/analysis
 
