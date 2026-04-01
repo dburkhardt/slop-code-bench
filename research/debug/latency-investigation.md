@@ -705,3 +705,32 @@ Also remove `@musistudio/claude-code-router` unless actually needed — it's unu
 ### Alternative: Use local environment
 
 The `local-py` environment in slop-code runs Claude on the host (no Docker). Combined with the `claude_code_local` provider and model config `local-sonnet-4.6.yaml`, this uses the system-installed Claude v2.1.89 with console auth. This is the fastest path to unblocking experiments.
+
+## FIX CONFIRMED (2026-04-01 ~23:30)
+
+### Root cause (refined)
+
+The ~200s delay occurs when Claude CLI runs with `ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL` (any third-party endpoint, including NVIDIA). The CLI makes blocking network calls between tool executions that timeout after ~200s. This affects ALL versions tested (2.0.51, 2.0.77, 2.1.0, 2.1.89 in Docker).
+
+The system-installed Claude CLI with **console auth (OAuth via claude.ai)** does NOT have this delay because it uses the native Anthropic API without `ANTHROPIC_BASE_URL` override.
+
+### Fix applied
+
+1. Created `configs/models/local-sonnet-4.6.yaml` — uses `provider: claude_code_local`
+2. Updated `configs/agents/claude_code.yaml` — version 2.1.89
+3. Run experiments with: `slop-code run --environment local-py --model claude_code_local/local-sonnet-4.6`
+
+### Results
+
+**Before (Docker + NVIDIA endpoint):**
+- checkpoint_1: ~70 minutes, ~$0.40
+- Total for 4 checkpoints: >4 hours (usually timed out)
+
+**After (local + console auth):**
+- checkpoint_1: 129s (2m 9s), $0.31
+- checkpoint_2: 174s (2m 54s), $0.43
+- checkpoint_3: 135s (2m 15s), $0.31
+- checkpoint_4: 316s (5m 16s), $0.75
+- **Total: ~13 minutes, $1.79**
+
+~20x speedup. All 4 checkpoints complete successfully.
