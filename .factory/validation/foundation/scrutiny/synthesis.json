@@ -1,7 +1,7 @@
 {
   "milestone": "foundation",
-  "round": 2,
-  "status": "fail",
+  "round": 3,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -20,50 +20,21 @@
     }
   },
   "reviewsSummary": {
-    "total": 2,
-    "passed": 0,
-    "failed": 2,
-    "failedFeatures": [
-      "fix-runner-core-loop",
-      "fix-canary-pipeline"
-    ]
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
-    {
-      "featureId": "fix-runner-core-loop",
-      "severity": "blocking",
-      "description": "run_two_agent builds implementer prompt text but discards it, then passes prompt_template=implementer_prompt into run_slop_code. Reviewer suggestions are stored in state but not injected into implementer execution."
-    },
-    {
-      "featureId": "fix-canary-pipeline",
-      "severity": "blocking",
-      "description": "Reviewer failures are still not enforced as fatal in run_two_agent. Non-zero reviewer subprocess exits can be tolerated because reviewer/implementer phase exit codes are not checked before continuing."
-    },
-    {
-      "featureId": "fix-canary-pipeline",
-      "severity": "blocking",
-      "description": "run_canary maps SystemExit from run_two_agent to a generic Pipeline CanaryError, so reviewer-specific component failures are not reported as component-specific."
-    },
-    {
-      "featureId": "fix-canary-pipeline",
-      "severity": "blocking",
-      "description": "parse_eval_results still does not fully consume flattened baseline metrics for erosion/verbosity/cost, which remain dependent on two_agent_metrics merging."
-    }
-  ],
+  "blockingIssues": [],
   "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
       "target": ".factory/skills/python-worker/SKILL.md",
       "suggestion": "When mission-scoped validator commands are defined in AGENTS.md or .factory/services.yaml, prefer those over global defaults (`uv run pytest -q`, `uv run ruff check .`).",
-      "evidence": "Both fix feature reviews still observed mismatch between python-worker default verification commands and this mission's scoped validator contract.",
+      "evidence": "The fix-scrutiny-round2 review still observed mismatch between python-worker default verification commands and this mission's scoped validator contract.",
       "isSystemic": true
     }
   ],
-  "rejectedObservations": [
-    {
-      "observation": "Repeated report of python-worker validator scope mismatch from the second fix review.",
-      "reason": "duplicate"
-    }
-  ],
-  "previousRound": ".factory/validation/foundation/scrutiny/synthesis.round1.json"
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/foundation/scrutiny/synthesis.round2.json"
 }
