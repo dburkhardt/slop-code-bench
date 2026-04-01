@@ -1,0 +1,40 @@
+{
+  "featureId": "crash-resilience",
+  "reviewedAt": "2026-04-01T07:25:47Z",
+  "commitId": "fbca445",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Reviewed mission artifacts, worker transcript skeleton, and repository history for crash-resilience. The feature behavior is covered by the implemented git sync script (commit d63a438) plus validation tests and operational checks captured in the handoff (commit fbca445 as handoff commit). I found no blocking defects, but a few tests are weaker than their names imply.",
+    "issues": [
+      {
+        "file": "tests/runner/test_crash_resilience.py",
+        "line": 430,
+        "severity": "non_blocking",
+        "description": "`test_data_persisted_after_insert` claims crash-survival validation but only performs INSERT and SELECT without simulating a crash/restart. This weakens regression coverage for the stated requirement \"partial data survives after simulated crash\"."
+      },
+      {
+        "file": "tests/runner/test_crash_resilience.py",
+        "line": 559,
+        "severity": "non_blocking",
+        "description": "`test_bd_list_status_flag_works` verifies command availability but does not simulate a crash/restart before checking discoverability. It does not directly test the \"after crash\" condition in expected behavior."
+      },
+      {
+        "file": "tests/runner/test_crash_resilience.py",
+        "line": 483,
+        "severity": "non_blocking",
+        "description": "`test_gt_doctor_runs` asserts output contains \"passed\" but does not require a zero exit code, so it can pass even when `gt doctor --fix` reports failures. This is less strict than expected behavior wording \"runs without error\"."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Mission AGENTS boundary text says custom research code must be under `research/` only, but validator scope and accepted feature work include `tests/runner/`. This rule is currently ambiguous for workers adding mission tests.",
+      "evidence": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/AGENTS.md:6 states `research/`-only, while lines 40-41 explicitly scope validators to `tests/runner/` and `tests/analysis/`; this feature adds `tests/runner/test_crash_resilience.py`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass with non-blocking test-quality gaps. Core crash-resilience artifacts are present in repository history and handoff evidence, but several new tests should more directly exercise crash/restart conditions to harden regression coverage."
+}

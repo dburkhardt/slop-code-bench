@@ -1,0 +1,51 @@
+{
+  "featureId": "e2e-experiment-lifecycle",
+  "reviewedAt": "2026-04-01T07:24:37Z",
+  "commitId": "0066306cb7b37ee34eb9af36d5a21dc2d6554f32",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The commit adds a large integration test file, but key required lifecycle guarantees are not actually validated end-to-end. Core assertions for molecule step creation/dependencies and full hypothesis->experiment->conclusion traceability are missing or replaced with weaker checks.",
+    "issues": [
+      {
+        "file": "tests/runner/test_e2e_experiment_lifecycle.py",
+        "line": 491,
+        "severity": "blocking",
+        "description": "The test labeled as formula pour verification only executes `gt sling ... --dry-run` and checks for a formula name in output. A dry run does not prove a molecule was created, and no assertions inspect the 6 created step beads or dependency edges required by expected behavior."
+      },
+      {
+        "file": "tests/runner/test_e2e_experiment_lifecycle.py",
+        "line": 1089,
+        "severity": "blocking",
+        "description": "Conclusion linkage is not validated. The test creates a conclusion bead with hard-coded metadata (`experiment_ids: [1, 2]`) and only checks creation/searchability. There is no verification that the referenced experiment rows exist for the same hypothesis, nor any backward trace from conclusion -> experiment -> hypothesis."
+      },
+      {
+        "file": "tests/runner/test_e2e_experiment_lifecycle.py",
+        "line": 1301,
+        "severity": "blocking",
+        "description": "The function named `test_experiment_to_conclusion_traceable` never touches conclusion beads. It only runs an aggregate query over `experiments`, so the required full provenance chain `hypothesis -> experiment -> conclusion` is not exercised."
+      },
+      {
+        "file": "tests/runner/test_e2e_experiment_lifecycle.py",
+        "line": 1896,
+        "severity": "non_blocking",
+        "description": "Cleanup deletes beads using a broad `bd search \"E2E\"` match, and ID extraction uses `sc-[a-z0-9]+` (line 200), which can parse partial IDs. This can target unrelated beads or miss true IDs in shared Gas Town state, making cleanup unsafe and non-deterministic."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The integration-worker skill says to test convoy and escalation flows, but does not document the hq beads DB prerequisite (`status.custom` and `issue_prefix` initialization) that repeatedly causes `gt convoy create` and `gt escalate` failures/skips.",
+      "evidence": "Handoff `discoveredIssues` for session 8bd6df94-1b29-4f44-a9fc-1c6dce650c38 reports both pre-existing failures and suggested `bd init`/`bd init --prefix hq` fixes."
+    },
+    {
+      "area": "conventions",
+      "observation": "Mission guidance lacks a clear convention for safe test cleanup in shared beads state. The worker had to recreate infrastructure bead `sc-hypotheses` after cleanup side effects, indicating test-isolation/cleanup conventions should be explicitly documented.",
+      "evidence": "Transcript skeleton shows deletion/recreation of `sc-hypotheses`; handoff `discoveredIssues` notes the epic was missing and had to be recreated."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed worker session 8bd6df94-1b29-4f44-a9fc-1c6dce650c38 and commit 0066306. The feature adds broad tests but does not verify core required end-to-end chain semantics, so review status is fail."
+}

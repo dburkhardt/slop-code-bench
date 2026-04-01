@@ -1,0 +1,33 @@
+{
+  "featureId": "analysis-scripts",
+  "reviewedAt": "2026-04-01T07:26:21.416377Z",
+  "commitId": "38fc6f2877fc04a8fd0374dd9f6276950bc0458d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature adds the required analysis modules, report generator, and tests, and most SQL paths correctly apply validation filters. However, pass-rate delta SQL is malformed for joined aliases and fails at runtime, which blocks end-to-end report generation.",
+    "issues": [
+      {
+        "file": "research/analysis/query_experiments.py",
+        "line": 305,
+        "severity": "blocking",
+        "description": "`query_pass_rate_delta` builds alias-qualified filters as `e2.{VALIDATION_FILTER}` / `e1.{VALIDATION_FILTER}`. Because `VALIDATION_FILTER` contains two predicates joined by `AND`, only `manipulation_check` is qualified while `results_valid` remains unqualified. In the self-join this produces ambiguous column references and runtime failure (`OperationalError: ambiguous column name \"results_valid\"`). Verified by executing `query_pass_rate_delta(get_connection())`, which errors before returning deltas."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "`python-worker` procedure says to write tests first (TDD), but the transcript shows implementation files were created before tests, while `skillFeedback.followedProcedure` is still marked true.",
+      "evidence": ".factory/skills/python-worker/SKILL.md:39 requires tests-first; worker transcript skeleton for session 22b18a1e-e260-40d6-b894-1c4e8dfd3ace contains 'All dependencies are available. Let me now implement the analysis scripts' before 'Now let me create the tests'."
+    },
+    {
+      "area": "skills",
+      "observation": "Validation command guidance is split between skill and mission docs. The skill suggests full-repo checks (`uv run pytest -q`, `ruff check .`), while mission state defines scoped validators to avoid known upstream failures.",
+      "evidence": ".factory/skills/python-worker/SKILL.md:52-53 vs mission AGENTS.md:37-44 and .factory/services.yaml:3-4."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review failed due to one blocking defect in pass-rate delta SQL aliasing that causes runtime query failure. Aside from this, the feature broadly matches the requested analysis/report scope and includes substantial tests."
+}

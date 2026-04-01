@@ -1,0 +1,88 @@
+{
+  "milestone": "scale-report",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/ubuntu/git-repos/slop-code-bench && uv run pytest tests/runner/ tests/analysis/ -q --no-header 2>/dev/null || uv run pytest tests/runner/ -q --no-header",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "echo 'typecheck: skipped (upstream src/ has pre-existing type errors unrelated to this mission)'",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /home/ubuntu/git-repos/slop-code-bench && if [ -d tests/analysis ]; then uv run ruff check research/ tests/runner/ tests/analysis/ .factory/; else uv run ruff check research/ tests/runner/ .factory/; fi",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 1,
+    "failed": 2,
+    "failedFeatures": [
+      "analysis-scripts",
+      "e2e-experiment-lifecycle"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "analysis-scripts",
+      "severity": "blocking",
+      "description": "research/analysis/query_experiments.py:305 in query_pass_rate_delta uses alias qualification e2.{VALIDATION_FILTER}/e1.{VALIDATION_FILTER}; results_valid remains unqualified in the self-join and raises an ambiguous-column runtime error."
+    },
+    {
+      "featureId": "e2e-experiment-lifecycle",
+      "severity": "blocking",
+      "description": "tests/runner/test_e2e_experiment_lifecycle.py:491 validates only gt sling --dry-run output and does not verify that pouring creates a molecule with six step beads and dependency edges."
+    },
+    {
+      "featureId": "e2e-experiment-lifecycle",
+      "severity": "blocking",
+      "description": "tests/runner/test_e2e_experiment_lifecycle.py:1089 does not validate true conclusion linkage. It creates hard-coded conclusion metadata without verifying referenced experiment rows for the same hypothesis and without backward trace."
+    },
+    {
+      "featureId": "e2e-experiment-lifecycle",
+      "severity": "blocking",
+      "description": "tests/runner/test_e2e_experiment_lifecycle.py:1301 (test_experiment_to_conclusion_traceable) never touches conclusion beads, so the required hypothesis -> experiment -> conclusion provenance chain is not exercised."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills/python-worker",
+      "suggestion": "Add mission-aware validator guidance that explicitly prioritizes .factory/services.yaml commands over generic full-repo checks.",
+      "evidence": "analysis-scripts review observed conflict between python-worker generic guidance (uv run pytest -q, ruff check .) and mission-scoped validator contract in AGENTS.md and .factory/services.yaml.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Clarify boundary wording so mission code may include tests under tests/runner and tests/analysis while implementation logic remains in research/.",
+      "evidence": "crash-resilience review found ambiguity between 'research/-only' boundary text and validator scope that explicitly includes tests/runner and tests/analysis.",
+      "isSystemic": true
+    },
+    {
+      "target": "skills/integration-worker",
+      "suggestion": "Document the hq beads DB prerequisite for gt convoy and gt escalate flows (initialize status.custom and issue_prefix or equivalent setup) before attempting those commands.",
+      "evidence": "e2e-experiment-lifecycle review cites repeated convoy/escalation failures tied to missing hq DB initialization, observed in worker handoff/discovered issues.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add explicit safe-cleanup conventions for shared beads state in integration tests to avoid broad deletes and accidental removal of mission infrastructure epics.",
+      "evidence": "e2e-experiment-lifecycle review recorded cleanup side effects requiring recreation of sc-hypotheses.",
+      "isSystemic": true
+    },
+    {
+      "target": "skills/python-worker",
+      "suggestion": "Enforce consistency between tests-first requirement and skill feedback reporting, or relax wording to match accepted workflow when implementation-first is used.",
+      "evidence": "analysis-scripts review observed implementation occurring before tests while skillFeedback.followedProcedure remained true against tests-first wording.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}
