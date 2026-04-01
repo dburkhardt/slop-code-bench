@@ -1,26 +1,21 @@
-#!/bin/bash
-set -e
-
-export PATH="$PATH:/home/ubuntu/gopath/bin:/home/ubuntu/go/bin"
-export GOROOT=/home/ubuntu/go
-export GOPATH=/home/ubuntu/gopath
+#!/usr/bin/env bash
+set -euo pipefail
 
 cd /home/ubuntu/git-repos/slop-code-bench
 
-# Install Python dependencies
+# Ensure dependencies are installed
 uv sync --quiet 2>/dev/null || true
 
-# Ensure pymysql is available for Dolt connectivity
-# (also in pyproject.toml, but needed outside uv venv too)
-python3 -m pip install pymysql --quiet 2>/dev/null || true
+# Create results directory for experiment outputs
+mkdir -p research/debug/results
 
-# Ensure research directory structure exists
-mkdir -p research/runner research/formulas research/prompts research/analysis
+# Verify Docker is running
+docker info >/dev/null 2>&1 || echo "WARNING: Docker is not running"
 
-# Verify critical tools
-command -v gt >/dev/null 2>&1 || { echo "ERROR: gt (Gas Town) not found in PATH"; exit 1; }
-command -v bd >/dev/null 2>&1 || { echo "ERROR: bd (beads) not found in PATH"; exit 1; }
-command -v dolt >/dev/null 2>&1 || { echo "ERROR: dolt not found"; exit 1; }
-command -v docker >/dev/null 2>&1 || { echo "ERROR: docker not found"; exit 1; }
+# Verify NVIDIA API key is set
+if [ -z "${NVIDIA_INFERENCE_KEY:-}" ]; then
+  echo "WARNING: NVIDIA_INFERENCE_KEY is not set"
+fi
 
-echo "Environment ready."
+# Check for strace availability
+which strace >/dev/null 2>&1 || echo "NOTE: strace not found on host — may need to install or use alternative tracing"

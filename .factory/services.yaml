@@ -4,6 +4,7 @@ commands:
   lint: cd /home/ubuntu/git-repos/slop-code-bench && if [ -d tests/analysis ]; then uv run ruff check research/ tests/runner/ tests/analysis/ .factory/; else uv run ruff check research/ tests/runner/ .factory/; fi
   typecheck: "echo 'typecheck: skipped (upstream src/ has pre-existing type errors unrelated to this mission)'"
   format_imports: cd /home/ubuntu/git-repos/slop-code-bench && uv run isort research/ tests/runner/ tests/analysis/
+  lint_debug: cd /home/ubuntu/git-repos/slop-code-bench && uv run ruff check research/debug/ src/slop_code/agent_runner/agents/cli_utils.py src/slop_code/agent_runner/agents/claude_code/agent.py
 
 services:
   dolt:

@@ -1,82 +1,46 @@
-# Architecture
+# Architecture — Latency Investigation
 
-How the SCBench Research Lab system works.
+## System Under Investigation
 
-## System Overview
-
-The research lab is layered on top of the upstream slop-code-bench harness. All custom code lives under `research/`. The harness provides Docker-isolated execution, evaluation, and metrics. Gas Town provides multi-agent orchestration. Dolt provides versioned experiment data storage.
-
-## Components
-
-### slop-code-bench (upstream, read-only)
-- `src/slop_code/` - Core library: CLI, execution engine, evaluation, metrics
-- `configs/` - Agent, model, prompt, environment, provider configs
-- `problems/` - Benchmark problems (20 problems, 93 checkpoints)
-- `tests/` - pytest suite
-- Entry point: `slop-code` CLI (Typer)
-
-### research/ (our additions)
-- `research/runner/two_agent_runner.py` - Two-agent runner wrapping slop-code
-- `research/prompts/` - Custom Jinja templates for implementer/reviewer
-- `research/formulas/` - Gas Town experiment formula TOML
-- `research/analysis/` - Analysis scripts and final report
-- `research/spec.md` - Architecture specification
-
-### Gas Town (~/gt)
-- Town workspace at ~/gt with scbench rig
-- Dolt databases at ~/gt/.dolt-data/ (hq and scbench)
-- Mayor coordinates the research loop
-- Polecats execute experiments
-- Analytical roles: Idea Factory, Review Board, Red Team
-
-## Role Asset Persistence
-
-Role runtime files under `~/gt/scbench/polecats/<role>/.claude/` are live
-workspace artifacts and are not a reliable source-controlled location. Keep a
-mirrored canonical copy in-repo at `research/roles/<role>/` and sync both
-locations when role instructions change.
-
-## Data Flow
+SCBench runs coding agent experiments. The execution chain:
 
 ```
-Idea Factory -> Hypothesis bead -> Mayor batches experiments
-                                         |
-                                    Red Team gate (blocks dependency)
-                                         |
-                                    Convoy dispatch
-                                         |
-                              Polecat executes formula:
-                              1. Preflight canary
-                              2. Implement hypothesis
-                              3. Peer review (manipulation check)
-                              4. Run baseline + two-agent
-                              5. Validate results
-                              6. Write to Dolt
-                                         |
-                              Review Board analyzes (validated only)
-                                         |
-                              Red Team post-mortem (advisory)
-                                         |
-                              Mayor updates strategy, loops
+two_agent_runner.py (host, Python)
+  → subprocess.run: slop-code run (host, Python CLI)
+    → DockerStreamingRuntime: docker exec claude CLI (inside persistent container)
+      → NVIDIA API (inference-api.nvidia.com) → AWS Bedrock → Claude Sonnet 4.6
 ```
 
-## Key Integration Points
+### Key Components
 
-1. **slop-code CLI <-> two-agent runner**: Runner wraps `slop-code run` for both baseline and two-agent arms. Output directories must be eval-compatible.
+**`research/runner/two_agent_runner.py`** — Top-level orchestrator. Runs `slop-code run` as a subprocess with `capture_output=True` (no streaming visibility). Manages budget, checkpoint iteration, implementer/reviewer phases.
 
-2. **Claude Code CLI <-> Docker**: slop-code spawns Docker containers running Claude Code for agent execution. Console billing handles API costs.
+**`src/slop_code/agent_runner/agents/cli_utils.py`** — The narrowest instrumentation chokepoint. `stream_cli_command()` receives individual parsed lines from Claude CLI's `stream-json` output. Each `yield parser(line)` corresponds to one step. Adding timestamps between consecutive yields directly measures API time vs tool execution time.
 
-3. **NVIDIA inference <-> litellm**: For custom components (reviewer in two-agent runner, analysis), NVIDIA's OpenAI-compatible endpoint at inference-api.nvidia.com is available via NVIDIA_INFERENCE_KEY.
+**`src/slop_code/agent_runner/agents/claude_code/agent.py`** — `ClaudeCodeAgent._run()` consumes the generator from `stream_cli_command()`. Each iteration is one step. Tracks cost, tokens, steps.
 
-4. **Gas Town <-> Dolt**: Beads database uses Dolt for persistence. Experiment results and budget tracking are separate Dolt tables.
+**`src/slop_code/execution/docker_runtime/streaming.py`** — `DockerStreamingRuntime.stream()` runs `docker exec` via `subprocess.Popen` and pipes stdout through threaded pump → event queue → `process_stream()` → `RuntimeEvent` objects.
 
-5. **Gas Town <-> Claude Code**: Polecats are Claude Code instances with role beads providing context. Mayor is also a Claude Code instance.
+**`src/slop_code/execution/stream_processor.py`** — `process_stream()` handles threading, timeout, and event routing. Events flow: pump thread → queue → handle_event → yield RuntimeEvent.
 
-## Invariants
+### The Latency Problem
 
-- All custom work stays under research/ - no upstream harness modifications
-- Budget has two enforcement layers: Mayor Dolt check + harness per-experiment cap
-- Review Board filters analytical queries on manipulation_check='passed' AND results_valid=true, with one permitted unfiltered exclusion-count query used to compute valid vs excluded totals
-- Red Team gate is mechanical (blocks dependency), not advisory
-- Experiment outputs must be compatible with `slop-code eval`
-- Every experiment traces back to a hypothesis bead
+~3-minute gaps occur between some steps. Already determined:
+- The gap is NOT API inference time (measured at 5-17s between steps)
+- The gap is NOT Bash subprocess execution (no child process spawned during gaps)
+- Claude CLI is blocked in `epoll_wait()` on a socket during gaps
+- NVIDIA API responds in 3-14s even at 49k tokens
+
+**Leading hypothesis:** Claude CLI makes hidden API calls (background tasks, compaction, telemetry) between visible inference calls, and these hidden calls are slow or rate-limited.
+
+### Instrumentation Points
+
+| Layer | File | What to measure |
+|-------|------|-----------------|
+| Step timing | `cli_utils.py:stream_cli_command()` | Wall-clock between consecutive `yield parser(line)` calls |
+| Network traffic | tcpdump inside container | ALL HTTPS requests, timing, endpoints |
+| Process tracing | strace on host | What syscalls Claude makes during gaps |
+
+### Output Structure
+
+Experiment outputs go to `outputs/<model>/<agent>_<config>_<timestamp>/<problem>/`. Key files: `infer.log` (step log), `checkpoint_N/agent/stdout.jsonl` (Claude CLI stream-json output).
