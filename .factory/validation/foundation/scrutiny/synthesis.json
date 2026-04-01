@@ -1,0 +1,149 @@
+{
+  "milestone": "foundation",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/ubuntu/git-repos/slop-code-bench && uv run pytest tests/runner/ tests/analysis/ -q --no-header 2>/dev/null || uv run pytest tests/runner/ -q --no-header",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/ubuntu/git-repos/slop-code-bench && echo 'typecheck: skipped (upstream src/ has pre-existing type errors unrelated to this mission)'",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /home/ubuntu/git-repos/slop-code-bench && uv run ruff check research/ tests/runner/ .factory/",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 6,
+    "passed": 1,
+    "failed": 5,
+    "failedFeatures": [
+      "model-provider-config",
+      "two-agent-runner-core",
+      "canary-mode",
+      "runner-resilience",
+      "baseline-pipeline"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "model-provider-config",
+      "severity": "blocking",
+      "description": "MiniSWE model_name values in NVIDIA model configs use raw aws/... names that LiteLLM rejects without provider-qualified naming."
+    },
+    {
+      "featureId": "two-agent-runner-core",
+      "severity": "blocking",
+      "description": "Core runner loop does not execute implementer and reviewer runs, leaving placeholder metrics and no real two-agent checkpoint workflow."
+    },
+    {
+      "featureId": "two-agent-runner-core",
+      "severity": "blocking",
+      "description": "Budget split is computed but not enforced in runtime execution."
+    },
+    {
+      "featureId": "two-agent-runner-core",
+      "severity": "blocking",
+      "description": "Reviewer output is not propagated into subsequent implementer iterations."
+    },
+    {
+      "featureId": "two-agent-runner-core",
+      "severity": "blocking",
+      "description": "Produced artifacts are not fully eval-compatible for real runs."
+    },
+    {
+      "featureId": "canary-mode",
+      "severity": "blocking",
+      "description": "Reviewer-stage failures are treated as non-fatal, allowing canary to pass even when reviewer invocation fails."
+    },
+    {
+      "featureId": "canary-mode",
+      "severity": "blocking",
+      "description": "Canary claims checkpoint_1-only behavior but implementer invocation is not checkpoint-scoped."
+    },
+    {
+      "featureId": "runner-resilience",
+      "severity": "blocking",
+      "description": "Resume state is not crash-safe because checkpoint progress is not persisted after each completed checkpoint."
+    },
+    {
+      "featureId": "runner-resilience",
+      "severity": "blocking",
+      "description": "Docker isolation wiring is not active in the runtime execution path because run_two_agent does not call run_slop_code."
+    },
+    {
+      "featureId": "baseline-pipeline",
+      "severity": "blocking",
+      "description": "Baseline output directory detection is unreliable because slop-code default output naming is not aligned with baseline-prefixed lookup logic."
+    },
+    {
+      "featureId": "baseline-pipeline",
+      "severity": "blocking",
+      "description": "Eval parsing assumes pass_counts/total_counts schema and can compute incorrect metrics and budget deltas."
+    },
+    {
+      "featureId": "baseline-pipeline",
+      "severity": "blocking",
+      "description": "Checkpoint parity verification exists but is not called in the pipeline execution path."
+    },
+    {
+      "featureId": "baseline-pipeline",
+      "severity": "blocking",
+      "description": "CLI can exit successfully even when critical eval or Dolt-write errors occurred."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Added factual note on checkpoint_results.jsonl flattened schema to prevent future parsing assumptions.",
+      "sourceFeature": "baseline-pipeline"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": ".factory/skills/python-worker/SKILL.md",
+      "suggestion": "Use mission-scoped validator commands from mission AGENTS.md/.factory/services.yaml when present, instead of defaulting to full-repo pytest and ruff commands.",
+      "evidence": "Same mismatch observed across model-provider-config, prompt-templates, canary-mode, and runner-resilience reviews.",
+      "isSystemic": true
+    },
+    {
+      "target": "mission spec artifacts (validation-contract.md and features.json)",
+      "suggestion": "Resolve budget-split boundary contract conflict for value 100, and keep one canonical expected behavior across contract and feature definitions.",
+      "evidence": "two-agent-runner-core review found validation-contract requiring 100 implementer-only while feature expected behavior and implementation constrain 1-99.",
+      "isSystemic": true
+    },
+    {
+      "target": ".factory/skills/python-worker/SKILL.md",
+      "suggestion": "Require at least one expectedBehavior-to-runtime acceptance check for runner/pipeline features so scaffold-only implementations cannot pass with helper-only tests.",
+      "evidence": "two-agent-runner-core and baseline-pipeline reviews found major runtime behavior gaps despite passing local unit tests.",
+      "isSystemic": true
+    },
+    {
+      "target": ".factory/services.yaml",
+      "suggestion": "Adjust mission lint command to handle absent tests/analysis paths or use a conditional command so validator runs do not fail on missing directories.",
+      "evidence": "Current lint command failed with E902 on tests/analysis, while mission code lint passed once command was scoped to existing paths.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Repeated reports of the same python-worker validator-scope mismatch across multiple feature reviews.",
+      "reason": "duplicate"
+    },
+    {
+      "observation": "Prompt templates do not reference agent_type, agent_version, model_name in text.",
+      "reason": "non-blocking implementation detail, not a shared-state correction"
+    },
+    {
+      "observation": "Single-session claim that skill-required TDD and push were not followed.",
+      "reason": "ambiguous and not independently established as systemic for mission state changes"
+    }
+  ],
+  "previousRound": null
+}

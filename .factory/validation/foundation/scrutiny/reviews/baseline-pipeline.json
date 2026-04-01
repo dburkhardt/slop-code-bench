@@ -1,0 +1,77 @@
+{
+  "featureId": "baseline-pipeline",
+  "milestone": "foundation",
+  "workerSessionId": "f89d3e6a-aa65-4f82-8421-c04ab0ffbf74",
+  "reviewedAt": "2026-04-01T00:48:53Z",
+  "commitId": "c60d5ebb0365146f3ff491a5682e43f46aa913a5",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "blockingIssues": [
+    {
+      "file": "research/runner/experiment_pipeline.py",
+      "line": 471,
+      "description": "Baseline run directory detection is unreliable. The script computes a baseline_* path but does not pass it to `slop-code run`, then searches for outputs with a `baseline` prefix. `slop-code run` default output naming does not use that prefix, so baseline output can be missed and evaluation/metrics can be skipped.",
+      "evidence": "experiment_pipeline.py:471-507 and 590-603; slop_code/entrypoints/config/loader.py:517-527 and 520"
+    },
+    {
+      "file": "research/runner/experiment_pipeline.py",
+      "line": 322,
+      "description": "Eval parsing uses the wrong schema. `parse_eval_results()` reads `pass_counts`/`total_counts` directly from checkpoint_results rows and only sources erosion/verbosity/cost from `two_agent_metrics.json`. Real checkpoint rows expose flattened metrics like `strict_pass_rate`/`isolated_pass_rate`, `erosion`, `verbosity`, and `cost`. This can zero out baseline pass/cost/erosion and produce incorrect deltas and budget spend updates.",
+      "evidence": "experiment_pipeline.py:322-324, 348-351, 386-387, 871-876; slop_code/metrics/checkpoint/extractors.py:240-242, 307; slop_code/metrics/checkpoint/driver.py:46, 56-63"
+    },
+    {
+      "file": "research/runner/experiment_pipeline.py",
+      "line": 428,
+      "description": "Checkpoint parity is not enforced in the pipeline. `verify_matching_checkpoints()` exists but is never called from `run_pipeline()`, so the feature requirement that both arms have matching checkpoint directories is not actually validated before inserting Dolt rows.",
+      "evidence": "experiment_pipeline.py:428; grep usage shows calls only in tests/runner/test_pipeline.py"
+    },
+    {
+      "file": "research/runner/experiment_pipeline.py",
+      "line": 1030,
+      "description": "The CLI exits successfully even when critical errors are recorded (eval failure or Dolt write failure). Errors are printed, but non-zero exit is only triggered for `partial` runs. This violates expected behavior that both arms must evaluate successfully and results writing must be reliable.",
+      "evidence": "experiment_pipeline.py:798-815, 867, 1030-1039"
+    }
+  ],
+  "nonBlockingIssues": [],
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The python-worker skill procedure and observed workflow are misaligned. The skill mandates test-first TDD and mandatory push, but this session implemented source code before tests and only committed locally. The handoff still marked procedure as followed.",
+      "evidence": ".factory/skills/python-worker/SKILL.md:39-40 and 60-65; worker-transcripts.jsonl session f89d3e6a-aa65-4f82-8421-c04ab0ffbf74 shows `experiment_pipeline.py` creation before `test_pipeline.py`, includes git commit, and no git push"
+    },
+    {
+      "area": "knowledge",
+      "observation": "There is a shared knowledge gap around `checkpoint_results.jsonl` schema. Both implementation and tests assume `pass_counts`/`total_counts` rows, which conflicts with the flattened checkpoint metrics produced by the harness.",
+      "evidence": "research/runner/experiment_pipeline.py:322-324; tests/runner/test_pipeline.py uses pass_counts fixtures throughout; slop_code/metrics/checkpoint/driver.py and extractors.py define flattened metrics"
+    }
+  ],
+  "evidence": {
+    "commands": [
+      "jq --arg id \"baseline-pipeline\" '.features | map(select(.id == $id)) | first' /home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/features.json",
+      "git -C /home/ubuntu/git-repos/slop-code-bench show --stat --oneline c60d5ebb0365146f3ff491a5682e43f46aa913a5",
+      "git -C /home/ubuntu/git-repos/slop-code-bench show --name-only --oneline c60d5ebb0365146f3ff491a5682e43f46aa913a5",
+      "jq -s --arg sid \"f89d3e6a-aa65-4f82-8421-c04ab0ffbf74\" '[.[] | select(.workerSessionId == $sid)] | first' /home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/worker-transcripts.jsonl",
+      "python3 script to confirm transcript ordering/commands (create before tests, commit present, push absent)",
+      "grep searches over experiment_pipeline.py, validation-contract.md, and metrics extractor files with line numbers"
+    ],
+    "filesInspected": [
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/features.json",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/handoffs/2026-04-01T00-39-48-791Z__baseline-pipeline__f89d3e6a-aa65-4f82-8421-c04ab0ffbf74.json",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/worker-transcripts.jsonl",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/AGENTS.md",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/validation-contract.md",
+      "/home/ubuntu/git-repos/slop-code-bench/research/runner/experiment_pipeline.py",
+      "/home/ubuntu/git-repos/slop-code-bench/tests/runner/test_pipeline.py",
+      "/home/ubuntu/git-repos/slop-code-bench/research/runner/two_agent_runner.py",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/skills/python-worker/SKILL.md",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/services.yaml",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/library/architecture.md",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/library/environment.md",
+      "/home/ubuntu/git-repos/slop-code-bench/src/slop_code/entrypoints/config/loader.py",
+      "/home/ubuntu/git-repos/slop-code-bench/src/slop_code/metrics/checkpoint/driver.py",
+      "/home/ubuntu/git-repos/slop-code-bench/src/slop_code/metrics/checkpoint/extractors.py",
+      "/home/ubuntu/git-repos/slop-code-bench/src/slop_code/metrics/checkpoint/composites.py"
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "featureId": "canary-mode",
+  "reviewedAt": "2026-04-01T00:47:46Z",
+  "commitId": "01e8fdfc5c336a4940ce5d6706fcc576f2617961",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "blockingIssues": [
+    {
+      "file": "research/runner/two_agent_runner.py",
+      "line": 873,
+      "severity": "blocking",
+      "description": "Reviewer-stage failures are explicitly treated as non-fatal, so canary can pass even when reviewer invocation fails. This violates the requirement that canary exercise and validate reviewer invocation, and report component-specific failure when a component fails."
+    },
+    {
+      "file": "research/runner/two_agent_runner.py",
+      "line": 653,
+      "severity": "blocking",
+      "description": "Canary claims to run \"checkpoint_1 only\" but the implementer command does not constrain checkpoints. It runs `slop_code run --problem file_backup` for the whole problem, which does not satisfy the requested smallest-scope canary behavior."
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "file": "research/runner/two_agent_runner.py",
+      "line": 805,
+      "severity": "non_blocking",
+      "description": "Canary metrics always record cost as 0.0 and only parse pass_rate from checkpoint_results.jsonl, so reported canary spend is not actual spend. Cost limiting is delegated to slop-code flags, but telemetry in two_agent_metrics.json is inaccurate."
+    }
+  ],
+  "codeReview": {
+    "summary": "Canary mode adds preflight checks and invokes implementer/reviewer/eval stages, but two core behavioral requirements are not met. Reviewer failures do not fail the canary, and the implementation does not actually restrict execution to checkpoint_1/smallest scope.",
+    "issues": [
+      {
+        "file": "research/runner/two_agent_runner.py",
+        "line": 873,
+        "severity": "blocking",
+        "description": "Reviewer failure marked non-fatal; canary can succeed despite reviewer failure."
+      },
+      {
+        "file": "research/runner/two_agent_runner.py",
+        "line": 653,
+        "severity": "blocking",
+        "description": "Implementer canary command is not checkpoint-scoped despite checkpoint_1-only requirement."
+      },
+      {
+        "file": "research/runner/two_agent_runner.py",
+        "line": 805,
+        "severity": "non_blocking",
+        "description": "Cost telemetry in canary metrics is placeholder-only and does not reflect actual spend."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The python-worker skill's verification procedure conflicts with mission AGENTS validator scope. The skill directs full-repo pytest/ruff runs, while mission AGENTS requires scoped validators only. This mismatch can cause unnecessary failures and worker churn.",
+      "evidence": ".factory/skills/python-worker/SKILL.md step 6 recommends `uv run pytest -q` and `uv run ruff check .`; mission AGENTS.md \"Validator Scope\" requires scoped commands under research/tests/. Worker handoff shows workaround via ignored tests."
+    }
+  ],
+  "evidence": [
+    "Read /home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/features.json (feature canary-mode metadata and expectedBehavior).",
+    "Read /home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/handoffs/2026-04-01T00-01-11-809Z__canary-mode__cc22be6e-2f36-4757-baa3-bf6ecfbbd435.json (commitId and worker verification claims).",
+    "Executed git show --stat and git show for commit 01e8fdfc5c336a4940ce5d6706fcc576f2617961.",
+    "Inspected research/runner/two_agent_runner.py canary sections via Read/Grep and commit-line extraction.",
+    "Inspected tests/runner/test_two_agent_runner.py canary tests via Read/Grep.",
+    "Listed problems/file_backup checkpoints and confirmed checkpoint_1..checkpoint_4 exist.",
+    "Loaded transcript skeleton entry from worker-transcripts.jsonl for session cc22be6e-2f36-4757-baa3-bf6ecfbbd435.",
+    "Read .factory/skills/python-worker/SKILL.md, mission AGENTS.md, .factory/services.yaml, and .factory/library/architecture.md for shared-state assessment."
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review result: fail. Canary mode has useful preflight/error plumbing, but it does not fully satisfy requested behavior because reviewer failures are non-fatal and checkpoint_1-only scope is not actually enforced."
+}

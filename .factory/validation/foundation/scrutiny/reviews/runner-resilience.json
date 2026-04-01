@@ -1,0 +1,58 @@
+{
+  "featureId": "runner-resilience",
+  "milestone": "foundation",
+  "workerSessionId": "a4264fcb-5b0e-48ed-b08e-dce381b0a53a",
+  "commitId": "8aed285c0a07c5add4a438a196e62177b647c77e",
+  "reviewedAt": "2026-04-01T00:46:57Z",
+  "status": "fail",
+  "blockingIssues": [
+    {
+      "file": "research/runner/two_agent_runner.py",
+      "line": 680,
+      "description": "Resume persistence is not crash-safe. Completed checkpoint state is only saved at end-of-run (and on budget-exceeded exit), so a process crash mid-run can lose completed checkpoints and prevent true resume-from-next-incomplete behavior.",
+      "evidence": "run_two_agent loop starts at line 607; checkpoint metrics are accumulated in memory and only persisted at lines 626 and 680."
+    },
+    {
+      "file": "research/runner/two_agent_runner.py",
+      "line": 481,
+      "description": "Concurrent Docker isolation is not wired into the normal two-agent execution path. run_slop_code injects SCBENCH_RUN_ID, but run_two_agent never calls run_slop_code, so per-run container isolation is not enforced during runner execution.",
+      "evidence": "run_slop_code is defined at line 481 and referenced only in tests (tests/runner/test_isolation.py:319 and :348), not in runner runtime code."
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "file": "research/runner/two_agent_runner.py",
+      "line": 423,
+      "description": "load_resume_state is currently unused, which increases maintenance cost and test burden without contributing to runtime behavior."
+    }
+  ],
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "python-worker procedure is out of sync with mission reality. Skill mandates tests-first TDD and full-repo validators, while mission AGENTS.md requires scoped validators due upstream failures; transcript shows implementation edits before tests and scoped validation commands.",
+      "evidence": ".factory/skills/python-worker/SKILL.md steps 4 and 6; mission AGENTS.md 'Validator Scope'; worker-transcripts.jsonl skeleton for session a4264fcb-5b0e-48ed-b08e-dce381b0a53a."
+    }
+  ],
+  "evidence": {
+    "commands": [
+      "jq --arg id \"runner-resilience\" '.features | map(select(.id == $id)) | first' /home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/features.json",
+      "jq -s --arg sid \"a4264fcb-5b0e-48ed-b08e-dce381b0a53a\" '[.[] | select(.workerSessionId == $sid)] | first' /home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/worker-transcripts.jsonl",
+      "git -C /home/ubuntu/git-repos/slop-code-bench show --stat 8aed285",
+      "git -C /home/ubuntu/git-repos/slop-code-bench show 8aed285",
+      "grep-equivalent via Grep tool for run_slop_code(, SCBENCH_RUN_ID, state.save_results(), and call sites"
+    ],
+    "filesInspected": [
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/features.json",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/handoffs/2026-04-01T00-21-05-202Z__runner-resilience__a4264fcb-5b0e-48ed-b08e-dce381b0a53a.json",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/worker-transcripts.jsonl",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/AGENTS.md",
+      "/home/ubuntu/git-repos/slop-code-bench/research/runner/two_agent_runner.py",
+      "/home/ubuntu/git-repos/slop-code-bench/tests/runner/test_resume.py",
+      "/home/ubuntu/git-repos/slop-code-bench/tests/runner/test_isolation.py",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/skills/python-worker/SKILL.md",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/services.yaml",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/library/architecture.md"
+    ]
+  },
+  "summary": "Review failed. Resume behavior is not crash-resilient because progress is not persisted after each completed checkpoint, and Docker isolation wiring is not active in the normal runner execution path."
+}

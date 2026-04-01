@@ -1,0 +1,76 @@
+{
+  "featureId": "two-agent-runner-core",
+  "reviewedAt": "2026-04-01T00:47:19Z",
+  "commitId": "57fb8b0",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "blockingIssues": [
+    {
+      "file": "research/runner/two_agent_runner.py",
+      "line": 390,
+      "severity": "blocking",
+      "description": "Core loop never executes the implementer/reviewer runs. The code explicitly uses placeholders (impl_cost/review_cost/tokens set to zero) and does not call run_slop_code(), so expected implementer-then-reviewer checkpoint execution is missing."
+    },
+    {
+      "file": "research/runner/two_agent_runner.py",
+      "line": 353,
+      "severity": "blocking",
+      "description": "Budget split is computed but not enforced in execution. _implementer_fraction is unused, and no per-phase budget allocation or tolerance check is applied to implementer/reviewer usage."
+    },
+    {
+      "file": "research/runner/two_agent_runner.py",
+      "line": 406,
+      "severity": "blocking",
+      "description": "Reviewer output is not fed into the next implementer iteration. last_reviewer_suggestions is hard-reset to None each loop and no reviewer artifact is parsed or persisted for context injection."
+    },
+    {
+      "file": "research/runner/two_agent_runner.py",
+      "line": 85,
+      "severity": "blocking",
+      "description": "Output is not eval-compatible for a real run. save_results() only writes two_agent_metrics.json, and no per-checkpoint run artifacts/snapshots are generated under an eval-ingestible layout despite the feature requirement."
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "file": "tests/runner/test_two_agent_runner.py",
+      "line": 246,
+      "severity": "non_blocking",
+      "description": "Tests are mostly helper-level and do not exercise run_two_agent() or run_slop_code() end-to-end. This allowed placeholder behavior to pass despite unmet feature requirements."
+    }
+  ],
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Validation contract and feature requirements conflict on budget-split=100 behavior, which can cause inconsistent implementations.",
+      "evidence": "validation-contract.md:50-52 says --budget-split 100 should run implementer-only; feature expectedBehavior and implementation enforce 1-99 (features.json expectedBehavior, tests/runner/test_two_agent_runner.py:110)."
+    },
+    {
+      "area": "skills",
+      "observation": "The python-worker skill does not force an integration-level acceptance check tied to expectedBehavior, which let a scaffold-only implementation pass local tests.",
+      "evidence": ".factory/skills/python-worker/SKILL.md requires tests, but commit 57fb8b0 leaves actual run invocation undone (handoff.whatWasLeftUndone) and tests contain no run_two_agent/run_slop_code coverage."
+    }
+  ],
+  "evidence": {
+    "commands": [
+      "jq --arg id \"two-agent-runner-core\" '.features | map(select(.id == $id)) | first' mission/features.json",
+      "jq -s --arg sid \"c4842287-801f-4093-95a2-f2c72c7edea1\" '[.[] | select(.workerSessionId == $sid)] | first' mission/worker-transcripts.jsonl",
+      "git show --stat 57fb8b0",
+      "git show 57fb8b0:research/runner/two_agent_runner.py",
+      "git show 57fb8b0:tests/runner/test_two_agent_runner.py",
+      "python line-number extraction over commit files for cited references"
+    ],
+    "files": [
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/features.json",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/handoffs/2026-03-31T23-46-29-591Z__two-agent-runner-core__c4842287-801f-4093-95a2-f2c72c7edea1.json",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/worker-transcripts.jsonl",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/skills/python-worker/SKILL.md",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/services.yaml",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/library/architecture.md",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/validation-contract.md",
+      "commit 57fb8b0 files: research/runner/two_agent_runner.py, tests/runner/test_two_agent_runner.py"
+    ]
+  },
+  "addressesFailureFrom": null,
+  "summary": "Review failed. The committed implementation provides CLI scaffolding and JSON serialization, but does not execute the two-agent checkpoint workflow, enforce budget split in execution, propagate reviewer feedback, or generate eval-compatible run artifacts as required."
+}

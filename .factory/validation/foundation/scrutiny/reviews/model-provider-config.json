@@ -1,0 +1,56 @@
+{
+  "featureId": "model-provider-config",
+  "reviewedAt": "2026-04-01T00:48:16Z",
+  "commitId": "333b10830aebd3a152a5032c6a992dd1a4082ca6",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "blockingIssues": [
+    {
+      "file": "configs/models/nvidia-bedrock-claude-opus-4-6.yaml",
+      "line": 17,
+      "description": "agent_specific.mini_swe.model_name uses `aws/anthropic/bedrock-claude-opus-4-6` without a LiteLLM provider prefix. MiniSWE passes model_name directly into litellm.completion(), and LiteLLM rejects raw `aws/...` strings with `BadRequestError: LLM Provider NOT provided`. The same pattern appears in `configs/models/nvidia-bedrock-claude-sonnet-4-6.yaml:17` and `configs/models/nvidia-bedrock-claude-haiku-4-5.yaml:17`, so expected LiteLLM resolution/call behavior is not met."
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "file": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/handoffs/2026-03-31T23-15-38-525Z__model-provider-config__25368db7-e753-4908-a4e0-9989aff7cd30.json",
+      "line": null,
+      "description": "Worker verification shows NVIDIA endpoint connectivity and authentication, but Claude model test calls returned `team_model_access_denied`, so a successful live completion response was not demonstrated in this environment."
+    }
+  ],
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The `python-worker` skill instructs full-repo validators (`uv run pytest -q`, `uv run ruff check .`) which conflicts with mission-scoped validator rules in mission AGENTS.md and led the worker to run noisy full-repo checks before scoping down.",
+      "evidence": "Skill file `/home/ubuntu/git-repos/slop-code-bench/.factory/skills/python-worker/SKILL.md` step 6 vs transcript skeleton commands containing `uv run pytest -q` and `uv run ruff check .`."
+    }
+  ],
+  "evidence": {
+    "commands": [
+      "jq --arg id \"model-provider-config\" '.features | map(select(.id == $id)) | first' /home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/features.json",
+      "git -C /home/ubuntu/git-repos/slop-code-bench show --stat 333b108",
+      "git -C /home/ubuntu/git-repos/slop-code-bench show 333b108",
+      "jq -s --arg sid \"25368db7-e753-4908-a4e0-9989aff7cd30\" '[.[] | select(.workerSessionId == $sid)] | first' /home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/worker-transcripts.jsonl",
+      "uv run python3 - <<'PY' ... from litellm import get_llm_provider ... 'aws/anthropic/bedrock-claude-opus-4-6' ... PY",
+      "uv run python3 - <<'PY' ... from minisweagent.models import litellm_model ... inspect.getsource(litellm_model.LitellmModel._query) ... PY",
+      "uv run python3 - <<'PY' ... from slop_code.common.llms import ModelCatalog; print(ModelCatalog.get('nvidia/bedrock-claude-opus-4.6')) ... PY"
+    ],
+    "filesInspected": [
+      "/home/ubuntu/git-repos/slop-code-bench/README.md",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/features.json",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/handoffs/2026-03-31T23-15-38-525Z__model-provider-config__25368db7-e753-4908-a4e0-9989aff7cd30.json",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/worker-transcripts.jsonl",
+      "/home/ubuntu/git-repos/slop-code-bench/configs/providers.yaml",
+      "/home/ubuntu/git-repos/slop-code-bench/configs/models/nvidia-bedrock-claude-opus-4-6.yaml",
+      "/home/ubuntu/git-repos/slop-code-bench/configs/models/nvidia-bedrock-claude-sonnet-4-6.yaml",
+      "/home/ubuntu/git-repos/slop-code-bench/configs/models/nvidia-bedrock-claude-haiku-4-5.yaml",
+      "/home/ubuntu/git-repos/slop-code-bench/src/slop_code/agent_runner/agents/miniswe.py",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/skills/python-worker/SKILL.md",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/services.yaml",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/library/architecture.md"
+    ]
+  },
+  "addressesFailureFrom": null,
+  "summary": "Provider and model YAML files were added as requested, but all three MiniSWE LiteLLM model_name values are currently in a form LiteLLM does not resolve (`aws/...` without provider prefix). This blocks the stated requirement to verify LiteLLM model resolution and successful API calling with these configs."
+}

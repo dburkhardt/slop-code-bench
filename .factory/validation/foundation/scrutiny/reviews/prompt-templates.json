@@ -1,0 +1,57 @@
+{
+  "featureId": "prompt-templates",
+  "milestone": "foundation",
+  "workerSessionId": "6d2dab71-24f6-4aea-942b-de6218a6b5a5",
+  "reviewedAt": "2026-04-01T00:46:49Z",
+  "commitId": "641f123530e4ff0f7820c2438b3aa636fad03cff",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "file": "configs/prompts/default_implementer.jinja",
+      "line": 1,
+      "severity": "non_blocking",
+      "description": "The default templates do not reference `agent_type`, `agent_version`, or `model_name`. Rendering succeeds when those variables are provided, but the metadata is currently unused in prompt text."
+    },
+    {
+      "file": "configs/prompts/default_reviewer.jinja",
+      "line": 1,
+      "severity": "non_blocking",
+      "description": "The default templates do not reference `agent_type`, `agent_version`, or `model_name`. Rendering succeeds when those variables are provided, but the metadata is currently unused in prompt text."
+    }
+  ],
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The python-worker skill recommends full-repo lint (`uv run ruff check .`), but mission AGENTS.md explicitly scopes lint to mission paths and warns against full-repo lint due upstream noise. The reviewed worker followed the skill and reported noisy full-repo lint output.",
+      "evidence": ".factory/skills/python-worker/SKILL.md:53, mission AGENTS.md:41-44, handoff verification command `uv run ruff check .`"
+    }
+  ],
+  "evidence": {
+    "commands": [
+      "git show --stat 641f123",
+      "git show 641f123530e4ff0f7820c2438b3aa636fad03cff",
+      "jq -s --arg sid \"6d2dab71-24f6-4aea-942b-de6218a6b5a5\" '[.[] | select(.workerSessionId == $sid)] | first' /home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/worker-transcripts.jsonl",
+      "uv run python3 (rendered all 5 templates with spec/is_continuation/agent_type/agent_version/model_name for both continuation states)",
+      "diff -u configs/prompts/default_implementer.jinja configs/prompts/default_reviewer.jinja",
+      "ls /home/ubuntu/git-repos/slop-code-bench/research/prompts"
+    ],
+    "filesInspected": [
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/features.json",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/handoffs/2026-03-31T23-32-37-341Z__prompt-templates__6d2dab71-24f6-4aea-942b-de6218a6b5a5.json",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/worker-transcripts.jsonl",
+      "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/AGENTS.md",
+      "/home/ubuntu/git-repos/slop-code-bench/configs/prompts/default_implementer.jinja",
+      "/home/ubuntu/git-repos/slop-code-bench/configs/prompts/default_reviewer.jinja",
+      "/home/ubuntu/git-repos/slop-code-bench/research/prompts/anti-slop-reviewer.jinja",
+      "/home/ubuntu/git-repos/slop-code-bench/research/prompts/architecture-reviewer.jinja",
+      "/home/ubuntu/git-repos/slop-code-bench/research/prompts/minimal-reviewer.jinja",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/skills/python-worker/SKILL.md",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/services.yaml",
+      "/home/ubuntu/git-repos/slop-code-bench/.factory/library/architecture.md"
+    ]
+  },
+  "summary": "Review passed. The feature commit adds both required default templates and three reviewer variants, reviewer guidance is distinct and aligned with anti-slop/structural refactoring goals, and all templates render successfully with required variables for both continuation modes."
+}
