@@ -1,0 +1,28 @@
+{
+  "featureId": "fix-canary-python-path",
+  "reviewedAt": "2026-04-01T04:28:43Z",
+  "commitId": "327f758",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix commit directly addresses the prior blocking failure by replacing the preflight runner invocation from system `python3` to `uv run python` in `research/scripts/canary_preflight.sh`. The original failure mode is resolved because `python3 research/runner/two_agent_runner.py --help` still fails with `ImportError: cannot import name 'UTC'`, while `uv run python research/runner/two_agent_runner.py --help` succeeds.",
+    "issues": [
+      {
+        "file": "tests/runner/test_canary_preflight.py",
+        "line": 74,
+        "severity": "non_blocking",
+        "description": "The tests still replace the runner path with a fake script and do not execute the real `two_agent_runner.py` invocation path, so interpreter-regression coverage remains indirect. This does not block the current fix but leaves weaker protection against reintroducing `python3`."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "`python-worker` enforces a strict test-first step for all changes, but this fix was a one-line interpreter-path correction with existing coverage and no practical new failing test to add. The skill could explicitly document an exception path for trivial config/interpreter fixes.",
+      "evidence": "Handoff skillFeedback for session 7b978385-1431-4dfc-ad75-2d14ffb7b017 suggests: 'For trivial one-line fixes like this, the TDD step (write failing tests first) is not applicable since no new behavior is being added.'"
+    }
+  ],
+  "addressesFailureFrom": ".factory/validation/gastown-setup/scrutiny/reviews/canary-preflight-gate.json",
+  "summary": "Pass. The fix sufficiently resolves the prior blocking scrutiny finding by switching preflight runner execution to `uv run python`, eliminating the environment-specific `datetime.UTC` import failure caused by system Python 3.10."
+}

@@ -1,6 +1,6 @@
 {
   "milestone": "gastown-setup",
-  "round": 1,
+  "round": 2,
   "status": "fail",
   "validatorsRun": {
     "test": {
@@ -20,84 +20,35 @@
     }
   },
   "reviewsSummary": {
-    "total": 4,
+    "total": 3,
     "passed": 1,
-    "failed": 3,
+    "failed": 2,
     "failedFeatures": [
       "dolt-tables",
-      "gastown-dispatch-comms",
-      "canary-preflight-gate"
+      "gastown-dispatch-comms"
     ]
   },
   "blockingIssues": [
     {
       "featureId": "dolt-tables",
       "severity": "blocking",
-      "description": "Auto-commit verification did not run through Dolt SQL server conditions. Evidence used manual dolt commit fallback, which does not prove required auto-commit behavior."
+      "description": "Unresolved carry-over from round 1. No new fix feature in this milestone addressed the prior blocking issue that auto-commit verification was not validated through Dolt SQL server conditions."
     },
     {
       "featureId": "gastown-dispatch-comms",
       "severity": "blocking",
-      "description": "Dispatch verification captured bead state as hooked via --hook-raw-bead, but feature requires transition to in_progress."
-    },
-    {
-      "featureId": "gastown-dispatch-comms",
-      "severity": "blocking",
-      "description": "Required verification for `gt mayor attach scbench` was not completed."
-    },
-    {
-      "featureId": "canary-preflight-gate",
-      "severity": "blocking",
-      "description": "Preflight script invokes two_agent_runner with system python3 (3.10), which fails before canary logic due to datetime.UTC import mismatch."
+      "description": "Unresolved carry-over from round 1. No new fix feature in this milestone addressed prior missing verification for in_progress transition evidence and `gt mayor attach scbench`."
     }
   ],
-  "appliedUpdates": [
-    {
-      "target": "services.yaml",
-      "description": "Aligned lint command with mission validator scope by adding tests/analysis/ path.",
-      "sourceFeature": "gastown-beads-formulas"
-    },
-    {
-      "target": "library",
-      "description": "Added runtime knowledge for uv-managed Python requirement, Gas Town smtp_port string quirk, and Dolt SQL-server auto-commit validation mode.",
-      "sourceFeature": "canary-preflight-gate"
-    }
-  ],
+  "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
-      "target": ".factory/skills/infra-worker/SKILL.md",
-      "suggestion": "Require `services.yaml` start + healthcheck before validating server-dependent Dolt assertions, and require auto-commit checks through the SQL server path.",
-      "evidence": "dolt-tables review failed because port 3307 was down and verification proceeded via local/manual commit path.",
-      "isSystemic": true
-    },
-    {
-      "target": ".factory/skills/infra-worker/SKILL.md",
-      "suggestion": "Add explicit non-interactive fallback guidance for interactive commands like `gt mayor attach`, including acceptable evidence for equivalent verification.",
-      "evidence": "gastown-dispatch-comms review failed because required attach verification could not be completed in non-interactive mode.",
-      "isSystemic": true
-    },
-    {
-      "target": ".factory/skills/integration-worker/SKILL.md",
-      "suggestion": "Require a real runtime smoke test for new shell entrypoints that invoke Python scripts, not only mocked/unit tests.",
-      "evidence": "canary-preflight-gate passed tests but failed in environment due to python3 interpreter mismatch in production script.",
-      "isSystemic": true
-    },
-    {
-      "target": "mission AGENTS.md",
-      "suggestion": "Clarify commit/push expectations for features that only mutate external workspace state and produce no repository file changes.",
-      "evidence": "gastown-dispatch-comms reused a prior commit ID while mission guidance mandates commit/push after every feature.",
-      "isSystemic": true
+      "target": ".factory/skills/python-worker/SKILL.md",
+      "suggestion": "Document a narrow exception path for strict test-first sequencing when the change is a trivial one-line runtime interpreter/path correction and behavior is already covered by existing tests.",
+      "evidence": "Feature fix-canary-python-path review recorded this recurring friction in handoff skill feedback and found no blocking correctness gap in the fix itself.",
+      "isSystemic": false
     }
   ],
-  "rejectedObservations": [
-    {
-      "observation": "Document Dolt 1.84.1 INSERT IGNORE duplicate-PK panic directly in infra-worker skill.",
-      "reason": "version-specific behavior may not generalize across Dolt versions; better tracked as local issue evidence rather than durable procedural rule"
-    },
-    {
-      "observation": "Add separate guidance that formula commands must run from Gas Town workspace context.",
-      "reason": "covered by broader recommendation to strengthen infra-worker setup/preflight guidance for tool context and prerequisites"
-    }
-  ],
-  "previousRound": null
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/gastown-setup/scrutiny/synthesis.round1.json"
 }
