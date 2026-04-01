@@ -672,7 +672,7 @@ class TestCanaryDefaults:
         )
         assert (
             mod.CANARY_DEFAULT_MODEL_NVIDIA
-            == "nvidia-haiku-4.5"
+            == "nvidia-sonnet-4.6"
         )
 
     def test_canary_budget_cap(self):

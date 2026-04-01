@@ -58,7 +58,7 @@ CANARY_BUDGET_SPLIT = 70
 # available.  The NVIDIA inference endpoint is used
 # when ANTHROPIC_API_KEY is absent.
 CANARY_DEFAULT_MODEL_ANTHROPIC = "opus-4.5"
-CANARY_DEFAULT_MODEL_NVIDIA = "nvidia-haiku-4.5"
+CANARY_DEFAULT_MODEL_NVIDIA = "nvidia-sonnet-4.6"
 
 
 def _default_canary_model() -> str:
@@ -195,7 +195,7 @@ def validate_nvidia_api_key() -> None:
         "/v1/chat/completions"
     )
     payload = json.dumps({
-        "model": "meta/llama-3.1-8b-instruct",
+        "model": "aws/anthropic/bedrock-claude-sonnet-4-6",
         "messages": [{"role": "user", "content": "hi"}],
         "max_tokens": 1,
     }).encode()

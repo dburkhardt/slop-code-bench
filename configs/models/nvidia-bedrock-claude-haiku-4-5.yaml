@@ -1,3 +1,7 @@
+# NOTE: This model returns 401 ("team not allowed to
+# access model") with the current NVIDIA API key.
+# Kept for reference; do NOT use for experiments.
+# Use nvidia-bedrock-claude-sonnet-4-6.yaml instead.
 internal_name: aws/anthropic/bedrock-claude-haiku-4-5
 provider: nvidia
 pricing:
