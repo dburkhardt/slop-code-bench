@@ -392,7 +392,13 @@ def validate_model(name: str) -> str:
 
     from slop_code.common.llms import ModelCatalog
 
-    model = ModelCatalog.get(name)
+    # Strip provider prefix if present (e.g.
+    # "nvidia/model-name" -> "model-name").
+    lookup_name = (
+        name.split("/", 1)[-1] if "/" in name else name
+    )
+
+    model = ModelCatalog.get(lookup_name)
     if model is None:
         available = ModelCatalog.list_models()
         typer.echo(
@@ -436,6 +442,38 @@ def validate_prompt_template(path_str: str) -> Path:
         )
         raise SystemExit(1)
     return path
+
+
+# ---------------------------------------------------------------------------
+# Model format helpers
+# ---------------------------------------------------------------------------
+
+
+def format_model_for_cli(model_name):
+    """Format *model_name* as ``{provider}/{model}``.
+
+    The upstream ``parse_model_override()`` requires the
+    ``{provider}/{model}`` format.  If *model_name*
+    already contains ``/`` it is returned as-is.
+    Otherwise we look up the provider via
+    ``ModelCatalog`` and prepend it.  Falls back to
+    ``nvidia/{model_name}`` when the catalog lookup
+    fails.
+    """
+    if "/" in model_name:
+        return model_name
+
+    _src = str(REPO_ROOT / "src")
+    if _src not in sys.path:
+        sys.path.insert(0, _src)
+
+    from slop_code.common.llms import ModelCatalog
+
+    model_def = ModelCatalog.get(model_name)
+    if model_def is not None:
+        return f"{model_def.provider}/{model_name}"
+
+    return f"nvidia/{model_name}"
 
 
 # ---------------------------------------------------------------------------

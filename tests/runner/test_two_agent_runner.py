@@ -2849,3 +2849,283 @@ class TestReviewerImplementerLogMarkers:
 
         captured = capsys.readouterr()
         assert "[REVIEWER->IMPLEMENTER]" in captured.out
+
+
+
+# ---------------------------------------------------------------------------
+# __main__.py existence
+# ---------------------------------------------------------------------------
+
+
+class TestMainModule:
+    """src/slop_code/__main__.py exists and is importable."""
+
+    def test_main_module_exists(self):
+        main_path = (
+            REPO_ROOT / "src" / "slop_code"
+            / "__main__.py"
+        )
+        assert main_path.is_file()
+
+    def test_python_m_slop_code_help(self):
+        result = subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "slop_code", "--help"],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            timeout=30,
+            env={
+                **os.environ,
+                "PYTHONPATH": str(REPO_ROOT / "src"),
+            },
+        )
+        assert result.returncode == 0
+        assert "Usage" in result.stdout
+
+
+class TestFormatModelForCli:
+    def test_already_has_slash(self):
+        mod = _load_runner_module()
+        assert mod.format_model_for_cli("nvidia/x") == "nvidia/x"
+
+    def test_bare_model_gets_provider(self):
+        mod = _load_runner_module()
+        result = mod.format_model_for_cli("opus-4.5")
+        assert "/" in result
+        assert result == "anthropic/opus-4.5"
+
+    def test_nvidia_model_gets_nvidia_provider(self):
+        mod = _load_runner_module()
+        result = mod.format_model_for_cli(
+            "nvidia-bedrock-claude-sonnet-4-6",
+        )
+        assert result == (
+            "nvidia/nvidia-bedrock-claude-sonnet-4-6"
+        )
+
+    def test_unknown_model_falls_back_to_nvidia(self):
+        mod = _load_runner_module()
+        result = mod.format_model_for_cli("fake-xyz")
+        assert result == "nvidia/fake-xyz"
+
+
+class TestRunSlopCodeModelFormat:
+    def test_model_arg_has_provider_prefix(self):
+        mod = _load_runner_module()
+        captured_cmd = []
+
+        def fake_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            r = MagicMock()
+            r.returncode = 0
+            r.stdout = ""
+            r.stderr = ""
+            return r
+
+        with (
+            patch("subprocess.run", side_effect=fake_run),
+            patch.object(
+                mod, "_parse_slop_code_output",
+                return_value={
+                    "cost": 0.0, "tokens": 0,
+                    "pass_rate": 0.0, "erosion": 0.0,
+                    "verbosity": 0.0, "output_dir": None,
+                },
+            ),
+        ):
+            mod.run_slop_code(
+                problem="test",
+                model="opus-4.5",
+                prompt_template=Path("p.jinja"),
+                output_dir=Path("/tmp/out"),  # noqa: S108
+                budget_fraction=0.7,
+                total_budget=10.0,
+            )
+
+        model_idx = captured_cmd.index("--model")
+        model_val = captured_cmd[model_idx + 1]
+        assert "/" in model_val
+
+
+class TestNormalModeExitCodeHandling:
+    @pytest.fixture()
+    def fake_problem(self, tmp_path):
+        prob = tmp_path / "problems" / "test_problem"
+        cp = prob / "checkpoint_1"
+        cp.mkdir(parents=True)
+        (prob / "checkpoint_1.md").write_text("Spec 1")
+        return prob
+
+    def test_impl_nonzero_warns(
+        self, tmp_path, fake_problem, capsys,
+    ):
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        def impl_fails(**kwargs):
+            r = _fake_slop_result()
+            if kwargs.get("phase") == "implementer":
+                r["exit_code"] = 1
+            return r
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR",
+                fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=impl_fails,
+            ),
+        ):
+            state = mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("i.jinja"),
+                reviewer_prompt=Path("r.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+                canary_mode=False,
+            )
+        assert isinstance(state, mod.RunState)
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.err
+        assert "Implementer" in captured.err
+
+    def test_reviewer_nonzero_warns(
+        self, tmp_path, fake_problem, capsys,
+    ):
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        def rev_fails(**kwargs):
+            r = _fake_slop_result()
+            if kwargs.get("phase") == "reviewer":
+                r["exit_code"] = 1
+            return r
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR",
+                fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=rev_fails,
+            ),
+        ):
+            state = mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("i.jinja"),
+                reviewer_prompt=Path("r.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+                canary_mode=False,
+            )
+        assert isinstance(state, mod.RunState)
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.err
+        assert "Reviewer" in captured.err
+
+
+class TestConfigYamlWritten:
+    @pytest.fixture()
+    def fake_problem(self, tmp_path):
+        prob = tmp_path / "problems" / "test_problem"
+        cp = prob / "checkpoint_1"
+        cp.mkdir(parents=True)
+        (prob / "checkpoint_1.md").write_text("Spec 1")
+        return prob
+
+    def test_config_yaml_written(
+        self, tmp_path, fake_problem,
+    ):
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR",
+                fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_result(),
+            ),
+        ):
+            mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+            )
+
+        cfg_path = out / "config.yaml"
+        assert cfg_path.exists()
+        import yaml
+        cfg = yaml.safe_load(cfg_path.read_text())
+        assert cfg["model"]["name"] == "opus-4.5"
+        assert cfg["run"]["problem"] == "test_problem"
+        assert cfg["run"]["mode"] == "two-agent"
+
+    def test_config_yaml_not_overwritten(
+        self, tmp_path, fake_problem,
+    ):
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+        existing = out / "config.yaml"
+        existing.write_text("existing: true\n")
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR",
+                fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_result(),
+            ),
+        ):
+            mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+            )
+
+        assert existing.read_text() == "existing: true\n"
+
+    def test_write_config_yaml_function(self, tmp_path):
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        mod._write_config_yaml(
+            out,
+            problem="file_backup",
+            model="nvidia/nvidia-bedrock-claude-sonnet-4-6",
+            budget=5.0,
+            budget_split=70,
+            implementer_prompt="impl.jinja",
+            reviewer_prompt="rev.jinja",
+        )
+
+        import yaml
+        cfg = yaml.safe_load(
+            (out / "config.yaml").read_text(),
+        )
+        assert cfg["model"]["provider"] == "nvidia"
+        assert cfg["run"]["budget"] == 5.0
