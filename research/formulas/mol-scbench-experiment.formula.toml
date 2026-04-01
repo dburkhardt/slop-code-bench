@@ -1,0 +1,195 @@
+description = """
+SCBench experiment molecule. Runs a two-agent vs. single-agent \
+comparison on a single problem with a specific hypothesis and config. \
+Six phases: preflight, implement hypothesis, peer review, run \
+experiments, validate results, report."""
+formula = "mol-scbench-experiment"
+type = "workflow"
+version = 1
+
+[vars]
+[vars.problem_id]
+description = "SCBench problem ID to run"
+required = true
+
+[vars.model]
+description = "Model to use (e.g., claude-sonnet-4-6)"
+required = true
+
+[vars.hypothesis_id]
+description = "Bead ID of the hypothesis being tested"
+required = true
+
+[vars.hypothesis_description]
+description = "Plain-text description of what this experiment tests"
+required = true
+
+[vars.total_budget_usd]
+description = "Maximum spend for this experiment in USD"
+required = true
+
+[vars.implementer_prompt]
+description = "Path to implementer Jinja prompt template"
+default = "configs/prompts/default_implementer.jinja"
+
+[vars.reviewer_prompt]
+description = "Path to reviewer Jinja prompt template"
+default = "configs/prompts/default_reviewer.jinja"
+
+[vars.budget_split]
+description = "Percentage of per-checkpoint budget for implementer (e.g., 70)"
+default = "70"
+
+[[steps]]
+id = "preflight"
+title = "Run preflight canary"
+description = """
+Run a $0.50 canary (single checkpoint, trivial problem) to validate \
+Docker, API keys, and the pipeline.
+
+```bash
+cd research/runner
+python two_agent_runner.py --canary --budget 0.50
+```
+
+**Exit criteria:** Canary produces valid output directory with eval \
+results. If it fails, escalate:
+
+```bash
+gt escalate --severity high --reason "Preflight canary failed" \
+  --related {{hypothesis_id}}
+```
+
+Do NOT proceed to the next step if preflight fails."""
+acceptance = "Canary produces valid output directory with eval results and exit code 0"
+
+[[steps]]
+id = "implement-hypothesis"
+title = "Implement the hypothesis"
+needs = ["preflight"]
+description = """
+Modify the two-agent runner, prompt templates, or config to implement \
+whatever the hypothesis ({{hypothesis_id}}) claims to test:
+
+> {{hypothesis_description}}
+
+Commit with a clear message referencing the hypothesis ID:
+
+```bash
+git commit -m "experiment: implement {{hypothesis_id}} — {{hypothesis_description}}"
+```
+
+**Exit criteria:** Working tree clean, commit references hypothesis ID."""
+acceptance = "Working tree clean, commit references hypothesis ID"
+
+[[steps]]
+id = "peer-review"
+title = "Peer review (manipulation check)"
+needs = ["implement-hypothesis"]
+description = """
+A second agent reads the hypothesis description and the implementation \
+diff, then answers:
+
+1. Does the code change match the hypothesis?
+2. Are there unintended confounds?
+3. Is the baseline still fair?
+4. Could this trivially fail for mechanical reasons?
+
+Record findings:
+
+```bash
+bd update {{hypothesis_id}} --set-metadata manipulation_check=passed
+bd update {{hypothesis_id}} --notes "Manipulation check: [findings]"
+```
+
+If any check fails:
+
+```bash
+bd update {{hypothesis_id}} --set-metadata manipulation_check=failed
+bd update {{hypothesis_id}} --notes "BLOCKED: [reason]"
+gt escalate --severity medium --reason "Manipulation check failed for {{hypothesis_id}}"
+```
+
+**Exit criteria:** manipulation_check set to passed or failed. \
+If failed, stop and do not proceed."""
+acceptance = "manipulation_check set to passed or failed on hypothesis bead"
+
+[[steps]]
+id = "run-experiments"
+title = "Run baseline + two-agent experiments"
+needs = ["peer-review"]
+description = """
+Run both the single-agent baseline and the two-agent system:
+
+```bash
+# Baseline (single agent)
+slop-code run --problem {{problem_id}} --model {{model}} \
+  --budget {{total_budget_usd}}
+
+# Two-agent
+cd research/runner
+python two_agent_runner.py \
+  --problem {{problem_id}} \
+  --model {{model}} \
+  --implementer-prompt {{implementer_prompt}} \
+  --reviewer-prompt {{reviewer_prompt}} \
+  --budget-split {{budget_split}} \
+  --budget {{total_budget_usd}}
+```
+
+The runner script enforces a per-experiment cost cap. If cumulative API \
+cost exceeds {{total_budget_usd}}, the run aborts and logs partial \
+results. This is the harness-level budget enforcement layer.
+
+**Exit criteria:** Both runs complete (or abort with logged reason)."""
+acceptance = "Both baseline and two-agent runs complete with output directories"
+
+[[steps]]
+id = "validate-results"
+title = "Validate experiment outputs"
+needs = ["run-experiments"]
+description = """
+Verify both runs produced valid output:
+
+- Output directories exist with expected structure
+- Eval results present for each checkpoint
+- No budget overruns beyond the cap
+- Cost accounting matches API logs
+
+Flag invalid experiments:
+
+```bash
+bd update {{hypothesis_id}} --set-metadata results_valid=true
+# or
+bd update {{hypothesis_id}} --set-metadata results_valid=false
+bd update {{hypothesis_id}} --notes "INVALID: [reason]"
+```
+
+**Exit criteria:** results_valid set to true or false."""
+acceptance = "results_valid set to true or false on hypothesis bead"
+
+[[steps]]
+id = "report"
+title = "Write results to Dolt ledger"
+needs = ["validate-results"]
+description = """
+Insert a row into the experiments Dolt table with all metrics. Update \
+the budget table with actual spend.
+
+```sql
+INSERT INTO experiments (
+  problem_id, model, mode, hypothesis_id,
+  implementer_prompt, reviewer_prompt, budget_split, budget_usd,
+  pass_rates, erosion_scores, verbosity_scores,
+  tokens_implementer, tokens_reviewer, cost_per_checkpoint,
+  total_pass_rate, total_cost, erosion_slope, verbosity_slope,
+  baseline_pass_rate, delta_pass_rate, delta_erosion,
+  manipulation_check, manipulation_notes, results_valid,
+  impl_diff_summary
+) VALUES (...);
+
+UPDATE budget SET spent = spent + [actual_cost] WHERE id = 1;
+```
+
+**Exit criteria:** Row inserted, budget table updated. Run gt done."""
+acceptance = "Experiment row in Dolt experiments table, budget table updated with spend"
