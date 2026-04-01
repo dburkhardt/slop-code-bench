@@ -1,0 +1,34 @@
+{
+  "featureId": "canary-preflight-gate",
+  "reviewedAt": "2026-04-01T04:19:03Z",
+  "commitId": "1d3ce92",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature adds a dedicated preflight script and broad tests, but the script invokes the runner with the system python3 interpreter, which fails in this environment before canary logic executes. This breaks the intended canary gate behavior.",
+    "issues": [
+      {
+        "file": "research/scripts/canary_preflight.sh",
+        "line": 38,
+        "severity": "blocking",
+        "description": "The command uses `python3` to run `two_agent_runner.py`. On this host, `python3` is 3.10, and the runner imports `datetime.UTC`, so the preflight fails immediately with `ImportError: cannot import name 'UTC'`. Evidence: `python3 research/runner/two_agent_runner.py --help` exits 1 with that import error, while `uv run python research/runner/two_agent_runner.py --help` succeeds. As written, preflight can fail for interpreter mismatch rather than true canary health."
+      },
+      {
+        "file": "tests/runner/test_canary_preflight.py",
+        "line": 74,
+        "severity": "non_blocking",
+        "description": "Tests replace the runner path with a fake script and never exercise the real `two_agent_runner.py` invocation path. This missed the interpreter mismatch in the production script."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The integration-worker procedure does not explicitly require a real execution smoke test of newly added shell entrypoints in the mission runtime environment. This allowed a Python interpreter mismatch (`python3` vs uv-managed Python 3.12) to pass review.",
+      "evidence": "Transcript skeleton for session 17476d5a-22e4-4a52-8965-87bf7a17c06d shows pytest/ruff and Gas Town checks, but no direct run of `research/scripts/canary_preflight.sh` against the real runner. The resulting script uses `python3` and fails with `ImportError: cannot import name 'UTC'` when invoked against `research/runner/two_agent_runner.py`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review failed. The preflight gate script is present and escalation logic is implemented, but it calls the runner with system `python3`, which crashes in this environment before canary checks run. The test suite did not cover this real invocation path, so the defect was not detected."
+}

@@ -1,0 +1,26 @@
+{
+  "featureId": "gastown-beads-formulas",
+  "reviewedAt": "2026-04-01T04:18:33Z",
+  "commitId": "fbea027",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit adds the requested experiment formula TOML and an idempotent setup script that creates the required role/epic/log beads and verifies formula registration. The formula defines 8 variables with the expected required/optional split and a 6-step linear dependency chain matching the contract. No blocking implementation defects were found in the reviewed diff.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The infra-worker skill does not explicitly state that gt formula execution depends on Gas Town workspace context, which led to avoidable exploration during execution.",
+      "evidence": "Transcript skeleton for workerSessionId 39266316-2eec-4a5b-a8d3-f0a140bc2341 shows repeated formula-path troubleshooting, including: \"The formula run command from the repo directory failed because the repo isn't inside the Gas Town workspace.\""
+    },
+    {
+      "area": "services",
+      "observation": "Mission validator scope and services lint command are inconsistent.",
+      "evidence": "Mission AGENTS.md specifies lint scope `research/ tests/runner/ tests/analysis/ .factory/`, while `.factory/services.yaml` lint command is `uv run ruff check research/ tests/runner/ .factory/` and omits `tests/analysis/`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed feature gastown-beads-formulas (commit fbea027). Implementation satisfies the stated feature requirements in code and transcript evidence, so the review result is pass. Two shared-state documentation/tooling consistency observations were recorded for triage."
+}

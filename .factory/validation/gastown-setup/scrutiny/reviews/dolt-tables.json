@@ -1,0 +1,44 @@
+{
+  "featureId": "dolt-tables",
+  "reviewedAt": "2026-04-01T04:18:25Z",
+  "commitId": "da1f7e5",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The SQL script in da1f7e5 correctly creates the 27-column experiments table, 5-column budget table with generated remaining, and idempotent budget initialization. However, the feature requirement to verify Dolt auto-commit behavior was not actually satisfied in the implementation evidence.",
+    "issues": [
+      {
+        "file": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/worker-transcripts.jsonl",
+        "line": 17,
+        "severity": "blocking",
+        "description": "Required auto-commit verification is incomplete. The transcript shows `ss -ltn | grep 3307` failed (server not running), then the worker used manual `dolt add`/`dolt commit` to create log entries. This does not verify the expected behavior \"Auto-commit preserves data (visible in dolt log)\" under the Dolt SQL server path."
+      },
+      {
+        "file": "research/scripts/setup_dolt.sql",
+        "line": 4,
+        "severity": "non_blocking",
+        "description": "Header comment is stale and says idempotency uses `INSERT IGNORE`, but the script now uses `INSERT ... SELECT ... WHERE NOT EXISTS`. Update the comment to match actual behavior."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "infra-worker skill does not document the Dolt 1.84.1 duplicate-PK panic with `INSERT IGNORE`, which the worker encountered and worked around.",
+      "evidence": "Handoff discoveredIssues reports Dolt panic and workaround; skill file /home/ubuntu/git-repos/slop-code-bench/.factory/skills/infra-worker/SKILL.md only says to make scripts idempotent, without this Dolt-specific caveat."
+    },
+    {
+      "area": "knowledge",
+      "observation": "Shared library is missing the Dolt mode distinction that caused confusion during verification: `dolt sql` local CLI mode did not produce commit-log behavior the worker expected from SQL-server auto-commit.",
+      "evidence": "Transcript skeleton (worker-transcripts.jsonl line 17) includes a detour where the worker reasons about CLI mode vs SQL server auto-commit semantics; no corresponding note exists in .factory/library/environment.md or architecture.md."
+    },
+    {
+      "area": "services",
+      "observation": "Feature preconditions depended on Dolt SQL server availability, but worker flow proceeded after finding port 3307 down; guidance should explicitly instruct workers to use services.yaml start/healthcheck before validating server-dependent assertions.",
+      "evidence": "Transcript skeleton shows `ss -ltn | grep 3307` failed and work continued; .factory/services.yaml includes dolt start/healthcheck commands that were not used."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Schema implementation is largely correct, but this review fails due to missing proof of the required auto-commit behavior under Dolt SQL server conditions. One minor documentation mismatch exists in setup_dolt.sql comments."
+}

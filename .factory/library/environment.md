@@ -41,9 +41,15 @@ Workers must set: `export PATH=$PATH:/home/ubuntu/gopath/bin:/home/ubuntu/go/bin
 - Python 3.12.13 managed by uv
 - Virtual env at `/home/ubuntu/git-repos/slop-code-bench/.venv/`
 - Dependencies synced via `uv sync`
+- Use `uv run python` for mission scripts under `research/runner/`. System `python3` is 3.10 on this host and can fail on `datetime.UTC` imports used by the runner.
 
 ## Docker
 
 - Docker 29.3.1 available
 - Required for slop-code experiment execution
 - Agent Docker images build automatically on first run
+
+## Environment Quirks
+
+- Gas Town escalation config expects `smtp_port` as a string value in `~/gt/settings/escalation.json` in this environment.
+- Dolt auto-commit validation must run through the SQL server path on port `3307`; local `dolt sql` CLI mode does not exercise the same commit-log behavior.

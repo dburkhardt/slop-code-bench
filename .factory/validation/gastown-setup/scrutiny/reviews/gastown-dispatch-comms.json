@@ -1,0 +1,44 @@
+{
+  "featureId": "gastown-dispatch-comms",
+  "reviewedAt": "2026-04-01T04:19:23Z",
+  "commitId": "fbea027",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature is partially implemented, but two required behaviors were not verified as specified. Dispatch validation recorded HOOKED instead of in_progress, and `gt mayor attach scbench` was not successfully verified.",
+    "issues": [
+      {
+        "file": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/handoffs/2026-04-01T03-57-47-602Z__gastown-dispatch-comms__e830e15b-1382-4942-a2b5-37253f38cc04.json",
+        "line": 26,
+        "severity": "blocking",
+        "description": "Dispatch verification does not match expected behavior. The executed command used `gt sling ... --hook-raw-bead --no-convoy` and the recorded result is `status=hooked` (line 28), but the requirement is bead transition to `in_progress` (`features.json` expectedBehavior)."
+      },
+      {
+        "file": "/home/ubuntu/.factory/missions/87f1dbde-093a-4612-97da-91c8bec9fe63/handoffs/2026-04-01T03-57-47-602Z__gastown-dispatch-comms__e830e15b-1382-4942-a2b5-37253f38cc04.json",
+        "line": 99,
+        "severity": "blocking",
+        "description": "Required verification `gt mayor attach scbench succeeds` is not satisfied. The handoff explicitly states this command could not be verified in the non-interactive environment, while the feature requires successful attach verification."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Mission guidance requires commit/push after every feature, but this feature reports no repo changes and reuses an older commit ID. The process for external-state-only work is unclear.",
+      "evidence": "Mission AGENTS.md lines 28-35 mandate commit/push per feature; handoff line 6 reports commitId `fbea027` (a prior feature commit), and the transcript ends with a clean repo and no new commit."
+    },
+    {
+      "area": "skills",
+      "observation": "The infra-worker skill does not document how to handle interactive-only verification steps in non-interactive worker environments, which led to an unverified required step (`gt mayor attach scbench`).",
+      "evidence": "infra-worker SKILL.md procedure has generic verification guidance (lines 54-58) but no non-interactive fallback for attach-style commands; handoff line 99 records inability to verify attach."
+    },
+    {
+      "area": "knowledge",
+      "observation": "Gas Town escalation config appears to require `smtp_port` as a string; this environment quirk is not captured in shared library docs.",
+      "evidence": "Handoff lines 94-95 note a fix from integer `587` to string `\"587\"` to resolve JSON unmarshal errors, while `.factory/library/environment.md` does not mention this constraint."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review failed for `gastown-dispatch-comms`. Core dispatch and attach validations do not meet the feature contract as written, although mail/escalation/crew checks were exercised and escalation routing was adjusted."
+}
