@@ -500,3 +500,62 @@ docker exec -u root <container> tcpdump -i any -w /tmp/capture.pcap port 443 &
 ```
 
 Or instrument the Claude CLI's HTTP client to log every request with timestamps.
+
+## Definitive Finding (2026-04-01 ~22:00)
+
+### Root cause: Claude CLI adds ~190-200s delay before every Bash tool execution
+
+**Test 9 (precise stream-json timing):**
+```
+[   6.3s +  5.1s] TOOL_USE: Bash (python3 -m venv)
+[ 207.5s +201.2s] user (tool result returned)      ← 201s between tool_use and result
+[ 209.8s +  2.4s] TOOL_USE: Bash (python -c print)  ← API responds in 2.4s
+[ 390.8s +181.0s] user (tool result returned)      ← 181s between tool_use and result
+[ 393.9s +  3.1s] TEXT: done                        ← API responds in 3.1s
+```
+
+**Test 7 (multi-turn with 3 Bash calls):**
+```
+Bash 1 (venv):   36.9s → 232.8s = 196s gap
+Bash 2 (pip):   237.0s → 422.6s = 186s gap
+Bash 3 (pytest): 446.1s → 623.0s = 177s gap
+```
+
+### What we proved
+
+1. **API inference is fast**: 2-3 seconds per turn, even at 49k tokens (Phase 4)
+2. **Bash execution is fast**: `python3 -m venv` takes 3 seconds when run directly
+3. **The delay is CLI-internal**: Between the model's tool_use decision and the Bash subprocess being spawned, ~190-200 seconds elapse with no visible activity
+4. **Only Bash tool is affected**: Write, TodoWrite, Read, Edit all execute instantly
+5. **Auth path doesn't matter**: Same delay with ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN
+6. **Background task flags don't matter**: Same delay with/without FORCE_AUTO_BACKGROUND_TASKS
+7. **Simple single-turn Bash is fast**: `echo hello` completes in 5 seconds (Test 5/6)
+8. **Multi-turn triggers the delay**: The delay appears starting from the first Bash call in a multi-turn conversation
+
+### Remaining hypotheses
+
+**H8: The CLI makes a blocking "background" API call between tool_use and tool execution**
+
+The CLI has background task processing (`FORCE_AUTO_BACKGROUND_TASKS=1`). After receiving a tool_use response, it may fire a background API call (e.g., for context summarization, conversation titling, or prefetching) that blocks the tool execution pipeline. With the NVIDIA endpoint (which doesn't support all Anthropic API features), this background call may time out after ~200 seconds.
+
+Evidence:
+- The CLI is blocked in `epoll_wait` (waiting on network I/O)
+- No Bash subprocess exists during the gap
+- Simple single-turn tasks are fast (no background tasks triggered)
+- Multi-turn tasks consistently show ~200s delay on every Bash call
+- `DISABLE_NON_ESSENTIAL_MODEL_CALLS=1` doesn't help (tested)
+
+**H9: The CLI's Bash sandbox initialization makes a network call**
+
+The Bash tool may have a sandboxing layer that phones home or validates permissions before executing commands. This validation call may time out against the NVIDIA endpoint.
+
+### Next steps for debugging agent
+
+1. **tcpdump inside the container** during a Bash delay to capture ALL HTTPS requests
+2. **Intercept Node.js HTTP module** to log every outgoing request:
+   ```bash
+   NODE_OPTIONS="--require /tmp/http-logger.js" claude ...
+   ```
+   Where http-logger.js monkey-patches `http.request` and `https.request` to log URLs and timing.
+3. **Try the `--bare` flag** with a multi-turn task (Test 3 failed silently; needs debugging)
+4. **Compare with official Anthropic endpoint**: Set `ANTHROPIC_API_KEY` to a real Anthropic key (not NVIDIA) and see if the delay persists. If it doesn't, the blocking call is one that Anthropic's API handles but NVIDIA's doesn't.

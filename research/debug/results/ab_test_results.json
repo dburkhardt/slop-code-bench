@@ -1,0 +1,236 @@
+[
+  {
+    "label": "test_a",
+    "env_vars": {
+      "ANTHROPIC_AUTH_TOKEN": "***",
+      "ANTHROPIC_BASE_URL": "https://inference-api.nvidia.com",
+      "DISABLE_AUTOUPDATER": "1",
+      "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
+      "FORCE_AUTO_BACKGROUND_TASKS": "1",
+      "ENABLE_BACKGROUND_TASKS": "1"
+    },
+    "total_time_s": 58.2,
+    "timed_out": false,
+    "num_steps": 4,
+    "gaps_over_2min": 0,
+    "steps": [
+      {
+        "elapsed_s": 5.5,
+        "gap_s": 5.5,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 8.6,
+        "gap_s": 3.1,
+        "event": "TOOL: Write",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 15.2,
+        "gap_s": 6.6,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 18.8,
+        "gap_s": 3.6,
+        "event": "TOOL: Bash",
+        "has_3min_gap": false
+      }
+    ]
+  },
+  {
+    "label": "test_b",
+    "env_vars": {
+      "ANTHROPIC_API_KEY": "***",
+      "ANTHROPIC_BASE_URL": "https://inference-api.nvidia.com",
+      "DISABLE_AUTOUPDATER": "1",
+      "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1"
+    },
+    "total_time_s": 441.5,
+    "timed_out": false,
+    "num_steps": 8,
+    "gaps_over_2min": 2,
+    "steps": [
+      {
+        "elapsed_s": 6.3,
+        "gap_s": 6.3,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 17.6,
+        "gap_s": 11.3,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 21.0,
+        "gap_s": 3.3,
+        "event": "TOOL: Write",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 23.8,
+        "gap_s": 2.8,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 26.7,
+        "gap_s": 2.9,
+        "event": "TOOL: Bash",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 245.8,
+        "gap_s": 219.1,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": true
+      },
+      {
+        "elapsed_s": 257.8,
+        "gap_s": 12.0,
+        "event": "TOOL: Bash",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 441.5,
+        "gap_s": 183.6,
+        "event": "RESULT: turns=8 cost=$0.0473",
+        "has_3min_gap": true
+      }
+    ]
+  },
+  {
+    "label": "test_c",
+    "env_vars": {
+      "ANTHROPIC_AUTH_TOKEN": "***",
+      "ANTHROPIC_BASE_URL": "https://inference-api.nvidia.com",
+      "DISABLE_AUTOUPDATER": "1",
+      "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1"
+    },
+    "total_time_s": 400.0,
+    "timed_out": false,
+    "num_steps": 8,
+    "gaps_over_2min": 2,
+    "steps": [
+      {
+        "elapsed_s": 5.6,
+        "gap_s": 5.6,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 9.4,
+        "gap_s": 3.8,
+        "event": "TOOL: Write",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 13.3,
+        "gap_s": 3.9,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 16.7,
+        "gap_s": 3.4,
+        "event": "TOOL: Bash",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 217.1,
+        "gap_s": 200.4,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": true
+      },
+      {
+        "elapsed_s": 220.7,
+        "gap_s": 3.5,
+        "event": "TOOL: Bash",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 399.9,
+        "gap_s": 179.2,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": true
+      },
+      {
+        "elapsed_s": 399.9,
+        "gap_s": 0.0,
+        "event": "RESULT: turns=8 cost=$0.0554",
+        "has_3min_gap": false
+      }
+    ]
+  },
+  {
+    "label": "test_d",
+    "env_vars": {
+      "ANTHROPIC_AUTH_TOKEN": "***",
+      "ANTHROPIC_BASE_URL": "https://inference-api.nvidia.com",
+      "DISABLE_AUTOUPDATER": "1",
+      "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
+      "FORCE_AUTO_BACKGROUND_TASKS": "1",
+      "ENABLE_BACKGROUND_TASKS": "1"
+    },
+    "total_time_s": 455.1,
+    "timed_out": false,
+    "num_steps": 8,
+    "gaps_over_2min": 2,
+    "steps": [
+      {
+        "elapsed_s": 6.5,
+        "gap_s": 6.5,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 8.7,
+        "gap_s": 2.3,
+        "event": "TOOL: Write",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 15.7,
+        "gap_s": 6.9,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 35.6,
+        "gap_s": 20.0,
+        "event": "TOOL: Bash",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 225.3,
+        "gap_s": 189.6,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": true
+      },
+      {
+        "elapsed_s": 227.6,
+        "gap_s": 2.3,
+        "event": "TOOL: Bash",
+        "has_3min_gap": false
+      },
+      {
+        "elapsed_s": 455.0,
+        "gap_s": 227.4,
+        "event": "TOOL: TodoWrite",
+        "has_3min_gap": true
+      },
+      {
+        "elapsed_s": 455.0,
+        "gap_s": 0.0,
+        "event": "RESULT: turns=8 cost=$0.0552",
+        "has_3min_gap": false
+      }
+    ],
+    "pcap_packets": 3883,
+    "unique_ips": 178
+  }
+]

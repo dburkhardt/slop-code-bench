@@ -1,0 +1,103 @@
+# Network Analysis - Test D tcpdump capture
+# Generated: 2026-04-01 22:11:14
+# Container: 3292aacd5f9d (Test D: baseline + tcpdump)
+# Capture duration: 22:03:38 to 22:11:12 (~7.5 minutes)
+
+Total packets captured: 3883
+
+## Remote Endpoints (reverse DNS)
+
+| IP | Reverse DNS | Packets | Role (inferred) |
+|----|------------|---------|-----------------|
+| 34.36.57.103 | bc.googleusercontent.com | 1115 | NVIDIA inference gateway (GCP) |
+| 16.146.192.132 | ec2-16-146-192-132.us-west-2.compute.amazonaws.com | 316 | AWS Bedrock (Claude backend) |
+| 52.39.201.119 | ec2-52-39-201-119.us-west-2.compute.amazonaws.com | 226 | AWS (likely Bedrock/streaming) |
+| 35.165.251.166 | ec2-35-165-251-166.us-west-2.compute.amazonaws.com | 70 | AWS (likely Bedrock/streaming) |
+| 3.233.158.39 | ec2-3-233-158-39.compute-1.amazonaws.com (us-east-1) | 26 | Anthropic telemetry/auth |
+| 3.233.158.50 | ec2-3-233-158-50.compute-1.amazonaws.com (us-east-1) | 13 | Anthropic telemetry/auth |
+| 3.233.158.40 | ec2-3-233-158-40.compute-1.amazonaws.com (us-east-1) | 12 | Anthropic telemetry/auth |
+| 3.233.158.49 | ec2-3-233-158-49.compute-1.amazonaws.com (us-east-1) | 12 | Anthropic telemetry/auth |
+| 3.233.158.41 | ec2-3-233-158-41.compute-1.amazonaws.com (us-east-1) | 12 | Anthropic telemetry/auth |
+
+## Traffic Timeline (10-second windows)
+
+Key:
+- Experiment start: 22:03:38
+- First Bash tool at ~35.6s: ~22:04:14
+- Gap 1: 22:04:14 to 22:07:24 (189.6s)
+- Gap 2: 22:07:26 to 22:11:12 (227.4s)
+
+Window       Packets  Remote IPs
+22:03:30:      526  NVIDIA-GCP, AWS-west-2 (initial burst, TLS setup)
+22:03:40:      481  NVIDIA-GCP, AWS-west-2 (first inference)
+22:03:50:      346  NVIDIA-GCP, AWS-west-2, Anthropic-east-1
+22:04:00:       48  NVIDIA-GCP, AWS-west-2
+22:04:10:      196  NVIDIA-GCP, AWS-west-2 (Bash tool execution)
+22:04:20:       80  NVIDIA-GCP, AWS-west-2, Anthropic-east-1
+22:04:30:       62  NVIDIA-GCP, AWS-west-2
+--- GAP 1 starts here ---
+22:04:40:       57  NVIDIA-GCP, AWS-west-2 (low traffic, keep-alive)
+22:04:50:       11  NVIDIA-GCP, AWS-west-2
+22:05:10:       56  NVIDIA-GCP, AWS-west-2 (periodic)
+22:05:20:       65  NVIDIA-GCP, AWS-west-2
+22:05:40:       55  NVIDIA-GCP, AWS-west-2
+22:06:00:       65  NVIDIA-GCP, AWS-west-2
+22:06:20:       55  NVIDIA-GCP, AWS-west-2
+22:06:30:       65  NVIDIA-GCP, AWS-west-2
+22:06:40:       14  NVIDIA-GCP, AWS-west-2
+22:06:50:       26  Anthropic-east-1 (3.233.158.40)
+22:07:00:       69  NVIDIA-GCP, AWS-west-2
+--- GAP 1 ends, inference resumes ---
+22:07:10:      321  NVIDIA-GCP, AWS-west-2 (big burst = inference response)
+22:07:20:      438  NVIDIA-GCP, AWS-west-2 (streaming response)
+22:07:30:       60  NVIDIA-GCP, AWS-west-2, Anthropic-east-1
+--- GAP 2 starts here ---
+22:07:40:       42  NVIDIA-GCP, AWS-west-2
+22:07:50:       39  NVIDIA-GCP, AWS-west-2
+22:08:00:       39  NVIDIA-GCP, AWS-west-2
+22:08:10:        8  NVIDIA-GCP, AWS-west-2
+22:08:30:       29  NVIDIA-GCP, AWS-west-2
+22:08:40:       45  NVIDIA-GCP, AWS-west-2
+22:09:10:       38  NVIDIA-GCP, AWS-west-2
+22:09:20:       38  NVIDIA-GCP, AWS-west-2
+22:09:50:       50  NVIDIA-GCP, AWS-west-2
+22:10:00:       14  NVIDIA-GCP, AWS-west-2
+22:10:20:       51  NVIDIA-GCP, AWS-west-2
+22:10:30:       13  NVIDIA-GCP, AWS-west-2
+22:10:40:       34  NVIDIA-GCP, AWS-west-2, Anthropic-east-1
+--- GAP 2 ends, final response ---
+22:11:00:      253  NVIDIA-GCP, AWS-west-2 (final inference burst)
+22:11:10:       94  NVIDIA-GCP, AWS-west-2
+
+## Key Observations
+
+1. During gaps, network traffic does NOT stop. There are continuous low-volume
+   exchanges (38-65 packets per 10s window) with NVIDIA GCP and AWS endpoints.
+
+2. The traffic pattern during gaps shows ~30-second polling/keep-alive cycles
+   with NVIDIA (34.36.57.103) and AWS (16.146.192.132). This suggests the
+   NVIDIA inference proxy is making repeated calls or long-polling AWS Bedrock.
+
+3. Anthropic us-east-1 endpoints (3.233.158.*) appear sporadically during gaps,
+   suggesting the Claude CLI does make occasional auth/telemetry calls to
+   Anthropic's infrastructure. However, these are infrequent (26 packets at
+   most in one window) and don't correlate with gap start/end.
+
+4. Gap resolution correlates with a large burst of traffic from NVIDIA/AWS,
+   consistent with a delayed inference response finally arriving.
+
+5. The 3.233.158.* IPs are in us-east-1 (Anthropic's infrastructure). The CLI
+   contacts them during startup and sporadically during execution, but these
+   connections are small and quick. They don't explain the 3-minute delays.
+
+## Conclusion
+
+The network data shows the Claude CLI IS waiting for a response during the gaps,
+but the delay is on the NVIDIA/AWS Bedrock side, not from Anthropic auth calls.
+The consistent low-volume traffic during gaps (30-65 packets per 10s with
+NVIDIA and AWS) indicates an active long-lived HTTPS connection that is waiting
+for a streaming response that takes ~3 minutes to arrive.
+
+This contradicts the hypothesis that ANTHROPIC_AUTH_TOKEN triggers hidden auth
+calls. The delay appears to be server-side queuing or rate-limiting at the
+NVIDIA inference proxy or AWS Bedrock layer.
