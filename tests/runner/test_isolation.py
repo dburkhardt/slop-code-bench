@@ -302,7 +302,7 @@ class TestSlopCodeRunId:
 
     def test_env_contains_run_id(self):
         """When run_id is provided, SCBENCH_RUN_ID is set in
-        the subprocess environment."""
+        the subprocess environment with a phase suffix."""
         mod = _load_runner()
         captured_env = {}
 
@@ -315,7 +315,17 @@ class TestSlopCodeRunId:
             r.stderr = ""
             return r
 
-        with patch("subprocess.run", side_effect=fake_run):
+        with (
+            patch("subprocess.run", side_effect=fake_run),
+            patch.object(
+                mod, "_parse_slop_code_output",
+                return_value={
+                    "cost": 0.0, "tokens": 0,
+                    "pass_rate": 0.0, "erosion": 0.0,
+                    "verbosity": 0.0, "output_dir": None,
+                },
+            ),
+        ):
             mod.run_slop_code(
                 problem="test",
                 model="test",
@@ -327,7 +337,7 @@ class TestSlopCodeRunId:
             )
 
         assert captured_env.get("SCBENCH_RUN_ID") == (
-            "myrunid123"
+            "myrunid123-implementer"
         )
 
     def test_env_without_run_id(self):
@@ -344,7 +354,17 @@ class TestSlopCodeRunId:
             r.stderr = ""
             return r
 
-        with patch("subprocess.run", side_effect=fake_run):
+        with (
+            patch("subprocess.run", side_effect=fake_run),
+            patch.object(
+                mod, "_parse_slop_code_output",
+                return_value={
+                    "cost": 0.0, "tokens": 0,
+                    "pass_rate": 0.0, "erosion": 0.0,
+                    "verbosity": 0.0, "output_dir": None,
+                },
+            ),
+        ):
             mod.run_slop_code(
                 problem="test",
                 model="test",
@@ -360,6 +380,24 @@ class TestSlopCodeRunId:
 # ---------------------------------------------------------------------------
 # run_two_agent concurrent isolation
 # ---------------------------------------------------------------------------
+
+
+def _fake_slop_code_result(
+    cost: float = 0.0,
+    tokens: int = 0,
+) -> dict:
+    """Return a fake run_slop_code result dict."""
+    return {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "cost": cost,
+        "tokens": tokens,
+        "pass_rate": 0.0,
+        "erosion": 0.0,
+        "verbosity": 0.0,
+        "output_dir": None,
+    }
 
 
 class TestRunTwoAgentIsolation:
@@ -381,8 +419,14 @@ class TestRunTwoAgentIsolation:
         out = tmp_path / "output"
         out.mkdir()
 
-        with patch.object(
-            mod, "PROBLEMS_DIR", fake_problem.parent,
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_code_result(),
+            ),
         ):
             state = mod.run_two_agent(
                 problem="test_problem",
@@ -405,8 +449,14 @@ class TestRunTwoAgentIsolation:
         out = tmp_path / "output"
         out.mkdir()
 
-        with patch.object(
-            mod, "PROBLEMS_DIR", fake_problem.parent,
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_code_result(),
+            ),
         ):
             mod.run_two_agent(
                 problem="test_problem",
@@ -435,8 +485,14 @@ class TestRunTwoAgentIsolation:
         out_b = tmp_path / "run_b"
         out_b.mkdir()
 
-        with patch.object(
-            mod, "PROBLEMS_DIR", fake_problem.parent,
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_code_result(),
+            ),
         ):
             sa = mod.run_two_agent(
                 problem="test_problem",

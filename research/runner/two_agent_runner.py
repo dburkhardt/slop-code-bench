@@ -486,6 +486,7 @@ def run_slop_code(
     budget_fraction: float,
     total_budget: float,
     run_id: str | None = None,
+    phase: str = "implementer",
 ) -> dict:
     """Invoke ``slop-code run`` as a subprocess.
 
@@ -494,10 +495,17 @@ def run_slop_code(
     downstream Docker containers receive a unique name
     prefix, preventing collisions between parallel runs.
 
+    The *budget_fraction* of *total_budget* is passed as
+    the per-phase cost limit so that budget split is
+    enforced at the harness level.
+
     Returns a dict with keys:
-        cost, tokens, pass_rate, erosion, verbosity, exit_code
+        cost, tokens, pass_rate, erosion, verbosity,
+        exit_code, output_dir
     """
-    _ = total_budget * budget_fraction  # reserved for future use
+    cost_limit = round(
+        total_budget * budget_fraction, 4,
+    )
     cmd = [
         sys.executable, "-m", "slop_code",
         "run",
@@ -505,11 +513,17 @@ def run_slop_code(
         "--model", model,
         "--prompt", str(prompt_template),
         "--evaluate",
+        f"agent.cost_limits.cost_limit={cost_limit}",
     ]
 
-    env = {**os.environ}
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(REPO_ROOT / "src"),
+    }
     if run_id:
-        env["SCBENCH_RUN_ID"] = run_id
+        env["SCBENCH_RUN_ID"] = (
+            f"{run_id}-{phase}"
+        )
 
     result = subprocess.run(  # noqa: S603
         cmd,
@@ -520,13 +534,87 @@ def run_slop_code(
         env=env,
     )
 
+    # Parse cost and metrics from the output directory
+    parsed = _parse_slop_code_output(
+        problem, result.stdout,
+    )
+
     return {
         "exit_code": result.returncode,
         "stdout": result.stdout,
         "stderr": result.stderr,
+        "cost": parsed.get("cost", 0.0),
+        "tokens": parsed.get("tokens", 0),
+        "pass_rate": parsed.get("pass_rate", 0.0),
+        "erosion": parsed.get("erosion", 0.0),
+        "verbosity": parsed.get("verbosity", 0.0),
+        "output_dir": parsed.get("output_dir"),
+    }
+
+
+def _parse_slop_code_output(
+    problem: str,
+    stdout: str,
+) -> dict:
+    """Parse metrics from the latest slop-code output dir.
+
+    Reads ``checkpoint_results.jsonl`` from the most recent
+    output directory matching the problem name.
+
+    Returns a dict with cost, tokens, pass_rate, erosion,
+    verbosity, and output_dir.
+    """
+    result: dict = {
         "cost": 0.0,
         "tokens": 0,
+        "pass_rate": 0.0,
+        "erosion": 0.0,
+        "verbosity": 0.0,
+        "output_dir": None,
     }
+
+    run_dir = _find_latest_run_dir(problem)
+    if run_dir is None:
+        return result
+
+    run_dir_path, _ = run_dir
+    result["output_dir"] = str(run_dir_path)
+
+    # Parse checkpoint_results.jsonl
+    results_file = run_dir_path / "checkpoint_results.jsonl"
+    if results_file.exists():
+        try:
+            for line in results_file.read_text().splitlines():
+                if not line.strip():
+                    continue
+                data = json.loads(line)
+                # Use flattened metric keys if available
+                if "strict_pass_rate" in data:
+                    result["pass_rate"] = float(
+                        data["strict_pass_rate"],
+                    )
+                elif "total_counts" in data:
+                    total = data.get("total_counts", 0)
+                    passed = data.get("pass_counts", 0)
+                    if total > 0:
+                        result["pass_rate"] = round(
+                            passed / total, 4,
+                        )
+                if "erosion" in data:
+                    result["erosion"] = float(
+                        data["erosion"],
+                    )
+                if "verbosity" in data:
+                    result["verbosity"] = float(
+                        data["verbosity"],
+                    )
+                if "cost" in data:
+                    result["cost"] = float(data["cost"])
+                break  # Use first checkpoint line
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -603,6 +691,7 @@ def run_two_agent(
         raise SystemExit(1)
 
     _implementer_fraction = budget_split / 100.0
+    _reviewer_fraction = 1.0 - _implementer_fraction
 
     for idx, checkpoint_name in enumerate(checkpoints):
         # Skip already-completed checkpoints (resume)
@@ -648,14 +737,33 @@ def run_two_agent(
             ),
         )
 
-        # In a real run this invokes slop-code; for now we
-        # record structural placeholders.  The actual
-        # invocation is wired up by the canary-mode and
-        # runner-resilience features.
-        impl_cost = 0.0
-        impl_tokens = 0
-        review_cost = 0.0
-        review_tokens = 0
+        typer.echo(
+            f"  [{checkpoint_name}] Implementer phase "
+            f"(budget: ${budget * _implementer_fraction:.2f})"
+            " ...",
+        )
+
+        impl_result = run_slop_code(
+            problem=problem,
+            model=model,
+            prompt_template=implementer_prompt,
+            output_dir=output_dir,
+            budget_fraction=_implementer_fraction,
+            total_budget=budget,
+            run_id=state.run_id,
+            phase="implementer",
+        )
+        impl_cost = impl_result.get("cost", 0.0)
+        impl_tokens = impl_result.get("tokens", 0)
+
+        # Copy implementer artifacts into eval-compatible
+        # directory layout under output_dir.
+        _copy_checkpoint_artifacts(
+            problem=problem,
+            checkpoint_name=checkpoint_name,
+            source_output=impl_result.get("output_dir"),
+            target_dir=output_dir,
+        )
 
         # -- Reviewer phase --
         build_reviewer_prompt(
@@ -663,22 +771,183 @@ def run_two_agent(
             is_continuation=is_continuation,
         )
 
-        # Store reviewer output for next iteration
-        state.last_reviewer_suggestions = None
+        typer.echo(
+            f"  [{checkpoint_name}] Reviewer phase "
+            f"(budget: ${budget * _reviewer_fraction:.2f})"
+            " ...",
+        )
+
+        review_result = run_slop_code(
+            problem=problem,
+            model=model,
+            prompt_template=reviewer_prompt,
+            output_dir=output_dir,
+            budget_fraction=_reviewer_fraction,
+            total_budget=budget,
+            run_id=state.run_id,
+            phase="reviewer",
+        )
+        review_cost = review_result.get("cost", 0.0)
+        review_tokens = review_result.get("tokens", 0)
+
+        # Parse reviewer suggestions from output and
+        # propagate to next implementer iteration.
+        state.last_reviewer_suggestions = (
+            _extract_reviewer_suggestions(
+                review_result,
+            )
+        )
+
+        # Copy reviewer artifacts (may overwrite
+        # implementer snapshot with improved code)
+        _copy_checkpoint_artifacts(
+            problem=problem,
+            checkpoint_name=checkpoint_name,
+            source_output=review_result.get("output_dir"),
+            target_dir=output_dir,
+        )
+
+        # Use the best available pass_rate (prefer
+        # reviewer if it ran successfully, else
+        # implementer)
+        pass_rate = (
+            review_result.get("pass_rate", 0.0)
+            or impl_result.get("pass_rate", 0.0)
+        )
+        erosion = (
+            review_result.get("erosion", 0.0)
+            or impl_result.get("erosion", 0.0)
+        )
+        verbosity = (
+            review_result.get("verbosity", 0.0)
+            or impl_result.get("verbosity", 0.0)
+        )
 
         # Record metrics
         metrics = CheckpointMetrics(
-            pass_rate=0.0,
-            erosion=0.0,
-            verbosity=0.0,
+            pass_rate=pass_rate,
+            erosion=erosion,
+            verbosity=verbosity,
             tokens_implementer=impl_tokens,
             tokens_reviewer=review_tokens,
             cost=impl_cost + review_cost,
         )
         state.checkpoint_metrics[checkpoint_name] = metrics
 
+        # Persist checkpoint completion state to disk
+        # immediately for crash-safe resume.
+        state.save_results()
+        typer.echo(
+            f"  [{checkpoint_name}] Complete. "
+            f"Cost: ${impl_cost + review_cost:.4f}, "
+            f"Pass rate: {pass_rate:.4f}",
+        )
+
     state.save_results()
     return state
+
+
+# ---------------------------------------------------------------------------
+# Artifact helpers
+# ---------------------------------------------------------------------------
+
+
+def _copy_checkpoint_artifacts(
+    problem: str,
+    checkpoint_name: str,
+    source_output: str | None,
+    target_dir: Path,
+) -> None:
+    """Copy checkpoint artifacts from slop-code output into
+    the eval-compatible directory layout under *target_dir*.
+
+    Layout::
+
+        target_dir/
+            <problem>/
+                <checkpoint_name>/
+                    snapshot/
+                        ...solution files...
+            checkpoint_results.jsonl  (appended)
+    """
+    if source_output is None:
+        return
+
+    src = Path(source_output)
+    if not src.is_dir():
+        return
+
+    # Copy problem/<checkpoint>/snapshot/ if it exists
+    src_problem = src / problem
+    if not src_problem.is_dir():
+        return
+
+    src_cp = src_problem / checkpoint_name
+    if src_cp.is_dir():
+        dst_cp = target_dir / problem / checkpoint_name
+        if dst_cp.exists():
+            shutil.rmtree(dst_cp)
+        shutil.copytree(src_cp, dst_cp)
+
+    # Append checkpoint results to target JSONL
+    src_results = src / "checkpoint_results.jsonl"
+    if src_results.is_file():
+        dst_results = target_dir / "checkpoint_results.jsonl"
+        with dst_results.open("a") as f:
+            for line in src_results.read_text().splitlines():
+                if line.strip():
+                    f.write(line + "\n")
+
+    # Copy config.yaml and environment.yaml if present
+    for cfg_name in ("config.yaml", "environment.yaml"):
+        cfg_src = src / cfg_name
+        cfg_dst = target_dir / cfg_name
+        if cfg_src.is_file() and not cfg_dst.is_file():
+            shutil.copy2(cfg_src, cfg_dst)
+
+
+def _extract_reviewer_suggestions(
+    review_result: dict,
+) -> str | None:
+    """Extract reviewer suggestions from slop-code output.
+
+    Looks for the reviewer's code diff or stderr output
+    that contains actionable suggestions. Returns ``None``
+    when no suggestions are found.
+    """
+    # Try to extract from stderr (reviewer output notes)
+    stderr = review_result.get("stderr", "")
+
+    # If the reviewer produced output, use it as suggestions
+    suggestions_parts: list[str] = []
+
+    # Look for output directory to find reviewer's solution
+    output_dir = review_result.get("output_dir")
+    if output_dir is not None:
+        out_path = Path(output_dir)
+        # Find any .py files in the snapshot directory
+        for snapshot in out_path.rglob("snapshot"):
+            if snapshot.is_dir():
+                for py_file in snapshot.glob("*.py"):
+                    try:
+                        content = py_file.read_text()
+                        if content.strip():
+                            suggestions_parts.append(
+                                f"Reviewer's refactored "
+                                f"{py_file.name}:\n"
+                                f"{content[:2000]}",
+                            )
+                    except OSError:
+                        pass
+
+    if suggestions_parts:
+        return "\n\n".join(suggestions_parts)
+
+    # Fall back to stderr for any review notes
+    if stderr and len(stderr.strip()) > 20:
+        return stderr[:2000]
+
+    return None
 
 
 # ---------------------------------------------------------------------------

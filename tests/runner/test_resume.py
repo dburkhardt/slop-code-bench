@@ -163,6 +163,24 @@ class TestLoadResumeState:
 # ---------------------------------------------------------------------------
 
 
+def _fake_slop_code_result(
+    cost: float = 0.0,
+    tokens: int = 0,
+) -> dict:
+    """Return a fake run_slop_code result dict."""
+    return {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "cost": cost,
+        "tokens": tokens,
+        "pass_rate": 0.0,
+        "erosion": 0.0,
+        "verbosity": 0.0,
+        "output_dir": None,
+    }
+
+
 class TestRunTwoAgentResume:
     """Resume integration: completed checkpoints are skipped
     and their metrics preserved."""
@@ -204,9 +222,15 @@ class TestRunTwoAgentResume:
             json.dumps(prior),
         )
 
-        # Patch PROBLEMS_DIR to use our fixture
-        with patch.object(
-            mod, "PROBLEMS_DIR", fake_problem.parent,
+        # Patch PROBLEMS_DIR and run_slop_code
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_code_result(),
+            ),
         ):
             state = mod.run_two_agent(
                 problem="test_problem",
@@ -224,8 +248,7 @@ class TestRunTwoAgentResume:
         assert cp1.tokens_implementer == 800
         assert cp1.cost == pytest.approx(0.04)
 
-        # checkpoint_2 and checkpoint_3 were run (placeholder
-        # values since no real invocation)
+        # checkpoint_2 and checkpoint_3 were run
         assert "checkpoint_2" in state.checkpoint_metrics
         assert "checkpoint_3" in state.checkpoint_metrics
         assert len(state.checkpoint_metrics) == 3
@@ -257,8 +280,14 @@ class TestRunTwoAgentResume:
         metrics_file = out_dir / "two_agent_metrics.json"
         metrics_file.write_text(json.dumps(prior))
 
-        with patch.object(
-            mod, "PROBLEMS_DIR", fake_problem.parent,
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_code_result(),
+            ),
         ):
             mod.run_two_agent(
                 problem="test_problem",
@@ -301,8 +330,14 @@ class TestRunTwoAgentResume:
             json.dumps(prior),
         )
 
-        with patch.object(
-            mod, "PROBLEMS_DIR", fake_problem.parent,
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_code_result(),
+            ),
         ):
             mod.run_two_agent(
                 problem="test_problem",
@@ -326,8 +361,14 @@ class TestRunTwoAgentResume:
         out_dir = tmp_path / "output"
         out_dir.mkdir()
 
-        with patch.object(
-            mod, "PROBLEMS_DIR", fake_problem.parent,
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_code_result(),
+            ),
         ):
             state = mod.run_two_agent(
                 problem="test_problem",
@@ -413,8 +454,14 @@ class TestRunTwoAgentResume:
             json.dumps(prior),
         )
 
-        with patch.object(
-            mod, "PROBLEMS_DIR", fake_problem.parent,
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_code_result(),
+            ),
         ):
             state = mod.run_two_agent(
                 problem="test_problem",
@@ -427,5 +474,5 @@ class TestRunTwoAgentResume:
             )
 
         # Resumed cost (0.05) + 2 new checkpoints (0.0 each
-        # in placeholder mode)
+        # with mocked run_slop_code)
         assert state.cumulative_cost == pytest.approx(0.05)

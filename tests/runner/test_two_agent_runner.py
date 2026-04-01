@@ -882,3 +882,675 @@ class TestUpdateMetricsFromResults:
             metrics, results_file,
         )
         assert metrics.pass_rate == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Helper for mocked run_slop_code results
+# ---------------------------------------------------------------------------
+
+
+def _fake_slop_result(
+    cost: float = 0.0,
+    tokens: int = 0,
+    pass_rate: float = 0.0,
+    erosion: float = 0.0,
+    verbosity: float = 0.0,
+    output_dir: str | None = None,
+) -> dict:
+    """Return a fake run_slop_code result dict."""
+    return {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "cost": cost,
+        "tokens": tokens,
+        "pass_rate": pass_rate,
+        "erosion": erosion,
+        "verbosity": verbosity,
+        "output_dir": output_dir,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Core loop calls run_slop_code for both phases
+# ---------------------------------------------------------------------------
+
+
+class TestCoreLoopInvocations:
+    """Core loop calls run_slop_code() for both implementer
+    and reviewer stages."""
+
+    @pytest.fixture()
+    def fake_problem(self, tmp_path):
+        prob = tmp_path / "problems" / "test_problem"
+        for i in range(1, 3):
+            cp = prob / f"checkpoint_{i}"
+            cp.mkdir(parents=True)
+            spec = prob / f"checkpoint_{i}.md"
+            spec.write_text(f"Spec for checkpoint {i}")
+        return prob
+
+    def test_calls_run_slop_code_twice_per_checkpoint(
+        self, tmp_path, fake_problem,
+    ):
+        """Each checkpoint triggers two run_slop_code calls:
+        one for implementer, one for reviewer."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        call_args: list[dict] = []
+
+        def capture_call(**kwargs):
+            call_args.append(kwargs)
+            return _fake_slop_result()
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=capture_call,
+            ),
+        ):
+            mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+            )
+
+        # 2 checkpoints x 2 phases = 4 calls
+        assert len(call_args) == 4
+        # First call: implementer for checkpoint_1
+        assert call_args[0]["phase"] == "implementer"
+        # Second call: reviewer for checkpoint_1
+        assert call_args[1]["phase"] == "reviewer"
+        # Third call: implementer for checkpoint_2
+        assert call_args[2]["phase"] == "implementer"
+        # Fourth call: reviewer for checkpoint_2
+        assert call_args[3]["phase"] == "reviewer"
+
+    def test_budget_split_enforced_per_phase(
+        self, tmp_path, fake_problem,
+    ):
+        """Implementer gets budget_split% and reviewer gets
+        the remainder as budget_fraction."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        fractions: list[float] = []
+
+        def capture_fraction(**kwargs):
+            fractions.append(kwargs["budget_fraction"])
+            return _fake_slop_result()
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=capture_fraction,
+            ),
+        ):
+            mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+            )
+
+        # 4 calls: impl(0.7), rev(0.3), impl(0.7), rev(0.3)
+        assert fractions[0] == pytest.approx(0.7)
+        assert fractions[1] == pytest.approx(0.3)
+        assert fractions[2] == pytest.approx(0.7)
+        assert fractions[3] == pytest.approx(0.3)
+
+    def test_run_id_passed_to_slop_code(
+        self, tmp_path, fake_problem,
+    ):
+        """run_slop_code receives the run_id from state."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        run_ids: list[str | None] = []
+
+        def capture_run_id(**kwargs):
+            run_ids.append(kwargs.get("run_id"))
+            return _fake_slop_result()
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=capture_run_id,
+            ),
+        ):
+            mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+                run_id="test-run-42",
+            )
+
+        # All calls should have the run_id
+        for rid in run_ids:
+            assert rid == "test-run-42"
+
+    def test_cost_tracked_from_slop_code(
+        self, tmp_path, fake_problem,
+    ):
+        """Costs returned by run_slop_code are accumulated
+        in checkpoint metrics."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        call_count = 0
+
+        def cost_returning(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            phase = kwargs.get("phase", "implementer")
+            if phase == "implementer":
+                return _fake_slop_result(cost=0.10)
+            return _fake_slop_result(cost=0.05)
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=cost_returning,
+            ),
+        ):
+            state = mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+            )
+
+        # Each checkpoint costs 0.10 + 0.05 = 0.15
+        for cp_name, m in state.checkpoint_metrics.items():
+            assert m.cost == pytest.approx(0.15)
+        # Total cost = 2 checkpoints * 0.15
+        assert state.cumulative_cost == pytest.approx(0.30)
+
+
+# ---------------------------------------------------------------------------
+# Reviewer output propagation
+# ---------------------------------------------------------------------------
+
+
+class TestReviewerPropagation:
+    """Reviewer output is fed into the next implementer
+    iteration."""
+
+    @pytest.fixture()
+    def fake_problem(self, tmp_path):
+        prob = tmp_path / "problems" / "test_problem"
+        for i in range(1, 3):
+            cp = prob / f"checkpoint_{i}"
+            cp.mkdir(parents=True)
+            spec = prob / f"checkpoint_{i}.md"
+            spec.write_text(f"Spec {i}")
+        return prob
+
+    def test_reviewer_output_injected(
+        self, tmp_path, fake_problem,
+    ):
+        """Reviewer output from checkpoint_1 appears in the
+        implementer prompt for checkpoint_2."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        # Create a fake reviewer output directory with
+        # a solution file
+        fake_rev_dir = tmp_path / "reviewer_output"
+        snapshot = (
+            fake_rev_dir / "test_problem"
+            / "checkpoint_1" / "snapshot"
+        )
+        snapshot.mkdir(parents=True)
+        (snapshot / "solution.py").write_text(
+            "def improved():\n    return 42\n",
+        )
+
+        call_count = 0
+
+        def phase_aware(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            phase = kwargs.get("phase", "implementer")
+            if phase == "reviewer":
+                return _fake_slop_result(
+                    output_dir=str(fake_rev_dir),
+                )
+            return _fake_slop_result()
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                side_effect=phase_aware,
+            ),
+        ):
+            state = mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+            )
+
+        # After checkpoint_1, reviewer suggestions should
+        # be set (not None).
+        assert state.last_reviewer_suggestions is not None
+        assert "improved" in state.last_reviewer_suggestions
+
+
+# ---------------------------------------------------------------------------
+# Crash-safe persistence
+# ---------------------------------------------------------------------------
+
+
+class TestCrashSafePersistence:
+    """Checkpoint state persisted to disk after each
+    checkpoint (not just at exit)."""
+
+    @pytest.fixture()
+    def fake_problem(self, tmp_path):
+        prob = tmp_path / "problems" / "test_problem"
+        for i in range(1, 4):
+            cp = prob / f"checkpoint_{i}"
+            cp.mkdir(parents=True)
+            spec = prob / f"checkpoint_{i}.md"
+            spec.write_text(f"Spec {i}")
+        return prob
+
+    def test_metrics_saved_after_each_checkpoint(
+        self, tmp_path, fake_problem,
+    ):
+        """two_agent_metrics.json grows after each
+        checkpoint completion."""
+        mod = _load_runner_module()
+        out = tmp_path / "output"
+        out.mkdir()
+
+        save_call_count = 0
+        original_save = mod.RunState.save_results
+
+        def counting_save(self_state):
+            nonlocal save_call_count
+            save_call_count += 1
+            return original_save(self_state)
+
+        with (
+            patch.object(
+                mod, "PROBLEMS_DIR", fake_problem.parent,
+            ),
+            patch.object(
+                mod, "run_slop_code",
+                return_value=_fake_slop_result(),
+            ),
+            patch.object(
+                mod.RunState, "save_results",
+                counting_save,
+            ),
+        ):
+            mod.run_two_agent(
+                problem="test_problem",
+                model="opus-4.5",
+                implementer_prompt=Path("impl.jinja"),
+                reviewer_prompt=Path("rev.jinja"),
+                budget_split=70,
+                budget=10.0,
+                output_dir=out,
+            )
+
+        # save_results called once per checkpoint + once
+        # at the end = 3 + 1 = 4 calls
+        assert save_call_count >= 4
+
+
+# ---------------------------------------------------------------------------
+# Per-checkpoint artifacts
+# ---------------------------------------------------------------------------
+
+
+class TestCheckpointArtifacts:
+    """Per-checkpoint artifacts generated in eval-compatible
+    directory layout."""
+
+    def test_copy_checkpoint_artifacts(self, tmp_path):
+        """Artifacts copied from slop-code output into
+        the target directory."""
+        mod = _load_runner_module()
+
+        # Create source structure
+        src = tmp_path / "source_run"
+        cp_dir = src / "test_prob" / "checkpoint_1" / "snapshot"
+        cp_dir.mkdir(parents=True)
+        (cp_dir / "solution.py").write_text("print('hi')")
+        results = src / "checkpoint_results.jsonl"
+        results.write_text(
+            json.dumps({"pass_counts": 8, "total_counts": 10})
+            + "\n",
+        )
+        (src / "config.yaml").write_text("model: test\n")
+        (src / "environment.yaml").write_text("runtime: docker\n")
+
+        # Copy to target
+        target = tmp_path / "target"
+        target.mkdir()
+
+        mod._copy_checkpoint_artifacts(
+            problem="test_prob",
+            checkpoint_name="checkpoint_1",
+            source_output=str(src),
+            target_dir=target,
+        )
+
+        # Verify layout
+        assert (
+            target / "test_prob" / "checkpoint_1"
+            / "snapshot" / "solution.py"
+        ).exists()
+        assert (target / "checkpoint_results.jsonl").exists()
+        assert (target / "config.yaml").exists()
+        assert (target / "environment.yaml").exists()
+
+    def test_copy_artifacts_handles_none(self):
+        """Handles None source_output gracefully."""
+        mod = _load_runner_module()
+        # Should not raise
+        mod._copy_checkpoint_artifacts(
+            problem="p",
+            checkpoint_name="c",
+            source_output=None,
+            target_dir=Path("/tmp/x"),  # noqa: S108
+        )
+
+
+# ---------------------------------------------------------------------------
+# _parse_slop_code_output
+# ---------------------------------------------------------------------------
+
+
+class TestParseSlipCodeOutput:
+    """_parse_slop_code_output extracts metrics from
+    slop-code output directories."""
+
+    def test_parses_flattened_metrics(self, tmp_path):
+        """Reads flattened metric keys from JSONL."""
+        mod = _load_runner_module()
+
+        run_dir = tmp_path / "run_output"
+        prob_dir = run_dir / "test_prob" / "checkpoint_1"
+        prob_dir.mkdir(parents=True)
+        results = run_dir / "checkpoint_results.jsonl"
+        results.write_text(
+            json.dumps({
+                "strict_pass_rate": 0.85,
+                "erosion": 0.12,
+                "verbosity": 0.08,
+                "cost": 0.25,
+            }) + "\n",
+        )
+
+        with patch.object(
+            mod, "_find_latest_run_dir",
+            return_value=(run_dir, run_dir / "test_prob"),
+        ):
+            result = mod._parse_slop_code_output(
+                "test_prob", "",
+            )
+
+        assert result["pass_rate"] == pytest.approx(0.85)
+        assert result["erosion"] == pytest.approx(0.12)
+        assert result["verbosity"] == pytest.approx(0.08)
+        assert result["cost"] == pytest.approx(0.25)
+
+    def test_parses_pass_counts_fallback(self, tmp_path):
+        """Falls back to pass_counts/total_counts."""
+        mod = _load_runner_module()
+
+        run_dir = tmp_path / "run_output"
+        prob_dir = run_dir / "test_prob" / "checkpoint_1"
+        prob_dir.mkdir(parents=True)
+        results = run_dir / "checkpoint_results.jsonl"
+        results.write_text(
+            json.dumps({
+                "pass_counts": 8,
+                "total_counts": 10,
+            }) + "\n",
+        )
+
+        with patch.object(
+            mod, "_find_latest_run_dir",
+            return_value=(run_dir, run_dir / "test_prob"),
+        ):
+            result = mod._parse_slop_code_output(
+                "test_prob", "",
+            )
+
+        assert result["pass_rate"] == pytest.approx(0.8)
+
+    def test_returns_defaults_when_no_dir(self):
+        """Returns zeros when no output directory found."""
+        mod = _load_runner_module()
+
+        with patch.object(
+            mod, "_find_latest_run_dir",
+            return_value=None,
+        ):
+            result = mod._parse_slop_code_output(
+                "test_prob", "",
+            )
+
+        assert result["cost"] == 0.0
+        assert result["pass_rate"] == 0.0
+        assert result["output_dir"] is None
+
+
+# ---------------------------------------------------------------------------
+# _extract_reviewer_suggestions
+# ---------------------------------------------------------------------------
+
+
+class TestExtractReviewerSuggestions:
+    """_extract_reviewer_suggestions parses reviewer output."""
+
+    def test_extracts_from_snapshot(self, tmp_path):
+        """Finds Python files in snapshot directories."""
+        mod = _load_runner_module()
+
+        out_dir = tmp_path / "review_out"
+        snap = out_dir / "prob" / "cp1" / "snapshot"
+        snap.mkdir(parents=True)
+        (snap / "solution.py").write_text(
+            "def clean():\n    return 1\n",
+        )
+
+        result = mod._extract_reviewer_suggestions({
+            "stdout": "",
+            "stderr": "",
+            "output_dir": str(out_dir),
+        })
+
+        assert result is not None
+        assert "clean" in result
+
+    def test_returns_none_when_no_output(self):
+        """Returns None when no output directory."""
+        mod = _load_runner_module()
+        result = mod._extract_reviewer_suggestions({
+            "stdout": "",
+            "stderr": "",
+            "output_dir": None,
+        })
+        assert result is None
+
+    def test_falls_back_to_stderr(self):
+        """Returns stderr if no snapshot files found."""
+        mod = _load_runner_module()
+        result = mod._extract_reviewer_suggestions({
+            "stdout": "",
+            "stderr": "Consider refactoring the main loop "
+                     "to reduce complexity score",
+            "output_dir": None,
+        })
+        assert result is not None
+        assert "refactoring" in result
+
+
+# ---------------------------------------------------------------------------
+# run_slop_code budget enforcement
+# ---------------------------------------------------------------------------
+
+
+class TestRunSlopCodeBudget:
+    """run_slop_code passes budget limit to slop-code CLI."""
+
+    def test_cost_limit_in_command(self):
+        """The cost_limit arg is computed from
+        budget_fraction * total_budget."""
+        mod = _load_runner_module()
+        captured_cmd: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            r = MagicMock()
+            r.returncode = 0
+            r.stdout = ""
+            r.stderr = ""
+            return r
+
+        with (
+            patch("subprocess.run", side_effect=fake_run),
+            patch.object(
+                mod, "_parse_slop_code_output",
+                return_value={
+                    "cost": 0.0, "tokens": 0,
+                    "pass_rate": 0.0, "erosion": 0.0,
+                    "verbosity": 0.0, "output_dir": None,
+                },
+            ),
+        ):
+            mod.run_slop_code(
+                problem="test",
+                model="test",
+                prompt_template=Path("p.jinja"),
+                output_dir=Path("/tmp/out"),  # noqa: S108
+                budget_fraction=0.7,
+                total_budget=10.0,
+            )
+
+        # Should contain cost_limit=7.0
+        cost_args = [
+            a for a in captured_cmd
+            if "cost_limit=" in a
+        ]
+        assert len(cost_args) == 1
+        assert "7.0" in cost_args[0]
+
+    def test_scbench_run_id_has_phase_suffix(self):
+        """SCBENCH_RUN_ID includes the phase suffix."""
+        mod = _load_runner_module()
+        captured_env: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured_env.update(kwargs.get("env", {}))
+            r = MagicMock()
+            r.returncode = 0
+            r.stdout = ""
+            r.stderr = ""
+            return r
+
+        with (
+            patch("subprocess.run", side_effect=fake_run),
+            patch.object(
+                mod, "_parse_slop_code_output",
+                return_value={
+                    "cost": 0.0, "tokens": 0,
+                    "pass_rate": 0.0, "erosion": 0.0,
+                    "verbosity": 0.0, "output_dir": None,
+                },
+            ),
+        ):
+            mod.run_slop_code(
+                problem="test",
+                model="test",
+                prompt_template=Path("p.jinja"),
+                output_dir=Path("/tmp/out"),  # noqa: S108
+                budget_fraction=0.7,
+                total_budget=1.0,
+                run_id="abc123",
+                phase="reviewer",
+            )
+
+        assert captured_env["SCBENCH_RUN_ID"] == (
+            "abc123-reviewer"
+        )
+
+
+# ---------------------------------------------------------------------------
+# NVIDIA model YAML configs
+# ---------------------------------------------------------------------------
+
+
+class TestNvidiaModelConfigs:
+    """NVIDIA model YAML files have correct LiteLLM
+    provider prefix (openai/) on mini_swe.model_name."""
+
+    @pytest.fixture(
+        params=[
+            "nvidia-bedrock-claude-opus-4-6",
+            "nvidia-bedrock-claude-sonnet-4-6",
+            "nvidia-bedrock-claude-haiku-4-5",
+        ],
+    )
+    def model_yaml(self, request):
+        import yaml
+        yaml_path = (
+            REPO_ROOT / "configs" / "models"
+            / f"{request.param}.yaml"
+        )
+        with yaml_path.open() as f:
+            return yaml.safe_load(f)
+
+    def test_mini_swe_has_openai_prefix(self, model_yaml):
+        """mini_swe.model_name starts with openai/."""
+        model_name = (
+            model_yaml["agent_specific"]["mini_swe"]
+            ["model_name"]
+        )
+        assert model_name.startswith("openai/"), (
+            f"Expected openai/ prefix, got: {model_name}"
+        )
