@@ -703,11 +703,12 @@ def run_slop_code(
         effective_prompt = str(tmp_prompt_path)
 
     try:
+        cli_model = format_model_for_cli(model)
         cmd = [
             sys.executable, "-m", "slop_code",
             "run",
             "--problem", problem,
-            "--model", model,
+            "--model", cli_model,
             "--prompt", effective_prompt,
             "--evaluate",
             f"agent.cost_limits.cost_limit={cost_limit}",
@@ -894,6 +895,18 @@ def run_two_agent(
     # into the output directory for eval compatibility.
     _copy_environment_yaml(problem_dir, output_dir)
 
+    # Write config.yaml so that slop-code eval can
+    # ingest the output directory.
+    _write_config_yaml(
+        output_dir,
+        problem=problem,
+        model=model,
+        budget=budget,
+        budget_split=budget_split,
+        implementer_prompt=str(implementer_prompt),
+        reviewer_prompt=str(reviewer_prompt),
+    )
+
     # Optionally constrain the number of checkpoints
     # (used by canary to limit to checkpoint_1 only).
     if max_checkpoints is not None:
@@ -993,6 +1006,19 @@ def run_two_agent(
                 f"Implementer exited with code "
                 f"{impl_exit} at {checkpoint_name}.",
             )
+        if impl_exit != 0 and not canary_mode:
+            logger.warning(
+                "Implementer failed at %s "
+                "(exit code %d)",
+                checkpoint_name,
+                impl_exit,
+            )
+            typer.echo(
+                f"  [{checkpoint_name}] WARNING: "
+                f"Implementer exited with code "
+                f"{impl_exit}",
+                err=True,
+            )
 
         impl_cost = impl_result.get("cost", 0.0)
         impl_tokens = impl_result.get("tokens", 0)
@@ -1077,6 +1103,19 @@ def run_two_agent(
                     f"Reviewer exited with code "
                     f"{review_exit} at "
                     f"{checkpoint_name}.",
+                )
+            if review_exit != 0 and not canary_mode:
+                logger.warning(
+                    "Reviewer failed at %s "
+                    "(exit code %d)",
+                    checkpoint_name,
+                    review_exit,
+                )
+                typer.echo(
+                    f"  [{checkpoint_name}] WARNING: "
+                    f"Reviewer exited with code "
+                    f"{review_exit}",
+                    err=True,
                 )
 
             review_cost = review_result.get("cost", 0.0)
@@ -1204,6 +1243,55 @@ def run_two_agent(
 # ---------------------------------------------------------------------------
 # Artifact helpers
 # ---------------------------------------------------------------------------
+
+
+def _write_config_yaml(
+    output_dir: Path,
+    *,
+    problem: str,
+    model: str,
+    budget: float,
+    budget_split: int,
+    implementer_prompt: str,
+    reviewer_prompt: str,
+) -> None:
+    """Write a minimal ``config.yaml`` to *output_dir*.
+
+    The ``slop-code eval`` command expects a
+    ``config.yaml`` in the run directory.  This writes
+    one with the model, prompt, and run parameters so
+    that eval can ingest the output without
+    modification.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    cfg_path = output_dir / "config.yaml"
+    if cfg_path.exists():
+        return
+    import yaml
+
+    config = {
+        "model": {
+            "name": model,
+            "provider": (
+                model.split("/")[0]
+                if "/" in model
+                else "unknown"
+            ),
+        },
+        "prompt": {
+            "implementer": implementer_prompt,
+            "reviewer": reviewer_prompt,
+        },
+        "run": {
+            "problem": problem,
+            "budget": budget,
+            "budget_split": budget_split,
+            "mode": "two-agent",
+        },
+    }
+    cfg_path.write_text(
+        yaml.dump(config, default_flow_style=False),
+    )
 
 
 def _copy_environment_yaml(
