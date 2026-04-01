@@ -3435,3 +3435,53 @@ class TestConfigYamlWritten:
         )
         assert cfg["model"]["provider"] == "nvidia"
         assert cfg["run"]["budget"] == 5.0
+        # Verify required fields for compute_summary
+        assert cfg["thinking"] == "none"
+        assert cfg["prompt_path"] == "impl.jinja"
+        assert cfg["pass_policy"] == "any"  # noqa: S105
+        assert cfg["agent"]["type"] == "claude_code"
+
+    def test_copy_checkpoint_overwrites_config(
+        self, tmp_path,
+    ):
+        """_copy_checkpoint_artifacts overwrites fallback
+        config.yaml with the real one from slop-code."""
+        mod = _load_runner_module()
+        target = tmp_path / "target"
+        target.mkdir()
+        # Write a fallback config
+        (target / "config.yaml").write_text(
+            "model:\n  name: fallback\n",
+        )
+
+        # Create a fake slop-code output dir with a
+        # real config.yaml
+        src = tmp_path / "slop_output"
+        (src / "test_prob" / "checkpoint_1").mkdir(
+            parents=True,
+        )
+        (src / "config.yaml").write_text(
+            "model:\n  name: real\n"
+            "thinking: none\n"
+            "prompt_path: just-solve.jinja\n"
+            "agent:\n  type: claude_code\n"
+            "pass_policy: any\n",
+        )
+
+        mod._copy_checkpoint_artifacts(
+            problem="test_prob",
+            checkpoint_name="checkpoint_1",
+            source_output=str(src),
+            target_dir=target,
+        )
+
+        import yaml
+        cfg = yaml.safe_load(
+            (target / "config.yaml").read_text(),
+        )
+        # Real config should have overwritten fallback
+        assert cfg["model"]["name"] == "real"
+        assert cfg["thinking"] == "none"
+        assert cfg["prompt_path"] == "just-solve.jinja"
+        assert cfg["agent"]["type"] == "claude_code"
+        assert cfg["pass_policy"] == "any"  # noqa: S105

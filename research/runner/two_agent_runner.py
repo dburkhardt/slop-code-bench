@@ -1347,13 +1347,19 @@ def _write_config_yaml(
     implementer_prompt: str,
     reviewer_prompt: str,
 ) -> None:
-    """Write a minimal ``config.yaml`` to *output_dir*.
+    """Write a fallback ``config.yaml`` to *output_dir*.
 
     The ``slop-code eval`` command expects a
     ``config.yaml`` in the run directory.  This writes
-    one with the model, prompt, and run parameters so
-    that eval can ingest the output without
-    modification.
+    one with all fields required by ``compute_summary``
+    (``thinking``, ``prompt_path``, ``agent.type``,
+    ``agent.version``, ``pass_policy``) so that eval can
+    ingest the output without modification.
+
+    After ``run_slop_code()`` completes, the real
+    ``config.yaml`` from the slop-code output directory
+    is copied over this fallback via
+    ``_copy_slop_code_config()``.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     cfg_path = output_dir / "config.yaml"
@@ -1369,6 +1375,12 @@ def _write_config_yaml(
                 if "/" in model
                 else "unknown"
             ),
+        },
+        "thinking": "none",
+        "prompt_path": implementer_prompt,
+        "pass_policy": "any",
+        "agent": {
+            "type": "claude_code",
         },
         "prompt": {
             "implementer": implementer_prompt,
@@ -1505,12 +1517,20 @@ def _copy_checkpoint_artifacts(
                 if line.strip():
                     f.write(line + "\n")
 
-    # Copy config.yaml and environment.yaml if present
-    for cfg_name in ("config.yaml", "environment.yaml"):
-        cfg_src = src / cfg_name
-        cfg_dst = target_dir / cfg_name
-        if cfg_src.is_file() and not cfg_dst.is_file():
-            shutil.copy2(cfg_src, cfg_dst)
+    # Copy config.yaml (overwrite the fallback written by
+    # _write_config_yaml so that eval gets the real config
+    # produced by slop-code run, which includes all fields
+    # required by compute_summary: thinking, prompt_path,
+    # agent.type, agent.version, pass_policy, etc.).
+    # Environment.yaml is only copied when absent.
+    cfg_src = src / "config.yaml"
+    if cfg_src.is_file():
+        shutil.copy2(cfg_src, target_dir / "config.yaml")
+
+    env_src = src / "environment.yaml"
+    env_dst = target_dir / "environment.yaml"
+    if env_src.is_file() and not env_dst.is_file():
+        shutil.copy2(env_src, env_dst)
 
 
 def _extract_reviewer_suggestions(
