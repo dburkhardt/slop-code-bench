@@ -625,12 +625,17 @@ class ClaudeCodeAgent(Agent):
                 self.credential.value
             )
             # When using a non-Claude-Code credential, also set
-            # ANTHROPIC_AUTH_TOKEN
+            # ANTHROPIC_AUTH_TOKEN and ANTHROPIC_API_KEY so that
+            # Claude Code recognizes the credential regardless of
+            # provider (e.g. NVIDIA NIM endpoints).
             if self.credential.destination_key not in (
                 "ANTHROPIC_API_KEY",
                 "CLAUDE_CODE_OAUTH_TOKEN",
             ):
                 env_overrides["ANTHROPIC_AUTH_TOKEN"] = (
+                    self.credential.value
+                )
+                env_overrides["ANTHROPIC_API_KEY"] = (
                     self.credential.value
                 )
         if self.max_output_tokens is not None:
