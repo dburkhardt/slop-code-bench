@@ -66,7 +66,16 @@ None.
    - Test escalation firing and listing
    - Verify data flows from experiment -> Dolt -> analysis -> conclusion bead
 
-8. **Run validators:**
+8. **Commit and push (MANDATORY).** After all verification passes:
+   ```bash
+   cd /home/ubuntu/git-repos/slop-code-bench
+   git add -A research/ .factory/ configs/
+   git commit -m "<feature-id>: <short description>"
+   git push origin main
+   ```
+   This preserves work in case the VM crashes. Do NOT skip the push.
+
+9. **Run validators:**
    - `uv run pytest -q` (should not break existing tests)
    - `uv run ruff check .` for any Python scripts
    - `gt status` to verify Gas Town is healthy

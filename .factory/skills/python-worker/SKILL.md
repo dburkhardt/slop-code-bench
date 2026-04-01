@@ -57,6 +57,15 @@ None.
 
 7. **Manual verification.** Run the actual command/script with real inputs to verify it works beyond unit tests. For the runner, try a dry-run or canary mode. For configs, verify slop-code CLI accepts them.
 
+8. **Commit and push (MANDATORY).** After all verification passes:
+   ```bash
+   cd /home/ubuntu/git-repos/slop-code-bench
+   git add -A research/ tests/runner/ tests/analysis/ configs/ .factory/
+   git commit -m "<feature-id>: <short description>"
+   git push origin main
+   ```
+   This preserves work in case the VM crashes. Do NOT skip the push.
+
 ## Example Handoff
 
 ```json

@@ -57,7 +57,16 @@ None.
    - Formulas: `gt formula show <name>` to verify registration
    - Gas Town: `gt status` to verify state
 
-7. **Test the full workflow.** After creating infrastructure, test it end-to-end:
+7. **Commit and push (MANDATORY).** After all verification passes:
+   ```bash
+   cd /home/ubuntu/git-repos/slop-code-bench
+   git add -A research/ .factory/ configs/
+   git commit -m "<feature-id>: <short description>"
+   git push origin main
+   ```
+   This preserves work in case the VM crashes. Do NOT skip the push.
+
+8. **Test the full workflow.** After creating infrastructure, test it end-to-end:
    - Insert and query test data in Dolt tables
    - Create and manipulate test beads
    - Pour a test formula molecule
