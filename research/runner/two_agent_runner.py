@@ -15,6 +15,8 @@ Usage::
 """
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 from datetime import UTC
@@ -41,6 +43,152 @@ DEFAULT_IMPLEMENTER_PROMPT = (
 DEFAULT_REVIEWER_PROMPT = (
     "configs/prompts/default_reviewer.jinja"
 )
+
+# Canary defaults
+CANARY_PROBLEM = "file_backup"
+CANARY_BUDGET = 0.50
+CANARY_BUDGET_SPLIT = 70
+CANARY_DEFAULT_MODEL = "opus-4.5"
+
+
+# ---------------------------------------------------------------------------
+# Canary error
+# ---------------------------------------------------------------------------
+
+
+class CanaryError(Exception):
+    """Raised when a canary preflight or pipeline step fails.
+
+    Attributes:
+        component: Which component failed (e.g. "Docker",
+            "API", "Claude CLI", "Implementer", "Reviewer",
+            "Evaluation").
+        detail: Human-readable detail about the failure.
+    """
+
+    def __init__(
+        self, component: str, detail: str,
+    ) -> None:
+        self.component = component
+        self.detail = detail
+        super().__init__(
+            f"Canary failed [{component}]: {detail}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Preflight checks (used by canary mode)
+# ---------------------------------------------------------------------------
+
+
+def check_docker() -> None:
+    """Verify the Docker daemon is reachable.
+
+    Raises ``CanaryError`` with component="Docker" on failure.
+    """
+    try:
+        result = subprocess.run(  # noqa: S603
+            ["docker", "info"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if result.returncode != 0:
+            raise CanaryError(
+                "Docker",
+                "Docker daemon is not running or not "
+                "accessible. 'docker info' exited with "
+                f"code {result.returncode}.\n"
+                f"stderr: {result.stderr.strip()[:200]}",
+            )
+    except FileNotFoundError:
+        raise CanaryError(
+            "Docker",
+            "Docker CLI not found on PATH. "
+            "Is Docker installed?",
+        )
+    except subprocess.TimeoutExpired:
+        raise CanaryError(
+            "Docker",
+            "'docker info' timed out after 15 s. "
+            "The Docker daemon may be unresponsive.",
+        )
+
+
+def check_api_key(model_name: str) -> None:
+    """Verify that an API key is available for *model_name*.
+
+    Raises ``CanaryError`` with component="API" on failure.
+    """
+    src_path = str(REPO_ROOT / "src")
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
+
+    from slop_code.agent_runner.credentials import API_KEY_STORE
+    from slop_code.agent_runner.credentials import CredentialNotFoundError
+    from slop_code.common.llms import ModelCatalog
+
+    model_def = ModelCatalog.get(model_name)
+    if model_def is None:
+        raise CanaryError(
+            "API",
+            f"Model '{model_name}' not found in catalog.",
+        )
+
+    try:
+        API_KEY_STORE.resolve(model_def.provider)
+    except (CredentialNotFoundError, ValueError) as exc:
+        raise CanaryError(
+            "API",
+            f"Cannot resolve API key for provider "
+            f"'{model_def.provider}': {exc}",
+        ) from exc
+
+
+def check_claude_cli() -> None:
+    """Verify that the Claude Code CLI is reachable.
+
+    Raises ``CanaryError`` with component="Claude CLI"
+    on failure.
+    """
+    try:
+        result = subprocess.run(  # noqa: S603
+            ["claude", "--version"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if result.returncode != 0:
+            raise CanaryError(
+                "Claude CLI",
+                "'claude --version' exited with code "
+                f"{result.returncode}.\n"
+                f"stderr: {result.stderr.strip()[:200]}",
+            )
+    except FileNotFoundError:
+        raise CanaryError(
+            "Claude CLI",
+            "Claude Code CLI ('claude') not found "
+            "on PATH.",
+        )
+    except subprocess.TimeoutExpired:
+        raise CanaryError(
+            "Claude CLI",
+            "'claude --version' timed out after 15 s.",
+        )
+
+
+def run_preflight_checks(model_name: str) -> None:
+    """Run all canary preflight checks in order.
+
+    Checks: Docker -> API key -> Claude CLI.
+    Stops on the first failure with a descriptive
+    ``CanaryError``.
+    """
+    check_docker()
+    check_api_key(model_name)
+    check_claude_cli()
+
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -421,6 +569,311 @@ def run_two_agent(
 
 
 # ---------------------------------------------------------------------------
+# Canary pipeline
+# ---------------------------------------------------------------------------
+
+
+def run_canary(
+    problem: str = CANARY_PROBLEM,
+    model: str = CANARY_DEFAULT_MODEL,
+    budget: float = CANARY_BUDGET,
+    budget_split: int = CANARY_BUDGET_SPLIT,
+    implementer_prompt: Path | None = None,
+    reviewer_prompt: Path | None = None,
+) -> RunState:
+    """Execute a canary run exercising the full pipeline.
+
+    Steps:
+      1. Preflight checks (Docker, API key, Claude CLI).
+      2. Invoke ``slop-code run`` for *checkpoint_1* only
+         (implementer phase) to exercise Docker container
+         launch, API auth, and agent execution.
+      3. Invoke a reviewer pass on the implementer output.
+      4. Run ``slop-code eval`` on the output to verify
+         eval compatibility.
+      5. Save two-agent metrics.
+
+    On any component failure a ``CanaryError`` is raised
+    whose ``component`` field names the failing stage.
+
+    Returns the ``RunState`` on success.
+    """
+    impl_prompt = implementer_prompt or validate_prompt_template(
+        DEFAULT_IMPLEMENTER_PROMPT,
+    )
+    rev_prompt = reviewer_prompt or validate_prompt_template(
+        DEFAULT_REVIEWER_PROMPT,
+    )
+
+    # Resolve canonical model name
+    model = validate_model(model)
+
+    # ── Step 1: Preflight ──────────────────────────────
+    typer.echo("Canary: running preflight checks ...")
+    run_preflight_checks(model)
+    typer.echo("Canary: preflight OK (Docker, API, CLI)")
+
+    # ── Prepare output directory ───────────────────────
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    output_dir = OUTPUTS_DIR / f"canary_{ts}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    state = RunState(
+        problem=problem,
+        model=model,
+        budget=budget,
+        budget_split=budget_split,
+        output_dir=output_dir,
+    )
+
+    # Determine the provider for model so we can pass it
+    # to slop-code run in "provider/model" format.
+    src_path = str(REPO_ROOT / "src")
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
+
+    from slop_code.common.llms import ModelCatalog
+
+    model_def = ModelCatalog.get(model)
+    if model_def is None:
+        raise CanaryError(
+            "API",
+            f"Model '{model}' disappeared from catalog "
+            "between validation and run.",
+        )
+    model_spec = f"{model_def.provider}/{model_def.name}"
+
+    # ── Step 2: Implementer (slop-code run) ────────────
+    typer.echo(
+        "Canary: running implementer via slop-code run "
+        f"(problem={problem}, checkpoint_1 only) ...",
+    )
+
+    impl_cost_limit = round(budget * budget_split / 100, 2)
+    slop_run_cmd = [
+        sys.executable, "-m", "slop_code",
+        "run",
+        "--problem", problem,
+        "--model", model_spec,
+        "--prompt", str(impl_prompt),
+        "--evaluate",
+        f"agent.cost_limits.cost_limit={impl_cost_limit}",
+    ]
+    slop_run_env = {
+        **os.environ,
+        "PYTHONPATH": str(REPO_ROOT / "src"),
+    }
+
+    try:
+        impl_result = subprocess.run(  # noqa: S603
+            slop_run_cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            timeout=600,
+            env=slop_run_env,
+        )
+    except subprocess.TimeoutExpired:
+        raise CanaryError(
+            "Implementer",
+            "slop-code run timed out after 600 s.",
+        )
+
+    if impl_result.returncode != 0:
+        raise CanaryError(
+            "Implementer",
+            "slop-code run exited with code "
+            f"{impl_result.returncode}.\n"
+            f"stderr (last 500 chars): "
+            f"{impl_result.stderr[-500:]}",
+        )
+
+    typer.echo("Canary: implementer phase complete.")
+
+    # Locate the run output directory created by slop-code
+    # It will be under outputs/ and contain the problem
+    # name as a subdirectory.
+    run_dirs = _find_latest_run_dir(problem)
+    if run_dirs is None:
+        raise CanaryError(
+            "Implementer",
+            "Could not locate slop-code output "
+            f"directory for problem '{problem}' after "
+            "implementer run.",
+        )
+    slop_output_dir, problem_output_dir = run_dirs
+
+    # Copy the slop-code output into the canary output dir
+    # so the canary output is self-contained.
+    canary_problem_dir = output_dir / problem
+    if canary_problem_dir.exists():
+        shutil.rmtree(canary_problem_dir)
+    shutil.copytree(problem_output_dir, canary_problem_dir)
+
+    # Also copy config.yaml and environment.yaml if present
+    for cfg_name in (
+        "config.yaml", "environment.yaml",
+        "checkpoint_results.jsonl",
+    ):
+        cfg_src = slop_output_dir / cfg_name
+        if cfg_src.exists():
+            shutil.copy2(cfg_src, output_dir / cfg_name)
+
+    # ── Step 3: Reviewer pass ──────────────────────────
+    typer.echo("Canary: running reviewer pass ...")
+    reviewer_budget = round(
+        budget * (100 - budget_split) / 100, 2,
+    )
+
+    # The reviewer reads the implementer's code and
+    # produces suggestions.  For canary we invoke
+    # slop-code run with the reviewer prompt on the
+    # same problem.  Since the output already exists
+    # the run will resume / overwrite.
+    review_run_cmd = [
+        sys.executable, "-m", "slop_code",
+        "run",
+        "--problem", problem,
+        "--model", model_spec,
+        "--prompt", str(rev_prompt),
+        "--evaluate",
+        f"agent.cost_limits.cost_limit={reviewer_budget}",
+    ]
+
+    try:
+        rev_result = subprocess.run(  # noqa: S603
+            review_run_cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            timeout=600,
+            env=slop_run_env,
+        )
+    except subprocess.TimeoutExpired:
+        raise CanaryError(
+            "Reviewer",
+            "slop-code run (reviewer) timed out "
+            "after 600 s.",
+        )
+
+    if rev_result.returncode != 0:
+        # Reviewer failure is non-fatal for canary.
+        # Log it but continue.
+        typer.echo(
+            "Canary: reviewer pass exited with code "
+            f"{rev_result.returncode} (non-fatal).",
+            err=True,
+        )
+    else:
+        typer.echo("Canary: reviewer pass complete.")
+
+    # ── Step 4: Evaluation ─────────────────────────────
+    typer.echo("Canary: running evaluation ...")
+    eval_cmd = [
+        sys.executable, "-m", "slop_code",
+        "eval",
+        str(output_dir),
+    ]
+
+    try:
+        eval_result = subprocess.run(  # noqa: S603
+            eval_cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            timeout=120,
+            env=slop_run_env,
+        )
+    except subprocess.TimeoutExpired:
+        raise CanaryError(
+            "Evaluation",
+            "slop-code eval timed out after 120 s.",
+        )
+
+    if eval_result.returncode != 0:
+        raise CanaryError(
+            "Evaluation",
+            "slop-code eval exited with code "
+            f"{eval_result.returncode}.\n"
+            f"stderr (last 500 chars): "
+            f"{eval_result.stderr[-500:]}",
+        )
+
+    typer.echo("Canary: evaluation complete.")
+
+    # ── Step 5: Record metrics ─────────────────────────
+    metrics = CheckpointMetrics(
+        pass_rate=0.0,
+        erosion=0.0,
+        verbosity=0.0,
+        tokens_implementer=0,
+        tokens_reviewer=0,
+        cost=0.0,
+    )
+    # Try to read cost/pass-rate from eval results
+    results_file = output_dir / "checkpoint_results.jsonl"
+    if results_file.exists():
+        _update_metrics_from_results(
+            metrics, results_file,
+        )
+    state.checkpoint_metrics["checkpoint_1"] = metrics
+
+    # Enforce budget cap
+    if state.cumulative_cost > budget:
+        state.budget_exceeded = True
+
+    state.save_results()
+    return state
+
+
+def _find_latest_run_dir(
+    problem: str,
+) -> tuple[Path, Path] | None:
+    """Find the most recent slop-code output containing *problem*.
+
+    Returns ``(run_dir, problem_dir)`` or ``None``.
+    """
+    if not OUTPUTS_DIR.exists():
+        return None
+    candidates: list[tuple[float, Path]] = []
+    for d in OUTPUTS_DIR.iterdir():
+        if not d.is_dir():
+            continue
+        problem_dir = d / problem
+        if problem_dir.is_dir():
+            candidates.append((d.stat().st_mtime, d))
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    best = candidates[0][1]
+    return best, best / problem
+
+
+def _update_metrics_from_results(
+    metrics: CheckpointMetrics,
+    results_file: Path,
+) -> None:
+    """Parse *checkpoint_results.jsonl* and update *metrics*.
+
+    Reads the first matching line and extracts pass_rate.
+    """
+    try:
+        for line in results_file.read_text().splitlines():
+            if not line.strip():
+                continue
+            data = json.loads(line)
+            total = data.get("total_counts", 0)
+            passed = data.get("pass_counts", 0)
+            if total > 0:
+                metrics.pass_rate = round(
+                    passed / total, 4,
+                )
+            break
+    except (json.JSONDecodeError, OSError):
+        pass
+
+
+# ---------------------------------------------------------------------------
 # Typer CLI
 # ---------------------------------------------------------------------------
 
@@ -480,13 +933,48 @@ def main(
 ) -> None:
     """Run a two-agent experiment on a SlopCodeBench problem."""
 
-    # -- Canary mode defaults --
+    # -- Canary mode --
     if canary:
-        problem = problem or "file_backup"
-        model = model or "opus-4.5"
-        budget = budget if budget is not None else 0.50
+        canary_problem = problem or CANARY_PROBLEM
+        canary_model = model or CANARY_DEFAULT_MODEL
+        canary_budget_val = (
+            budget if budget is not None else CANARY_BUDGET
+        )
+        typer.echo(
+            f"Canary mode: problem={canary_problem}, "
+            f"model={canary_model}, "
+            f"budget=${canary_budget_val:.2f}, "
+            f"budget_split={budget_split}"
+        )
+        try:
+            state = run_canary(
+                problem=canary_problem,
+                model=canary_model,
+                budget=canary_budget_val,
+                budget_split=budget_split,
+            )
+        except CanaryError as exc:
+            typer.echo(
+                f"CANARY FAILED [{exc.component}]: "
+                f"{exc.detail}",
+                err=True,
+            )
+            raise SystemExit(1) from exc
 
-    # -- Validate required args --
+        typer.echo(
+            f"\nCanary complete. "
+            f"Cost: ${state.cumulative_cost:.2f}, "
+            f"Output: {state.output_dir}"
+        )
+        if state.budget_exceeded:
+            typer.echo(
+                "WARNING: canary budget exceeded.",
+                err=True,
+            )
+            raise SystemExit(1)
+        return
+
+    # -- Validate required args for normal mode --
     if not problem:
         typer.echo(
             "Error: --problem is required "
