@@ -780,7 +780,7 @@ def run_slop_code(
             capture_output=True,
             text=True,
             cwd=str(REPO_ROOT),
-            timeout=3600,
+            timeout=7200,
             env=env,
         )
     finally:
