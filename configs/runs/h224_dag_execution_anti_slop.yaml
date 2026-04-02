@@ -1,0 +1,28 @@
+# H224 experiment: two-agent (70/30) with anti-slop reviewer on dag_execution
+# Hypothesis: sc-hypotheses.224
+# Tests whether structured anti-slop reviewer reduces verbosity slope
+
+agent:
+  type: reviewer_coder
+  version: "2.0.51"
+  cost_limits:
+    step_limit: 100
+    cost_limit: 5.0
+    net_cost_limit: 20.0
+  coder_turns_per_batch: 10
+  num_review_cycles: 3
+
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: anthropic
+  name: opus-4.5
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h224_dag_execution_anti_slop/${now:%Y%m%dT%H%M}
+
+problems:
+  - dag_execution
