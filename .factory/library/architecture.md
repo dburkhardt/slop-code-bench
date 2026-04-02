@@ -8,7 +8,7 @@ SCBench runs coding agent experiments. The execution chain:
 two_agent_runner.py (host, Python)
   → subprocess.run: slop-code run (host, Python CLI)
     → DockerStreamingRuntime: docker exec claude CLI (inside persistent container)
-      → NVIDIA API (inference-api.nvidia.com) → AWS Bedrock → Claude Sonnet 4.6
+      → Anthropic API (console auth) → Claude Sonnet 4.6
 ```
 
 ### Key Components
@@ -29,7 +29,7 @@ two_agent_runner.py (host, Python)
 - The gap is NOT API inference time (measured at 5-17s between steps)
 - The gap is NOT Bash subprocess execution (no child process spawned during gaps)
 - Claude CLI is blocked in `epoll_wait()` on a socket during gaps
-- NVIDIA API responds in 3-14s even at 49k tokens
+- API responds in 3-14s even at 49k tokens
 
 **Leading hypothesis:** Claude CLI makes hidden API calls (background tasks, compaction, telemetry) between visible inference calls, and these hidden calls are slow or rate-limited.
 

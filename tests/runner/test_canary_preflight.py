@@ -372,11 +372,11 @@ class TestPreflightEnvVars:
                 import sys
                 print(f"ARGS: {sys.argv}")
             """),
-            extra_env={"CANARY_MODEL": "nvidia-sonnet-4.6"},
+            extra_env={"CANARY_MODEL": "local-sonnet-4.6"},
         )
         result = _run_bash(script, env=env)
         assert result.returncode == 0
-        assert "nvidia-sonnet-4.6" in result.stdout
+        assert "local-sonnet-4.6" in result.stdout
 
 
 # ----------------------------------------------------------------

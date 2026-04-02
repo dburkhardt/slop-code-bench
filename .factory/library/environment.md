@@ -9,7 +9,6 @@ Environment variables, external dependencies, and setup notes.
 
 ## Required Environment Variables
 
-- `NVIDIA_INFERENCE_KEY` - NVIDIA inference API key for litellm-based components
 - Claude Code uses console billing (no separate API key needed)
 
 ## Tool Paths
@@ -28,13 +27,6 @@ Workers must set: `export PATH=$PATH:/home/ubuntu/gopath/bin:/home/ubuntu/go/bin
 - Rig: `~/gt/scbench`
 - Dolt data: `~/gt/.dolt-data/hq` (town), `~/gt/.dolt-data/scbench` (rig)
 - Rig config: `~/gt/scbench/config.json`
-
-## NVIDIA Inference Endpoint
-
-- Base URL: `https://inference-api.nvidia.com/v1/chat/completions`
-- Format: OpenAI-compatible
-- Available Claude models: Opus 4.6, Sonnet 4.6, Haiku 4.5, and more
-- Auth: Bearer token via NVIDIA_INFERENCE_KEY
 
 ## Python
 

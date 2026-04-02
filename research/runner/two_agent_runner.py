@@ -54,9 +54,8 @@ DEFAULT_REVIEWER_PROMPT = (
 CANARY_PROBLEM = "file_backup"
 CANARY_BUDGET = 0.50
 CANARY_BUDGET_SPLIT = 70
-# Default canary model depends on which API key is
-# available.  The NVIDIA inference endpoint is used
-# when ANTHROPIC_API_KEY is absent.
+# Default canary model depends on which auth method is
+# available.  Console auth (local) is preferred.
 CANARY_DEFAULT_MODEL_ANTHROPIC = "opus-4.5"
 CANARY_DEFAULT_MODEL_LOCAL = "local-sonnet-4.6"
 
@@ -338,7 +337,7 @@ def validate_model(name: str) -> str:
     from slop_code.common.llms import ModelCatalog
 
     # Strip provider prefix if present (e.g.
-    # "nvidia/model-name" -> "model-name").
+    # "anthropic/model-name" -> "model-name").
     lookup_name = (
         name.split("/", 1)[-1] if "/" in name else name
     )
@@ -402,7 +401,7 @@ def format_model_for_cli(model_name):
     already contains ``/`` it is returned as-is.
     Otherwise we look up the provider via
     ``ModelCatalog`` and prepend it.  Falls back to
-    ``nvidia/{model_name}`` when the catalog lookup
+    ``anthropic/{model_name}`` when the catalog lookup
     fails.
     """
     if "/" in model_name:
@@ -418,7 +417,7 @@ def format_model_for_cli(model_name):
     if model_def is not None:
         return f"{model_def.provider}/{model_name}"
 
-    return f"nvidia/{model_name}"
+    return f"anthropic/{model_name}"
 
 
 # ---------------------------------------------------------------------------
@@ -1705,7 +1704,7 @@ def _find_latest_run_dir(
             )
             continue
         # Level 2: nested under model name dir
-        # (e.g. outputs/nvidia-bedrock-.../run_dir/)
+        # (e.g. outputs/model-name/run_dir/)
         for sub in child.iterdir():
             if not sub.is_dir():
                 continue

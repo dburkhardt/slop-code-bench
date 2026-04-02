@@ -670,10 +670,6 @@ class TestCanaryDefaults:
         assert (
             mod.CANARY_DEFAULT_MODEL_ANTHROPIC == "opus-4.5"
         )
-        assert (
-            mod.CANARY_DEFAULT_MODEL_NVIDIA
-            == "nvidia-sonnet-4.6"
-        )
 
     def test_canary_budget_cap(self):
         """Canary budget defaults to $0.50."""
@@ -1546,7 +1542,7 @@ class TestFindLatestRunDirNested:
         outputs = tmp_path / "outputs"
         run_dir = (
             outputs
-            / "nvidia-bedrock-claude-sonnet-4-6"
+            / "some-model-name"
             / "claude_code_default_20260401T1649"
         )
         (run_dir / "file_backup" / "checkpoint_1").mkdir(
@@ -1972,42 +1968,6 @@ class TestRunSlopCodeBudget:
 
         assert captured_env["SCBENCH_RUN_ID"] == (
             "abc123-reviewer"
-        )
-
-
-# ---------------------------------------------------------------------------
-# NVIDIA model YAML configs
-# ---------------------------------------------------------------------------
-
-
-class TestNvidiaModelConfigs:
-    """NVIDIA model YAML files have correct LiteLLM
-    provider prefix (openai/) on mini_swe.model_name."""
-
-    @pytest.fixture(
-        params=[
-            "nvidia-bedrock-claude-opus-4-6",
-            "nvidia-bedrock-claude-sonnet-4-6",
-            "nvidia-bedrock-claude-haiku-4-5",
-        ],
-    )
-    def model_yaml(self, request):
-        import yaml
-        yaml_path = (
-            REPO_ROOT / "configs" / "models"
-            / f"{request.param}.yaml"
-        )
-        with yaml_path.open() as f:
-            return yaml.safe_load(f)
-
-    def test_mini_swe_has_openai_prefix(self, model_yaml):
-        """mini_swe.model_name starts with openai/."""
-        model_name = (
-            model_yaml["agent_specific"]["mini_swe"]
-            ["model_name"]
-        )
-        assert model_name.startswith("openai/"), (
-            f"Expected openai/ prefix, got: {model_name}"
         )
 
 
@@ -2650,31 +2610,14 @@ class TestDefaultCanaryModel:
                 == mod.CANARY_DEFAULT_MODEL_ANTHROPIC
             )
 
-    def test_falls_back_to_nvidia(self):
-        """Returns NVIDIA model when only
-        NVIDIA_INFERENCE_KEY is set."""
-        mod = _load_runner_module()
-        env = {
-            k: v
-            for k, v in os.environ.items()
-            if k != "ANTHROPIC_API_KEY"
-        }
-        env["NVIDIA_INFERENCE_KEY"] = "nvapi-test"
-        with patch.dict(os.environ, env, clear=True):
-            assert (
-                mod._default_canary_model()
-                == mod.CANARY_DEFAULT_MODEL_NVIDIA
-            )
-
     def test_falls_back_to_anthropic_when_nothing_set(self):
-        """Returns Anthropic model when no keys are set
+        """Returns Anthropic model when no API key is set
         (credential check will fail later)."""
         mod = _load_runner_module()
         env = {
             k: v
             for k, v in os.environ.items()
-            if k
-            not in ("ANTHROPIC_API_KEY", "NVIDIA_INFERENCE_KEY")
+            if k != "ANTHROPIC_API_KEY"
         }
         with patch.dict(os.environ, env, clear=True):
             assert (
@@ -2810,54 +2753,6 @@ class TestReviewerSuggestionsPersistence:
         assert path.exists()
         data = json.loads(path.read_text())
         assert data["suggestions"] is None
-
-
-# ---------------------------------------------------------------------------
-# NVIDIA API key validation
-# ---------------------------------------------------------------------------
-
-
-class TestNvidiaApiKeyValidation:
-    """Canary validates NVIDIA API key with test call."""
-
-    def test_skipped_when_no_key(self):
-        """No error when NVIDIA_INFERENCE_KEY is unset."""
-        mod = _load_runner_module()
-        env = {
-            k: v
-            for k, v in os.environ.items()
-            if k != "NVIDIA_INFERENCE_KEY"
-        }
-        with patch.dict(os.environ, env, clear=True):
-            # Should not raise
-            mod.validate_nvidia_api_key()
-
-    def test_raises_on_bad_key(self):
-        """CanaryError on invalid NVIDIA key."""
-        mod = _load_runner_module()
-        with patch.dict(
-            os.environ,
-            {"NVIDIA_INFERENCE_KEY": "bad-key"},
-        ):
-            with pytest.raises(mod.CanaryError) as exc:
-                mod.validate_nvidia_api_key()
-            assert exc.value.component == "API"
-            assert "NVIDIA" in exc.value.detail
-
-    def test_preflight_includes_nvidia_check(self):
-        """run_preflight_checks calls
-        validate_nvidia_api_key."""
-        mod = _load_runner_module()
-        with (
-            patch.object(mod, "check_docker"),
-            patch.object(mod, "check_api_key"),
-            patch.object(
-                mod, "validate_nvidia_api_key",
-            ) as mock_nv,
-            patch.object(mod, "check_claude_cli"),
-        ):
-            mod.run_preflight_checks("test-model")
-            mock_nv.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -3192,7 +3087,7 @@ class TestMainModule:
 class TestFormatModelForCli:
     def test_already_has_slash(self):
         mod = _load_runner_module()
-        assert mod.format_model_for_cli("nvidia/x") == "nvidia/x"
+        assert mod.format_model_for_cli("anthropic/x") == "anthropic/x"
 
     def test_bare_model_gets_provider(self):
         mod = _load_runner_module()
@@ -3200,19 +3095,10 @@ class TestFormatModelForCli:
         assert "/" in result
         assert result == "anthropic/opus-4.5"
 
-    def test_nvidia_model_gets_nvidia_provider(self):
-        mod = _load_runner_module()
-        result = mod.format_model_for_cli(
-            "nvidia-bedrock-claude-sonnet-4-6",
-        )
-        assert result == (
-            "nvidia/nvidia-bedrock-claude-sonnet-4-6"
-        )
-
-    def test_unknown_model_falls_back_to_nvidia(self):
+    def test_unknown_model_falls_back_to_anthropic(self):
         mod = _load_runner_module()
         result = mod.format_model_for_cli("fake-xyz")
-        assert result == "nvidia/fake-xyz"
+        assert result == "anthropic/fake-xyz"
 
 
 class TestRunSlopCodeModelFormat:
@@ -3422,7 +3308,7 @@ class TestConfigYamlWritten:
         mod._write_config_yaml(
             out,
             problem="file_backup",
-            model="nvidia/nvidia-bedrock-claude-sonnet-4-6",
+            model="anthropic/opus-4.5",
             budget=5.0,
             budget_split=70,
             implementer_prompt="impl.jinja",
@@ -3433,7 +3319,7 @@ class TestConfigYamlWritten:
         cfg = yaml.safe_load(
             (out / "config.yaml").read_text(),
         )
-        assert cfg["model"]["provider"] == "nvidia"
+        assert cfg["model"]["provider"] == "anthropic"
         assert cfg["run"]["budget"] == 5.0
         # Verify required fields for compute_summary
         assert cfg["thinking"] == "none"

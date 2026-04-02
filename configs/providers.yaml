@@ -78,11 +78,6 @@ providers:
     env_var: CLAUDE_CODE_OAUTH_TOKEN
     description: Claude Code OAuth token for authentication
 
-  nvidia:
-    type: env_var
-    env_var: NVIDIA_INFERENCE_KEY
-    description: NVIDIA inference API key for hosted model endpoints
-
   xai:
     type: env_var
     env_var: XAI_API_KEY

@@ -627,7 +627,7 @@ class ClaudeCodeAgent(Agent):
             # When using a non-Claude-Code credential, also set
             # ANTHROPIC_AUTH_TOKEN and ANTHROPIC_API_KEY so that
             # Claude Code recognizes the credential regardless of
-            # provider (e.g. NVIDIA NIM endpoints).
+            # provider (e.g. third-party hosted endpoints).
             if self.credential.destination_key not in (
                 "ANTHROPIC_API_KEY",
                 "CLAUDE_CODE_OAUTH_TOKEN",

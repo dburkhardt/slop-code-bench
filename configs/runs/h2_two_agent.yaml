@@ -3,8 +3,8 @@ agent: reviewer_coder
 environment: docker-python3.12-uv
 prompt: just-solve
 model:
-  provider: nvidia
-  name: nvidia-bedrock-claude-sonnet-4-6
+  provider: claude_code_local
+  name: local-sonnet-4.6
 thinking: none
 pass_policy: any
 output_path: outputs/h2_experiment/two_agent_70_30_${now:%Y%m%dT%H%M}

@@ -14,8 +14,8 @@ environment: docker-python3.12-uv
 prompt: just-solve
 
 model:
-  provider: nvidia
-  name: nvidia-bedrock-claude-sonnet-4-6
+  provider: claude_code_local
+  name: local-sonnet-4.6
 
 thinking: none
 pass_policy: any

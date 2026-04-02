@@ -87,7 +87,6 @@ None — all work is done via file editing and shell commands.
 
 - Cannot install tcpdump (Docker container lacks root access or apt-get fails)
 - strace not available on host and cannot be installed
-- NVIDIA API key is expired or invalid
 - Experiment produces no output after 30 minutes (infrastructure issue)
 - Rate limiting prevents any API calls
 - Existing tests fail BEFORE any changes were made (pre-existing issue)
