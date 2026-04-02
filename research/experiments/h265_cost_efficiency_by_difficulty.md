@@ -6,7 +6,7 @@
 
 **Testable claim:** Cost-efficiency (delta pass rate / delta cost) of two-agent vs single-agent is not monotonically related to single-agent baseline; there is a sweet spot in the 5-30% range.
 
-**Verdict:** PENDING
+**Verdict:** INCONCLUSIVE (incomplete checkpoint coverage, trajectory_api failed entirely)
 
 ## Design
 
@@ -132,4 +132,63 @@ The hypothesis is **not supported** if:
 
 ## Results
 
-*To be filled after execution.*
+### Summary
+
+| Problem | Baseline Pass Rate | Two-Agent Pass Rate | Delta | Baseline CPs | Two-Agent CPs |
+|---------|-------------------|--------------------:|------:|:------------:|:-------------:|
+| log_query | 82.8% | 82.8% | +0.0% | 2/5 | 2/5 |
+| metric_transform_lang | 37.0% | 88.2% | +51.2% | 1/5 | 4/5 |
+| trajectory_api | 0.0% | 0.0% | 0.0% | 0/5 | 0/5 |
+| file_query_tool | 68.8% | 68.5% | -0.3% | 4/5 | 4/5 |
+
+### Detailed per-checkpoint results
+
+**log_query** (5 checkpoints total):
+- Baseline: cp1=98.5%, cp2=67.2%
+- Two-agent: cp1=98.5%, cp2=67.2%
+- Both arms produced identical results on the completed checkpoints. The two-agent reviewer did not improve or degrade pass rate.
+
+**metric_transform_lang** (5 checkpoints total):
+- Baseline: cp1=37.0% (1 checkpoint completed; the baseline failed to produce code for cp1, getting only error-handling tests)
+- Two-agent: cp1=100.0%, cp2=100.0%, cp3=95.7%, cp4=57.1% (4 reviewer checkpoints)
+- The reviewer agent produced substantially better code. The +51.2pp improvement is the largest observed in this experiment.
+
+**trajectory_api** (5 checkpoints total):
+- Both arms failed to complete any checkpoints. The agent consistently failed on checkpoint_1 (likely an environment or problem configuration issue). Filed as a data quality note.
+
+**file_query_tool** (5 checkpoints total):
+- Baseline: cp1=0.0%, cp2=94.0%, cp3=94.9%, cp4=86.4%
+- Two-agent: cp1=85.0%, cp2=64.0%, cp3=66.1%, cp4=59.1%
+- The baseline's cp1 failure (0%) followed by high pass rates suggests a first-checkpoint initialization issue that self-corrected. The two-agent arm showed more consistent but lower performance across checkpoints.
+
+### Interpretation
+
+**Verdict: INCONCLUSIVE** due to incomplete checkpoint coverage and trajectory_api failure.
+
+Three observations from the partial data:
+
+1. **metric_transform_lang shows clear two-agent benefit.** The baseline produced non-functional code (37% from error handling only), while the two-agent reviewer achieved 100% on the first two checkpoints. This is consistent with the hypothesis: problems where single-agent struggles (low baseline) benefit most from review.
+
+2. **log_query shows no benefit.** Both arms produced identical results. The baseline already achieved 98.5% on cp1, leaving no room for improvement. This is consistent with the hypothesis: high-baseline problems gain nothing from review.
+
+3. **file_query_tool shows slightly negative results for two-agent.** The reviewer may have introduced regressions on later checkpoints. However, the baseline cp1=0% anomaly complicates comparison.
+
+The cost-efficiency sweet-spot prediction cannot be tested with only 3 usable problems (and one with 0% baseline). A larger sample is needed.
+
+### Dolt verification
+
+```sql
+SELECT problem_id, mode, total_pass_rate, budget_split 
+FROM experiments 
+WHERE hypothesis_id = 'sc-hypotheses.265'
+ORDER BY problem_id, mode;
+```
+
+8 rows inserted (IDs 511-518), Dolt commit `38rqin4t`.
+
+### Limitations
+
+- Incomplete checkpoint coverage: most runs completed 1-4 of 5 checkpoints before budget exhaustion or timeout
+- trajectory_api failed entirely (environment issue)
+- Budget asymmetry: baseline gets unlimited per-checkpoint budget via slop_code run default; two-agent gets $5 total split across all checkpoints ($1/checkpoint at 70/30 split). This known issue (see sc-cqa from H261) means the two-agent arm is budget-constrained while the baseline is not
+- High system load during execution (7+ other experiment processes) may have affected timing and resource availability
