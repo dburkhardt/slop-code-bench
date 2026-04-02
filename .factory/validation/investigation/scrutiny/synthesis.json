@@ -1,7 +1,7 @@
 {
   "milestone": "investigation",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -20,80 +20,21 @@
     }
   },
   "reviewsSummary": {
-    "total": 6,
-    "passed": 4,
-    "failed": 2,
-    "failedFeatures": [
-      "per-step-timing-instrumentation",
-      "analysis-and-conclusions"
-    ]
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
-    {
-      "featureId": "per-step-timing-instrumentation",
-      "file": "src/slop_code/agent_runner/agents/cli_utils.py",
-      "line": 127,
-      "severity": "blocking",
-      "description": "step timing output hardcodes tool_ms=0.0 on all emissions, so API vs tool duration is not actually distinguished."
-    },
-    {
-      "featureId": "analysis-and-conclusions",
-      "file": "research/debug/latency-investigation.md",
-      "line": 603,
-      "severity": "blocking",
-      "description": "Conclusions claim hidden API calls are confirmed root cause, but strace artifact final analysis concludes server-side NVIDIA/Bedrock latency and explicitly says this is not a hidden API-call bug; contradiction is not reconciled."
-    }
-  ],
+  "blockingIssues": [],
   "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
       "target": "debug-worker skill",
-      "suggestion": "Use mission .factory/services.yaml validator commands as the source of truth, or require workers to read and follow services.yaml before running validators.",
-      "evidence": "Multiple reviews reported avoidable validator churn because skill defaults differed from mission-specific known-failure filters.",
-      "isSystemic": true
-    },
-    {
-      "target": "AGENTS.md generation guidance",
-      "suggestion": "Keep AGENTS.md test-filter guidance synchronized with .factory/services.yaml so both exclude the same known pre-existing failures.",
-      "evidence": "debug-scripts and commit-all-artifacts reviews both found AGENTS.md and services.yaml gave inconsistent exclusion guidance.",
-      "isSystemic": true
-    },
-    {
-      "target": "debug-worker skill",
-      "suggestion": "Add a safe cleanup pattern for shared environments and clarify timeout precedence when mission feature text and baseline skill defaults differ.",
-      "evidence": "targeted-ab-experiments review captured self-termination from broad pkill and conflicting timeout values across mission artifacts.",
-      "isSystemic": true
-    },
-    {
-      "target": "debug-worker skill",
-      "suggestion": "Add explicit large-artifact reading guidance, including reading to EOF when tool output is truncated, before final analysis claims are made.",
-      "evidence": "analysis-and-conclusions review found tail evidence in strace_output.txt was missed, producing contradictory synthesis.",
-      "isSystemic": true
-    },
-    {
-      "target": "debug-worker skill",
-      "suggestion": "Add a commit/cleanup procedure section for commit-only features so workers do not improvise release hygiene and staging scope.",
-      "evidence": "commit-all-artifacts review and worker feedback both reported a missing commit/cleanup workflow in the current skill.",
-      "isSystemic": true
+      "suggestion": "Clarify whether reading .factory/library/architecture.md is mandatory or optional during instrumentation/fix workflows.",
+      "evidence": "Review of fix-tool-ms-and-reconcile-conclusions observed the worker completed required fixes without reading architecture.md even though the current skill text presents that read as required.",
+      "isSystemic": false
     }
   ],
-  "rejectedObservations": [
-    {
-      "observation": "Add a generic services.yaml cleanup command using broad pkill/docker-stop patterns.",
-      "reason": "ambiguous and potentially unsafe in shared environments; cleanup should remain mission-specific unless a namespaced safe command design is approved."
-    },
-    {
-      "observation": "Document ptrace/sudo requirements as global mission knowledge.",
-      "reason": "environment-specific and not consistently required across hosts; better handled as conditional troubleshooting guidance."
-    },
-    {
-      "observation": "Update architecture guidance now to assert API/tool duration can be measured in stream_cli_command.",
-      "reason": "blocked by open implementation defects in per-step timing feature; should be resolved by code fix first, then documentation update."
-    },
-    {
-      "observation": "Document auto-sync commit behavior as shared knowledge.",
-      "reason": "source and scope are unclear from current evidence; requires orchestrator confirmation before codifying."
-    }
-  ],
-  "previousRound": null
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/investigation/scrutiny/synthesis.round1.json"
 }

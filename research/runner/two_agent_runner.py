@@ -73,15 +73,21 @@ def _default_canary_model() -> str:
     """
     # Check if system claude is logged in (local mode)
     try:
-        import subprocess as _sp
-        result = _sp.run(
-            ["claude", "auth", "status"],
-            capture_output=True, text=True, timeout=5,
+        result = subprocess.run(  # noqa: S603
+            ["claude", "auth", "status"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if '"loggedIn": true' in result.stdout:
             return CANARY_DEFAULT_MODEL_LOCAL
-    except Exception:
-        pass
+    except (
+        FileNotFoundError,
+        PermissionError,
+        OSError,
+        subprocess.SubprocessError,
+    ):
+        logger.debug("claude auth status check unavailable")
     if os.environ.get("ANTHROPIC_API_KEY"):
         return CANARY_DEFAULT_MODEL_ANTHROPIC
     if os.environ.get("NVIDIA_INFERENCE_KEY"):
@@ -294,7 +300,7 @@ def ensure_nvidia_proxy(port: int = 8200) -> None:
     import socket
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        if s.connect_ex(("0.0.0.0", port)) == 0:
+        if s.connect_ex(("127.0.0.1", port)) == 0:
             return  # Already running
 
     proxy_script = (

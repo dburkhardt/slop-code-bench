@@ -20,11 +20,10 @@ import json
 import os
 import sys
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import urlparse
-
-import urllib.request
 import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 
 NVIDIA_BASE = "https://inference-api.nvidia.com"
 LISTEN_PORT = int(os.environ.get("NVIDIA_PROXY_PORT", "8199"))
@@ -90,7 +89,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 headers[key] = self.headers[key]
         headers["Content-Length"] = str(len(body))
 
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310
             target_url,
             data=body,
             headers=headers,
@@ -98,7 +97,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
         )
 
         try:
-            with urllib.request.urlopen(req, timeout=300) as resp:
+            with urllib.request.urlopen(  # noqa: S310
+                req, timeout=300,
+            ) as resp:
                 resp_body = resp.read()
                 self.send_response(resp.status)
                 for key, value in resp.getheaders():
@@ -118,7 +119,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(resp_body)))
             self.end_headers()
             self.wfile.write(resp_body)
-        except Exception as exc:
+        except (urllib.error.URLError, OSError) as exc:
             error = json.dumps({"error": str(exc)}).encode()
             self.send_response(502)
             self.send_header("Content-Type", "application/json")
@@ -133,9 +134,15 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if key.lower() not in ("host",):
                 headers[key] = self.headers[key]
 
-        req = urllib.request.Request(target_url, headers=headers, method="GET")
+        req = urllib.request.Request(  # noqa: S310
+            target_url,
+            headers=headers,
+            method="GET",
+        )
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(  # noqa: S310
+                req, timeout=30,
+            ) as resp:
                 resp_body = resp.read()
                 self.send_response(resp.status)
                 for key, value in resp.getheaders():
@@ -155,14 +162,15 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(resp_body)
 
-    def log_message(self, format, *args):
+    def log_message(self, format_str, *args):
         # Suppress request logging
+        _ = (format_str, args)
         pass
 
 
 def start_proxy(port: int = LISTEN_PORT) -> HTTPServer:
     """Start the proxy server and return it."""
-    server = HTTPServer(("0.0.0.0", port), ProxyHandler)
+    server = HTTPServer(("0.0.0.0", port), ProxyHandler)  # noqa: S104
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server
@@ -173,7 +181,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--port":
         port = int(sys.argv[2])
     print(f"NVIDIA model-name proxy listening on 0.0.0.0:{port}")
-    server = HTTPServer(("0.0.0.0", port), ProxyHandler)
+    server = HTTPServer(("0.0.0.0", port), ProxyHandler)  # noqa: S104
     try:
         server.serve_forever()
     except KeyboardInterrupt:
