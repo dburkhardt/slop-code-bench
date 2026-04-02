@@ -59,22 +59,33 @@ CANARY_BUDGET_SPLIT = 70
 # when ANTHROPIC_API_KEY is absent.
 CANARY_DEFAULT_MODEL_ANTHROPIC = "opus-4.5"
 CANARY_DEFAULT_MODEL_NVIDIA = "nvidia-sonnet-4.6"
+CANARY_DEFAULT_MODEL_LOCAL = "local-sonnet-4.6"
 
 
 def _default_canary_model() -> str:
     """Return the cheapest available canary model.
 
-    Prefers the Anthropic direct model when
-    ``ANTHROPIC_API_KEY`` is set.  Falls back to the
-    NVIDIA-hosted Haiku model when only
-    ``NVIDIA_INFERENCE_KEY`` is available.
+    Prefers local Claude (console auth) when available,
+    then Anthropic direct API, then NVIDIA endpoint.
+    Local mode uses ``local-py`` environment (no Docker)
+    and avoids a ~200s/step latency bug with
+    ``ANTHROPIC_BASE_URL`` in Docker containers.
     """
+    # Check if system claude is logged in (local mode)
+    try:
+        import subprocess as _sp
+        result = _sp.run(
+            ["claude", "auth", "status"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if '"loggedIn": true' in result.stdout:
+            return CANARY_DEFAULT_MODEL_LOCAL
+    except Exception:
+        pass
     if os.environ.get("ANTHROPIC_API_KEY"):
         return CANARY_DEFAULT_MODEL_ANTHROPIC
     if os.environ.get("NVIDIA_INFERENCE_KEY"):
         return CANARY_DEFAULT_MODEL_NVIDIA
-    # Fall back to Anthropic and let the credential
-    # check produce a descriptive error later.
     return CANARY_DEFAULT_MODEL_ANTHROPIC
 
 
@@ -756,6 +767,11 @@ def run_slop_code(
             else:
                 cli_model = f"nvidia/{model}"
 
+        # Determine environment: use local-py for claude_code_local
+        # provider to avoid Docker + ANTHROPIC_BASE_URL latency bug
+        # (see research/debug/latency-investigation.md).
+        environment = "local-py" if "claude_code_local" in cli_model else None
+
         cmd = [
             sys.executable, "-m", "slop_code",
             "run",
@@ -765,6 +781,8 @@ def run_slop_code(
             "--evaluate",
             f"agent.cost_limits.cost_limit={cost_limit}",
         ]
+        if environment:
+            cmd.extend(["--environment", environment])
 
         env = {
             **os.environ,
