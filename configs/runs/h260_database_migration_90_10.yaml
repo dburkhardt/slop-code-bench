@@ -1,0 +1,32 @@
+# H260 experiment treatment: two-agent with 90/10 budget split on database_migration
+# Hypothesis: sc-hypotheses.260
+# Minimal reviewer (90/10) captures majority of two-agent benefit at lower cost.
+
+agent:
+  type: reviewer_coder
+  version: "2.0.51"
+  cost_limits:
+    step_limit: 100
+    cost_limit: 5.0
+    net_cost_limit: 20.0
+  coder_turns_per_batch: 10
+  num_review_cycles: 3
+
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: claude_code_local
+  name: local-claude-sonnet-4-6
+
+reviewer:
+  prompt: configs/prompts/default_reviewer.jinja
+  budget_split: 90
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h260_minimal_reviewer/two_agent_database_migration_${now:%Y%m%dT%H%M}
+
+problems:
+  - database_migration
