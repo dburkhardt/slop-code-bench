@@ -1,0 +1,26 @@
+# H191 experiment baseline: single-agent on trajectory_api
+# Hypothesis: sc-hypotheses.191
+# Structured reviewer prompts reduce verbosity slope by at least 15%
+
+agent:
+  type: claude_code
+  version: "2.0.51"
+  cost_limits:
+    step_limit: 100
+    cost_limit: 5.0
+    net_cost_limit: 20.0
+
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: anthropic
+  name: opus-4.5
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h191_trajectory_api_baseline/${now:%Y%m%dT%H%M}
+
+problems:
+  - trajectory_api
