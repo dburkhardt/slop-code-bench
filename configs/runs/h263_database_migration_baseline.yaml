@@ -1,0 +1,26 @@
+# H263 experiment baseline: single-agent on database_migration
+# Hypothesis: sc-hypotheses.263
+# Anti-slop reviewer reduces verbosity without hurting pass rate.
+
+agent:
+  type: claude_code
+  version: "2.0.51"
+  cost_limits:
+    step_limit: 100
+    cost_limit: 5.0
+    net_cost_limit: 20.0
+
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: claude_code_local
+  name: local-claude-sonnet-4-6
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h263_anti_slop_reviewer/baseline_database_migration_${now:%Y%m%dT%H%M}
+
+problems:
+  - database_migration
