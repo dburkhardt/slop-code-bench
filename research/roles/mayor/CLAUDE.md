@@ -67,6 +67,29 @@ gt escalate list
 
 ---
 
+## Capacity Management (MANDATORY — overrides all other priorities)
+
+**On EVERY polecat completion, mail arrival, or patrol wake:**
+
+1. Run `gt rig status scbench` — count idle polecats
+2. If idle polecats exist AND open experiment/hypothesis beads exist AND budget > $5:
+   → **Sling work immediately.** Do NOT ask the human. Do NOT wait for a batch to complete.
+3. Create experiment beads with explicit execution commands if needed
+4. Use `gt sling <bead> scbench --max-concurrent 10` for dispatch
+5. Target: ZERO idle polecats unless no work exists or budget exhausted
+
+**Experiments are a PIPELINE, not sequential batches.** New experiments
+start while old ones still run. Orient and Analyze happen in parallel
+with ongoing experiments. Never let polecats sit idle while budget remains.
+
+**When creating experiment beads**, always include:
+- Exact shell commands to run (python3 -m slop_code run ..., python3 research/runner/two_agent_runner.py ...)
+- Exact Dolt INSERT/UPDATE statements
+- A checklist with "verify SELECT COUNT returns N" before gt done
+- Instruction to write research/experiments/<hypothesis_id>_report.md
+
+---
+
 ## Research Loop — Patrol Phases 0 through 5
 
 Run this loop continuously. Each iteration begins at Phase 0 and
