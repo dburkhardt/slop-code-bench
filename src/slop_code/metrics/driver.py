@@ -10,9 +10,11 @@ from __future__ import annotations
 import ast
 import fnmatch
 import json
+import os
 from collections import Counter
 from collections.abc import Callable
 from collections.abc import Generator
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from token import COMMENT
 from token import DEDENT
@@ -102,11 +104,26 @@ def _calculate_file_metrics(
     )
 
 
+def _calculate_file_metrics_safe(
+    args: tuple[Path, int, bool],
+) -> tuple[Path, FileMetrics | None]:
+    """Wrapper for _calculate_file_metrics that catches exceptions for use in ProcessPoolExecutor."""
+    file_path, depth, is_entry_language = args
+    try:
+        result = _calculate_file_metrics(
+            file_path, depth, is_entry_language=is_entry_language
+        )
+        return file_path, result
+    except (UnicodeDecodeError, SyntaxError):
+        return file_path, None
+
+
 def measure_files(
     dir_path: Path,
     exclude_patterns: set[str],
     entry_extensions: set[str] | None = None,
 ) -> Generator[tuple[Path, FileMetrics], None, None]:
+    tasks: list[tuple[Path, int, bool]] = []
     for file_path in dir_path.rglob("*"):
         if file_path.is_dir():
             continue
@@ -128,19 +145,30 @@ def measure_files(
             entry_extensions is not None
             and file_path.suffix in entry_extensions
         )
-        try:
-            result = _calculate_file_metrics(
-                file_path, depth, is_entry_language=is_entry_language
-            )
-        except (UnicodeDecodeError, SyntaxError):
-            logger.debug(
-                "Skipping file",
-                file_path=str(file_path),
-                error="UnicodeDecodeError",
-            )
-            continue
-        if result is not None:
-            yield file_path, result
+        tasks.append((file_path, depth, is_entry_language))
+
+    if not tasks:
+        return
+
+    workers = min(len(tasks), os.cpu_count() or 4)
+    if workers <= 1:
+        for file_path, depth, is_entry_language in tasks:
+            try:
+                result = _calculate_file_metrics(
+                    file_path, depth, is_entry_language=is_entry_language
+                )
+            except (UnicodeDecodeError, SyntaxError):
+                continue
+            if result is not None:
+                yield file_path, result
+        return
+
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        for file_path, result in executor.map(
+            _calculate_file_metrics_safe, tasks
+        ):
+            if result is not None:
+                yield file_path, result
 
 
 class _AggregateResult:

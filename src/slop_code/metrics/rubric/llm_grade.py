@@ -22,7 +22,7 @@ from slop_code.logging import get_logger
 logger = get_logger(__name__)
 
 # Configuration
-DEFAULT_MAX_RETRIES = 5
+DEFAULT_MAX_RETRIES = 3
 DEFAULT_TIMEOUT = 60
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_API_KEY_ENV = "OPENROUTER_API_KEY"
@@ -283,7 +283,7 @@ async def grade_file_async(
         async for attempt in AsyncRetrying(
             retry=retry_if_exception(is_retryable),
             stop=stop_after_attempt(DEFAULT_MAX_RETRIES + 1),
-            wait=wait_exponential_jitter(initial=1, max=60),
+            wait=wait_exponential_jitter(initial=1, max=15),
             before_sleep=before_sleep,
             reraise=True,
         ):

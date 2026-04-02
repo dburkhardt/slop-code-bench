@@ -29,7 +29,7 @@ from slop_code.execution.runtime import RuntimeResult
 
 logger = structlog.get_logger(__name__)
 
-DEFAULT_WAIT_TIMEOUT = 7200.0  # 2 hours
+DEFAULT_WAIT_TIMEOUT = 600.0  # 10 minutes
 
 
 def ensure_string(data: bytes | str) -> str:

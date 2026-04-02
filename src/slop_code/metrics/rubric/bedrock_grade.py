@@ -18,7 +18,7 @@ from slop_code.logging import get_logger
 logger = get_logger(__name__)
 
 # Configuration
-DEFAULT_MAX_RETRIES = 5
+DEFAULT_MAX_RETRIES = 3
 DEFAULT_TIMEOUT = 60
 DEFAULT_REGION = "us-east-1"
 
@@ -103,7 +103,7 @@ async def grade_file_async(
     close_client = client is None
     if client is None:
         config = Config(
-            read_timeout=3600,
+            read_timeout=120,
             retries={"max_attempts": DEFAULT_MAX_RETRIES},
             connect_timeout=DEFAULT_TIMEOUT,
         )

@@ -509,7 +509,7 @@ class AgentRunner:
             logger.debug("Running resume command", command=cmd)
             runtime = self.session.exec(command=cmd, disable_setup=True)
             try:
-                result = runtime.execute(env={}, stdin=None, timeout=300)
+                result = runtime.execute(env={}, stdin=None, timeout=60)
                 if result.exit_code != 0:
                     logger.warning(
                         "Resume command failed",
