@@ -1,0 +1,57 @@
+{
+  "hypothesis_id": "sc-hypotheses.260",
+  "description": "90/10 budget split on file_backup and database_migration (H260 redo)",
+  "date": "2026-04-02",
+  "model": "local-claude-sonnet-4-6",
+  "budget_usd": 5.0,
+  "experiments": [
+    {
+      "problem": "file_backup",
+      "mode": "single",
+      "budget_split": 100,
+      "checkpoints_completed": 4,
+      "checkpoints_total": 4,
+      "pass_rates": [0.875, 0.760, 0.735, 0.697],
+      "total_pass_rate": 0.77,
+      "total_cost": 1.78,
+      "notes": "checkpoint_4 timed out during agent but has eval results"
+    },
+    {
+      "problem": "database_migration",
+      "mode": "single",
+      "budget_split": 100,
+      "checkpoints_completed": 3,
+      "checkpoints_total": 5,
+      "pass_rates": [1.000, 0.984, 0.835],
+      "total_pass_rate": 0.94,
+      "total_cost": 0.70,
+      "notes": "checkpoint_3 timed out; only 3/5 checkpoints completed"
+    },
+    {
+      "problem": "file_backup",
+      "mode": "two-agent",
+      "budget_split": 90,
+      "checkpoints_completed": 1,
+      "checkpoints_total": 4,
+      "pass_rates": [0.125],
+      "total_pass_rate": 0.13,
+      "total_cost": 4.81,
+      "notes": "Only 1/4 checkpoints completed; 90/10 split cost too high per checkpoint"
+    },
+    {
+      "problem": "database_migration",
+      "mode": "two-agent",
+      "budget_split": 90,
+      "checkpoints_completed": 1,
+      "checkpoints_total": 5,
+      "pass_rates": [0.929],
+      "total_pass_rate": 0.93,
+      "total_cost": 2.05,
+      "notes": "Only 1/5 checkpoints completed; 90/10 split cost high per checkpoint"
+    }
+  ],
+  "findings": {
+    "summary": "The 90/10 budget split with two-agent approach is significantly more expensive per checkpoint than single-agent, limiting coverage. file_backup two-agent had very low pass rate (12.5%) at 2.7x the single-agent cost. database_migration two-agent matched single-agent pass rate on checkpoint_1 but at 11x the cost. Results are inconclusive for H260 due to insufficient checkpoint coverage from budget constraints.",
+    "budget_mismatch": "The two-agent runner allocates the full budget as cost_limit per slop_code invocation rather than dividing across checkpoints, causing each checkpoint to potentially consume the entire budget."
+  }
+}
