@@ -1,0 +1,32 @@
+# H265 experiment treatment: two-agent with default reviewer on trajectory_api
+# Hypothesis: sc-hypotheses.265
+# Two-agent cost efficiency varies with single-agent baseline difficulty.
+
+agent:
+  type: reviewer_coder
+  version: "2.0.51"
+  cost_limits:
+    step_limit: 100
+    cost_limit: 5.0
+    net_cost_limit: 20.0
+  coder_turns_per_batch: 10
+  num_review_cycles: 3
+
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: claude_code_local
+  name: local-claude-sonnet-4-6
+
+reviewer:
+  prompt: configs/prompts/default_reviewer.jinja
+  budget_split: 70
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h265_cost_efficiency/two_agent_trajectory_api_${now:%Y%m%dT%H%M}
+
+problems:
+  - trajectory_api

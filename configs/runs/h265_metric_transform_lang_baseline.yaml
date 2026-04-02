@@ -1,0 +1,26 @@
+# H265 experiment baseline: single-agent on metric_transform_lang
+# Hypothesis: sc-hypotheses.265
+# Two-agent cost efficiency varies with single-agent baseline difficulty.
+
+agent:
+  type: claude_code
+  version: "2.0.51"
+  cost_limits:
+    step_limit: 100
+    cost_limit: 5.0
+    net_cost_limit: 20.0
+
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: claude_code_local
+  name: local-claude-sonnet-4-6
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h265_cost_efficiency/baseline_metric_transform_lang_${now:%Y%m%dT%H%M}
+
+problems:
+  - metric_transform_lang
