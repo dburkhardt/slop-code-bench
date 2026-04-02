@@ -1,0 +1,142 @@
+{
+  "groupId": "group-exp-cross1",
+  "testedAt": "2026-04-02T01:05:07.395595+00:00",
+  "isolation": {
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench",
+    "missionDir": "/home/ubuntu/.factory/missions/ba94244c-8343-4186-8ee5-9d59460ef8a8",
+    "mode": "read-only checks only"
+  },
+  "toolsUsed": [
+    "cli-shell",
+    "python3"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-EXP-001",
+      "title": "Environment was cleaned up before baseline",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect mission worker transcript for cleanup execution markers",
+          "expected": "Evidence of stale process/container cleanup before experiment start",
+          "observed": "Transcript contains killed stale PIDs, cleanup confirmation, and \"Cleanup done, proceeding to experiments immediately\""
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "Grep worker-transcripts.jsonl for cleanup markers",
+          "python3 evidence extraction script for assigned assertions"
+        ],
+        "artifacts": [
+          "investigation/group-exp-cross1/VAL-EXP-001-cleanup-evidence.txt"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-EXP-002",
+      "title": "Baseline experiment ran with meaningful data",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Analyze baseline infer.log at /home/ubuntu/git-repos/slop-code-bench/outputs/nvidia-bedrock-claude-sonnet-4-6/claude_code-2.0.51_default_implementer_none_20260401T2136/file_backup/infer.log",
+          "expected": "At least 10 step records in baseline output",
+          "observed": "Found 11 step_timing events (steps 0..10)"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "python3 scan of infer.log step_timing counts"
+        ],
+        "artifacts": [
+          "investigation/group-exp-cross1/VAL-EXP-002-baseline-summary.json"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-EXP-003",
+      "title": "Network capture collected data during experiment",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Check pcap artifact at /home/ubuntu/git-repos/slop-code-bench/research/debug/results/capture.pcap",
+          "expected": "pcap exists and size > 0",
+          "observed": "exists=True, size_bytes=2633515"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "stat-style size check via python3"
+        ],
+        "artifacts": [
+          "investigation/group-exp-cross1/VAL-EXP-003-pcap-summary.json"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-EXP-004",
+      "title": "Strace collected syscall data during experiment",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect strace output at /home/ubuntu/git-repos/slop-code-bench/research/debug/results/strace_output.txt",
+          "expected": "Strace file exists with syscall/network evidence during gap period",
+          "observed": "exists=True, size_bytes=393507, connect_samples=5, epoll_evidence=2"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "grep-like syscall extraction via python3 (connect + epoll evidence)"
+        ],
+        "artifacts": [
+          "investigation/group-exp-cross1/VAL-EXP-004-strace-summary.json"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-001",
+      "title": "Instrumentation produced data during baseline experiment",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify instrumentation records in baseline log /home/ubuntu/git-repos/slop-code-bench/outputs/nvidia-bedrock-claude-sonnet-4-6/claude_code-2.0.51_default_implementer_none_20260401T2136/file_backup/infer.log",
+          "expected": "Baseline output contains structured step_timing records",
+          "observed": "step_timing_present=True, step_timing_count=11"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "python3 JSON-line scan for event=step_timing"
+        ],
+        "artifacts": [
+          "investigation/group-exp-cross1/VAL-CROSS-001-instrumentation-summary.json"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Cleanup evidence is embedded in worker transcript text, not emitted as a dedicated cleanup log artifact.",
+      "resolved": true,
+      "resolution": "Captured transcript snippet with explicit cleanup completion marker and killed PID evidence.",
+      "affectedAssertions": [
+        "VAL-EXP-001"
+      ]
+    },
+    {
+      "description": "No explicit \"baseline\" label in output directory names; baseline had to be identified by timestamped infer.log contents and step_timing counts.",
+      "resolved": true,
+      "resolution": "Selected instrumented run with 11 step_timing events and recorded path in evidence summary.",
+      "affectedAssertions": [
+        "VAL-EXP-002",
+        "VAL-CROSS-001"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 5 assertions: 5 passed, 0 failed, 0 blocked."
+}

@@ -1,0 +1,221 @@
+{
+  "groupId": "group-inst-scripts",
+  "testedAt": "2026-04-02T01:08:32Z",
+  "isolation": {
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench",
+    "missionDir": "/home/ubuntu/.factory/missions/ba94244c-8343-4186-8ee5-9d59460ef8a8",
+    "mode": "read-only except assigned report/evidence outputs"
+  },
+  "toolsUsed": [
+    "cli-shell",
+    "git",
+    "grep",
+    "pytest",
+    "ruff",
+    "bash",
+    "python3"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-INST-001",
+      "title": "cli_utils.py contains per-step timing logic",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect cli_utils.py for timing markers and timing commits",
+          "expected": "time.monotonic and step timing fields are present",
+          "observed": "Found repeated time.monotonic usage and step_timing logging with api_ms/tool_ms fields; recent commits include per-step timing instrumentation"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "git diff -- src/slop_code/agent_runner/agents/cli_utils.py",
+          "git log --oneline -5 -- src/slop_code/agent_runner/agents/cli_utils.py",
+          "git show dfae48b -- src/slop_code/agent_runner/agents/cli_utils.py",
+          "grep -nE 'monotonic|step_timing|api_ms|tool_ms' src/slop_code/agent_runner/agents/cli_utils.py"
+        ],
+        "artifacts": [
+          "investigation/group-inst-scripts/VAL-INST-001-git-diff-and-log.txt",
+          "investigation/group-inst-scripts/VAL-INST-001-git-show-timing-commits.txt",
+          "investigation/group-inst-scripts/VAL-INST-001-002-grep-cli_utils.txt"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-INST-002",
+      "title": "Timing output uses expected structured format",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect step_timing log emission shape in cli_utils.py",
+          "expected": "Structured output includes step, timestamp, and api/tool timing breakdown",
+          "observed": "logger.info('step_timing', step=..., api_ms=..., tool_ms=..., tool_type=..., timestamp=...) appears at all parsed-yield points"
+        },
+        {
+          "action": "Search run artifacts for timing keys",
+          "expected": "Timing-related fields discoverable in run output",
+          "observed": "duration_api_ms fields are present in output JSONL logs; source-level step_timing schema is explicit and parseable"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "grep -nA12 -B2 '\"step_timing\"' src/slop_code/agent_runner/agents/cli_utils.py",
+          "grep -RInE 'step_timing|STEP_TIMING|api_ms|tool_ms' outputs research/debug/results"
+        ],
+        "artifacts": [
+          "investigation/group-inst-scripts/VAL-INST-002-structured-format-snippets.txt",
+          "investigation/group-inst-scripts/VAL-INST-002-output-search.txt"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-INST-003",
+      "title": "Existing tests still pass",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Run runner test suite command relevant to mission guidance",
+          "expected": "pytest exits 0",
+          "observed": "Command exited 1; failure in tests/runner/test_two_agent_runner.py::TestCanaryCLI::test_canary_flag_accepted_without_problem_or_model due to subprocess.TimeoutExpired after 30s"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "uv run pytest tests/runner/ -x -q -k 'not test_provenance_chain_documented'"
+        ],
+        "artifacts": [
+          "investigation/group-inst-scripts/VAL-INST-003-pytest.txt"
+        ]
+      },
+      "issues": "Runner test suite did not fully pass in this environment (1 failed, 254 passed, 1 skipped, 1 deselected)."
+    },
+    {
+      "id": "VAL-INST-004",
+      "title": "Lint passes on modified files",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run ruff on instrumented file",
+          "expected": "ruff exits 0",
+          "observed": "All checks passed (exit 0) for src/slop_code/agent_runner/agents/cli_utils.py"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "uv run ruff check src/slop_code/agent_runner/agents/cli_utils.py"
+        ],
+        "artifacts": [
+          "investigation/group-inst-scripts/VAL-INST-004-ruff-cli_utils.txt"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCRIPT-001",
+      "title": "Network capture script exists and is syntactically valid",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify network capture script and run shell syntax check",
+          "expected": "network capture script exists under research/debug and passes bash -n",
+          "observed": "research/debug/network_capture.sh exists and bash -n exit code is 0"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "ls -l research/debug/network_capture.sh",
+          "bash -n research/debug/network_capture.sh"
+        ],
+        "artifacts": [
+          "investigation/group-inst-scripts/VAL-SCRIPT-001-003-existence-syntax.txt",
+          "investigation/group-inst-scripts/VAL-SCRIPT-001-004-key-greps.txt"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCRIPT-002",
+      "title": "Pcap analysis script exists and is syntactically valid",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify pcap analysis script and parse syntax via ast",
+          "expected": "pcap analysis script exists and has valid Python syntax",
+          "observed": "research/debug/analyze_pcap.py exists and ast.parse succeeded (exit code 0)"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "ls -l research/debug/analyze_pcap.py",
+          "python3 -c 'import ast, pathlib; ast.parse(pathlib.Path(...).read_text())'"
+        ],
+        "artifacts": [
+          "investigation/group-inst-scripts/VAL-SCRIPT-001-003-existence-syntax.txt",
+          "investigation/group-inst-scripts/VAL-SCRIPT-001-004-key-greps.txt"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCRIPT-003",
+      "title": "Strace helper script exists and is syntactically valid",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify strace helper script and run shell syntax check",
+          "expected": "strace helper script exists under research/debug and passes bash -n",
+          "observed": "research/debug/strace_helper.sh exists and bash -n exit code is 0"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "ls -l research/debug/strace_helper.sh",
+          "bash -n research/debug/strace_helper.sh"
+        ],
+        "artifacts": [
+          "investigation/group-inst-scripts/VAL-SCRIPT-001-003-existence-syntax.txt",
+          "investigation/group-inst-scripts/VAL-SCRIPT-001-004-key-greps.txt"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SCRIPT-004",
+      "title": "Scripts are self-documenting",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect top-of-file headers/docstrings and usage sections",
+          "expected": "Each script has usage/help documentation",
+          "observed": "network_capture.sh and strace_helper.sh include usage comment blocks; analyze_pcap.py includes module docstring with usage and arguments"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "head -20 research/debug/network_capture.sh",
+          "head -30 research/debug/analyze_pcap.py",
+          "head -25 research/debug/strace_helper.sh"
+        ],
+        "artifacts": [
+          "investigation/group-inst-scripts/VAL-SCRIPT-004-headers.txt",
+          "investigation/group-inst-scripts/VAL-SCRIPT-001-004-key-greps.txt"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Working-tree git diff for cli_utils.py was empty because instrumentation was already committed; commit-level git show was required to capture timing additions.",
+      "resolved": true,
+      "resolution": "Used git log and git show on recent cli_utils.py commits (dfae48b, 3afd3f5) for code-change evidence.",
+      "affectedAssertions": [
+        "VAL-INST-001"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 8 assertions. 7 passed and 1 failed (VAL-INST-003: runner pytest command exited with one canary timeout failure)."
+}

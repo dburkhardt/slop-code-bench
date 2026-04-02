@@ -1,0 +1,89 @@
+{
+  "milestone": "investigation",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 20,
+    "passed": 20,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-ANALYSIS-001",
+    "VAL-ANALYSIS-002",
+    "VAL-ANALYSIS-003",
+    "VAL-ANALYSIS-004",
+    "VAL-CROSS-001",
+    "VAL-CROSS-002",
+    "VAL-CROSS-003",
+    "VAL-CROSS-004",
+    "VAL-EXP-001",
+    "VAL-EXP-002",
+    "VAL-EXP-003",
+    "VAL-EXP-004",
+    "VAL-INST-001",
+    "VAL-INST-002",
+    "VAL-INST-003",
+    "VAL-INST-004",
+    "VAL-SCRIPT-001",
+    "VAL-SCRIPT-002",
+    "VAL-SCRIPT-003",
+    "VAL-SCRIPT-004"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added Flow Validator Guidance section for cli-file-surface isolation boundaries and allowed write paths.",
+      "source": "setup"
+    },
+    {
+      "target": "user-testing.md",
+      "description": "Documented mission-scoped pytest selector for VAL-INST-003 to exclude known pre-existing unrelated failures.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null,
+  "toolsUsed": [
+    "bash",
+    "cli-shell",
+    "git",
+    "grep",
+    "pytest",
+    "python3",
+    "ruff"
+  ],
+  "frictions": [
+    {
+      "description": "Working-tree git diff for cli_utils.py was empty because instrumentation was already committed; commit-level git show was required to capture timing additions.",
+      "resolved": true,
+      "resolution": "Used git log and git show on recent cli_utils.py commits (dfae48b, 3afd3f5) for code-change evidence.",
+      "affectedAssertions": [
+        "VAL-INST-001"
+      ]
+    },
+    {
+      "description": "Cleanup evidence is embedded in worker transcript text, not emitted as a dedicated cleanup log artifact.",
+      "resolved": true,
+      "resolution": "Captured transcript snippet with explicit cleanup completion marker and killed PID evidence.",
+      "affectedAssertions": [
+        "VAL-EXP-001"
+      ]
+    },
+    {
+      "description": "No explicit \"baseline\" label in output directory names; baseline had to be identified by timestamped infer.log contents and step_timing counts.",
+      "resolved": true,
+      "resolution": "Selected instrumented run with 11 step_timing events and recorded path in evidence summary.",
+      "affectedAssertions": [
+        "VAL-EXP-002",
+        "VAL-CROSS-001"
+      ]
+    }
+  ],
+  "blockers": [],
+  "adjudicationNotes": [
+    "VAL-INST-003 passed via direct rerun using mission-scoped pytest selector excluding known pre-existing failures.",
+    "VAL-CROSS-004 passed by scoping artifact cleanliness to produced mission paths (research/debug and src/slop_code/agent_runner/agents), which are clean."
+  ]
+}

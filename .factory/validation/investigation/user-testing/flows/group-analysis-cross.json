@@ -1,0 +1,178 @@
+{
+  "groupId": "group-analysis-cross",
+  "testedAt": "2026-04-02T01:02:56.367050+00:00",
+  "isolation": {
+    "repoRoot": "/home/ubuntu/git-repos/slop-code-bench",
+    "missionDir": "/home/ubuntu/.factory/missions/ba94244c-8343-4186-8ee5-9d59460ef8a8",
+    "mode": "read-only checks; report/evidence writes only"
+  },
+  "toolsUsed": [
+    "cli-shell",
+    "git",
+    "grep",
+    "python3"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-ANALYSIS-001",
+      "title": "Investigation document updated with new findings",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Check analysis document for findings/conclusion headers with grep",
+          "expected": "Document includes findings/conclusion/root-cause sections",
+          "observed": "Found \"Definitive Finding\", \"Conclusions\", \"ROOT CAUSE FOUND\", and \"FIX CONFIRMED\" headers."
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "investigation/group-analysis-cross/analysis-grep-checks.txt"
+        ],
+        "commands": [
+          "grep -nE \"^## (Conclusions|ROOT CAUSE FOUND|FIX CONFIRMED|Definitive Finding)\" research/debug/latency-investigation.md"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ANALYSIS-002",
+      "title": "Each hypothesis explicitly addressed",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Evaluate hypothesis verdict coverage for H1-H7 plus hidden API calls",
+          "expected": "At least 6 of 8 hypotheses have explicit confirmed/refuted/inconclusive verdicts",
+          "observed": "Coverage check found explicit verdicts for 8/8 required hypotheses."
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "investigation/group-analysis-cross/hypothesis-coverage-check.txt",
+          "investigation/group-analysis-cross/analysis-grep-checks.txt"
+        ],
+        "commands": [
+          "python3 hypothesis coverage parser over research/debug/latency-investigation.md"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ANALYSIS-003",
+      "title": "Root cause identified or narrowed",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Search for explicit root-cause statements and remediation/next-step guidance",
+          "expected": "Root cause identified or narrowed to <=2 candidates with next step",
+          "observed": "Document contains explicit root-cause statements (e.g., \"secondary API calls timing out\") and recommended fix/next-step sections."
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "investigation/group-analysis-cross/analysis-grep-checks.txt"
+        ],
+        "commands": [
+          "grep -nEi \"^### Root Cause|root cause is|primary root cause\" research/debug/latency-investigation.md"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ANALYSIS-004",
+      "title": "Analysis references concrete data",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Check conclusions/findings for concrete numeric/timestamped evidence and trace artifacts",
+          "expected": "References include concrete data (timestamps, step timing, network capture, strace)",
+          "observed": "Document includes step-level timestamps/token data, tcpdump packet counts, and strace epoll/network socket findings."
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "investigation/group-analysis-cross/analysis-grep-checks.txt"
+        ],
+        "commands": [
+          "grep for Step/timestamp/pcap/tcpdump/strace/epoll_wait references in research/debug/latency-investigation.md"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "title": "Network capture data informed analysis conclusions",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect conclusions for explicit network-capture findings",
+          "expected": "Conclusions reference packet/request/timing findings from capture",
+          "observed": "Conclusions cite tcpdump capture totals (3883 packets) and packet-rate/burst observations tied to gap periods."
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "investigation/group-analysis-cross/analysis-grep-checks.txt"
+        ],
+        "commands": [
+          "grep -nEi \"network capture|tcpdump|pcap|packets\" research/debug/latency-investigation.md"
+        ],
+        "consoleErrors": "none",
+        "network": "n/a (file-surface validation)"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "title": "Strace data informed analysis conclusions",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect conclusions for strace-based claims",
+          "expected": "Conclusions reference strace/syscall findings in final reasoning",
+          "observed": "Conclusions explicitly use strace evidence (epoll_wait blocking and parallel TLS socket activity) to support root cause."
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "investigation/group-analysis-cross/analysis-grep-checks.txt"
+        ],
+        "commands": [
+          "grep -nEi \"strace|epoll_wait|socket|syscall\" research/debug/latency-investigation.md"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-004",
+      "title": "All produced artifacts are committed or documented",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Check git status for mission-related paths and untracked artifacts",
+          "expected": "No key untracked mission artifacts, or explicit ephemeral-artifact documentation",
+          "observed": "git status shows untracked key artifact configs/models/local-sonnet-4.6.yaml; investigation doc does not label untracked artifacts as ephemeral."
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "investigation/group-analysis-cross/artifact-status-checks.txt"
+        ],
+        "commands": [
+          "git status --porcelain",
+          "git status --porcelain -- research/debug src/slop_code/agent_runner/agents configs/models",
+          "git ls-files --others --exclude-standard -- research/debug src/slop_code/agent_runner/agents"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": "Untracked mission-related model config file remains: configs/models/local-sonnet-4.6.yaml."
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 7 assertions: 6 passed, 1 failed (VAL-CROSS-004 due to untracked mission-related artifact configs/models/local-sonnet-4.6.yaml)."
+}
