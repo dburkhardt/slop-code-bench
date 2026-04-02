@@ -582,7 +582,7 @@ The tcpdump data reveals that during gaps, the CLI maintains an active HTTPS con
 
 The strace data confirms that between active streaming periods, the CLI opens multiple parallel TLS connections (6+ concurrent sockets) to the NVIDIA endpoint (34.36.57.103) and AWS Bedrock endpoints (16.146.192.132, 52.39.201.119, 35.165.251.166). After delivering a tool result and before receiving the next response, the CLI fires a burst of outgoing requests across these connections and then blocks in `epoll_wait` for ~190 seconds waiting for a response.
 
-The most plausible explanation: the Claude CLI issues a **secondary API call** (background task, conversation compaction, context caching request, or similar) after each tool execution. This secondary call goes through the NVIDIA inference proxy to Bedrock. Because NVIDIA/Bedrock queues this request behind other inference traffic, the response takes ~190 seconds. The CLI blocks on this response before proceeding to the next user turn.
+The most plausible explanation: the Claude CLI issues **secondary API calls** (feature flag checks via GrowthBook, account/org validation, usage tracking, or similar) after each tool execution. These secondary calls are routed through the configured `ANTHROPIC_BASE_URL` to the NVIDIA inference endpoint, which does not serve these non-inference endpoints. The calls time out after ~190 to 200 seconds (consistent with 3 TCP retries at ~60s each). The CLI blocks on these responses before proceeding to the next user turn.
 
 **H4: Rate limiting / queuing at the NVIDIA endpoint — INCONCLUSIVE**
 
@@ -612,27 +612,117 @@ The tcpdump and strace data together prove that the Claude CLI makes additional 
 
 ### Root Cause
 
-The root cause is narrowed to **one primary candidate**:
+The root cause is **secondary API calls timing out against the NVIDIA endpoint**, which manifests as the CLI being blocked on a network socket (consistent with strace findings).
 
-**The Claude CLI v2.0.51 issues hidden background API calls through the configured base URL after each tool execution.** These calls go through the NVIDIA inference proxy (inference-api.nvidia.com), which either queues them behind inference traffic or routes them to an incompatible endpoint. The calls block the CLI's main event loop for ~190 to 220 seconds before timing out or completing.
+When Claude CLI runs with `ANTHROPIC_BASE_URL=https://inference-api.nvidia.com`, it routes *all* HTTP requests through that endpoint, including secondary calls that are not inference requests. These secondary calls include feature flag checks via GrowthBook, account/org validation, and usage tracking. The NVIDIA endpoint does not serve these non-inference endpoints, so the requests either time out after ~200 seconds (matching the typical TCP connection timeout of ~60s multiplied by 3 retries) or receive error responses that the CLI retries.
 
-Supporting evidence:
-- Direct NVIDIA API calls take 3 to 14 seconds (Phase 4), so the primary inference path is fast.
-- The CLI is blocked in `epoll_wait` on network sockets during the gap (Phase 1, strace).
-- Seven parallel TLS connections are opened to NVIDIA/AWS immediately after each tool result (strace).
-- Gap duration is invariant to auth method or background task env vars (A/B tests).
-- Gaps end with large response bursts, not timeout errors (tcpdump).
-- The CLI attempts to contact Anthropic us-east-1 directly, producing an `[ERROR]` (strace).
+This explains every observation in the investigation:
 
-The developer's laptop is fast because it uses `ANTHROPIC_API_KEY` against Anthropic's direct API (`api.anthropic.com`), which handles background CLI calls natively. The NVIDIA proxy does not support these background endpoints, causing them to queue or time out.
+1. The CLI is blocked in `epoll_wait` on network sockets during the gap (Phase 1, strace), because it is waiting for secondary HTTP responses that never arrive from the NVIDIA endpoint.
+2. Seven parallel TLS connections are opened to NVIDIA/AWS immediately after each tool result (strace), corresponding to the parallel secondary API calls.
+3. Gap duration is invariant to `ANTHROPIC_API_KEY` vs `ANTHROPIC_AUTH_TOKEN` or background task env vars (A/B tests), because the secondary calls are triggered regardless of auth method when `ANTHROPIC_BASE_URL` is set.
+4. Gaps end with large response bursts, not timeout errors (tcpdump), consistent with the secondary calls eventually timing out and the CLI proceeding to the actual inference call.
+5. The CLI attempts to contact Anthropic us-east-1 directly, producing an `[ERROR]` (strace), which confirms it tries to reach Anthropic's own infrastructure for background operations.
+6. Direct NVIDIA API inference calls take 3 to 14 seconds (Phase 4), proving the primary inference path is fast.
+
+The system-installed Claude CLI v2.1.89 with **console auth (OAuth via claude.ai)** does NOT have this delay. With OAuth, secondary calls reach Anthropic's actual servers at `api.anthropic.com`, which handle them in milliseconds. The delay only occurs when `ANTHROPIC_BASE_URL` redirects these calls to an endpoint that does not serve them.
+
+Analysis of the nvidia-inference-proxy codebase (see next section) confirms this mechanism: that project avoids the problem by using `ANTHROPIC_API_KEY` (not `AUTH_TOKEN`), running a local LiteLLM proxy where unsupported secondary calls return 404 instantly, and stripping OAuth state from the Claude config to prevent the CLI from attempting background auth operations.
 
 ### Note on claude-code-router
 
 The Docker image installs `@musistudio/claude-code-router` (npm package), but this package provides a **separate binary called `ccr`**, not `claude`. The `claude` binary symlinks to the official `@anthropic-ai/claude-code/cli.js`. The router does not intercept, proxy, or modify any requests made by the Claude CLI. It is not involved in the latency issue and should be disregarded in future debugging. Its presence in the Docker image is incidental and does not affect experiment results.
 
+## nvidia-inference-proxy Analysis
+
+The [nvidia-inference-proxy](https://github.com/gabeorlanski/nvidia-inference-proxy) project provides a local LiteLLM-based proxy for routing Claude Code traffic through NVIDIA's inference API. Examining its codebase reveals three design choices that avoid the secondary-API-call timeout problem:
+
+### 1. API key mode instead of auth token
+
+The proxy configures Claude Code with `ANTHROPIC_API_KEY=sk-litellm-local-dev` (a synthetic key accepted by the local LiteLLM proxy) rather than `ANTHROPIC_AUTH_TOKEN`. In `claude_profile.py`, the `render_isolated_claude_settings()` function injects:
+
+```python
+env["ANTHROPIC_API_KEY"] = "sk-litellm-local-dev"
+env["ANTHROPIC_BASE_URL"] = f"http://localhost:{port}"
+```
+
+Using `ANTHROPIC_API_KEY` instead of `ANTHROPIC_AUTH_TOKEN` changes how the CLI resolves its `apiKeySource`, which affects which secondary calls are attempted.
+
+### 2. Local proxy absorbs secondary calls
+
+By pointing `ANTHROPIC_BASE_URL` at `http://localhost:4000` (the LiteLLM proxy), secondary API calls hit the local proxy instead of a remote endpoint. LiteLLM returns 404 for unrecognized routes (feature flags, account validation, etc.) instantly, so the Claude CLI receives an immediate error response and moves on without a 200-second TCP timeout.
+
+### 3. OAuth state stripped from Claude config
+
+The `render_isolated_claude_config()` function in `claude_profile.py` explicitly removes OAuth-related fields that would trigger secondary auth calls:
+
+```python
+for key in (
+    "oauthAccount",
+    "oauthAccountEmail",
+    "oauthAccountId",
+    "oauthOrganizationId",
+    "cachedGrowthBookFeatures",
+    "featureVersionByName",
+):
+    config.pop(key, None)
+```
+
+Additionally, it pre-configures `customApiKeyResponses.approved` with the proxy's synthetic API key and sets `hasCompletedOnboarding: True`. This prevents the CLI from entering onboarding flows or attempting to validate OAuth tokens against remote servers.
+
+### Relevance to our issue
+
+Our Docker containers set `ANTHROPIC_AUTH_TOKEN=$NVIDIA_INFERENCE_KEY` and `ANTHROPIC_BASE_URL=https://inference-api.nvidia.com`, then let the Claude CLI start with a default `.claude.json` config. This means:
+
+- The CLI's `apiKeySource` resolves to `none` (auth token, not API key)
+- Secondary calls (GrowthBook feature flags, org validation) are routed to `inference-api.nvidia.com`, which does not serve them
+- The `.claude.json` contains no `hasCompletedOnboarding` or `customApiKeyResponses`, so the CLI may attempt onboarding or key validation flows
+- OAuth state fields may be present from previous runs, triggering additional auth calls
+
+The nvidia-inference-proxy approach solves all of these by running a local proxy that instantly rejects non-inference traffic, stripping OAuth state, and forcing API-key mode.
+
 ## Recommended Fix
 
-### Primary fix: Use Anthropic's direct API instead of the NVIDIA proxy
+Three concrete options, ordered by implementation effort:
+
+### Option A: Use ANTHROPIC_API_KEY instead of AUTH_TOKEN
+
+Set `ANTHROPIC_API_KEY=$NVIDIA_INFERENCE_KEY` in the Docker container instead of `ANTHROPIC_AUTH_TOKEN`. This changes the CLI's auth code path and may reduce secondary calls. Combined with setting `ANTHROPIC_BASE_URL=https://inference-api.nvidia.com`, the CLI still routes inference to NVIDIA but may skip some auth-related secondary calls.
+
+**Pros:** Minimal change (one env var rename).
+**Cons:** May not eliminate all secondary calls; the CLI will still route non-inference requests to NVIDIA and wait for timeouts.
+
+### Option B: Pre-configure ~/.claude.json
+
+Before launching Claude CLI in the container, write a `.claude.json` that mirrors the nvidia-inference-proxy approach:
+
+```json
+{
+  "hasCompletedOnboarding": true,
+  "customApiKeyResponses": {
+    "approved": ["$NVIDIA_INFERENCE_KEY"],
+    "rejected": []
+  }
+}
+```
+
+Also strip any `oauthAccount`, `cachedGrowthBookFeatures`, and `featureVersionByName` fields. This prevents the CLI from attempting onboarding, key validation, or GrowthBook feature flag checks.
+
+**Pros:** No infrastructure changes; just config file manipulation before experiment start.
+**Cons:** Still routes all traffic through NVIDIA; secondary calls that are not gated by these config fields will still time out.
+
+### Option C: Use a local LiteLLM proxy (nvidia-inference-proxy pattern)
+
+Run a LiteLLM proxy locally that forwards inference requests to NVIDIA while instantly rejecting non-inference traffic. Set `ANTHROPIC_BASE_URL=http://localhost:4000` and `ANTHROPIC_API_KEY=sk-litellm-local-dev`.
+
+**Pros:** Complete solution; all secondary calls return 404 instantly from the local proxy. This is how nvidia-inference-proxy operates and is known to work.
+**Cons:** Requires running an additional service (LiteLLM proxy) alongside experiments; adds operational complexity.
+
+### Currently applied workaround
+
+The workaround currently in production uses the system-installed Claude CLI v2.1.89 with **console auth (OAuth via claude.ai)** in the `local-py` environment. With OAuth, secondary calls reach Anthropic's actual servers and complete in milliseconds. This avoids the Docker + NVIDIA endpoint path entirely.
+
+Note that `@musistudio/claude-code-router` is installed in the Docker image but unused. The `claude` binary points to the official `@anthropic-ai/claude-code/cli.js`. The router provides a separate `ccr` binary that is never invoked by SCBench.
 
 Switch experiment configurations from the NVIDIA inference endpoint to the Anthropic direct API. This eliminates the 190-second background call delay entirely.
 

@@ -57,6 +57,42 @@ def _extract_tool_type(
     return payload.get("type", "unknown")
 
 
+_TOOL_USE_NAMES = {"Bash", "Edit", "Read", "Write"}
+
+
+def _has_tool_use(
+    parsed: tuple[Any, ...] | None,
+) -> bool:
+    """Return True if parsed payload is a tool_use step.
+
+    A tool_use step is an assistant message whose content
+    contains at least one ``tool_use`` block (Bash, Edit,
+    Read, or Write).  The time elapsed *after* such a step
+    represents tool execution, not API inference.
+    """
+    if not isinstance(parsed, tuple) or len(parsed) < 3:
+        return False
+    payload = parsed[2]
+    if not isinstance(payload, dict):
+        return False
+    # Direct tool field (some payload shapes)
+    tool = payload.get("tool", "")
+    if tool in _TOOL_USE_NAMES:
+        return True
+    # Standard Claude stream-json: assistant message with
+    # content blocks of type "tool_use"
+    message = payload.get("message", {})
+    if not isinstance(message, dict):
+        return False
+    for block in message.get("content", []):
+        if (
+            isinstance(block, dict)
+            and block.get("type") == "tool_use"
+        ):
+            return True
+    return False
+
+
 def stream_cli_command(
     runtime: StreamingRuntime,
     command: str,
@@ -102,6 +138,7 @@ def stream_cli_command(
     # -- timing state --
     step_n = 0
     prev_yield_done: float = start
+    prev_was_tool_use: bool = False
 
     for event in runtime.stream(
         command=command, env=env, timeout=timeout
@@ -118,15 +155,24 @@ def stream_cli_command(
                     continue
                 now = time.monotonic()
                 parsed = parser(line)
-                api_ms = (now - prev_yield_done) * 1000.0
+                elapsed = (now - prev_yield_done) * 1000.0
                 tool_type = _extract_tool_type(parsed)
+                if prev_was_tool_use:
+                    api_ms = 0.0
+                    tool_ms = round(elapsed, 2)
+                else:
+                    api_ms = round(elapsed, 2)
+                    tool_ms = 0.0
                 logger.info(
                     "step_timing",
                     step=step_n,
-                    api_ms=round(api_ms, 2),
-                    tool_ms=0.0,
+                    api_ms=api_ms,
+                    tool_ms=tool_ms,
                     tool_type=tool_type,
                     timestamp=now,
+                )
+                prev_was_tool_use = _has_tool_use(
+                    parsed
                 )
                 step_n += 1
                 yield parsed
@@ -144,17 +190,26 @@ def stream_cli_command(
                         continue
                     now = time.monotonic()
                     parsed = parser(line)
-                    api_ms = (
+                    elapsed = (
                         (now - prev_yield_done) * 1000.0
                     )
                     tool_type = _extract_tool_type(parsed)
+                    if prev_was_tool_use:
+                        api_ms = 0.0
+                        tool_ms = round(elapsed, 2)
+                    else:
+                        api_ms = round(elapsed, 2)
+                        tool_ms = 0.0
                     logger.info(
                         "step_timing",
                         step=step_n,
-                        api_ms=round(api_ms, 2),
-                        tool_ms=0.0,
+                        api_ms=api_ms,
+                        tool_ms=tool_ms,
                         tool_type=tool_type,
                         timestamp=now,
+                    )
+                    prev_was_tool_use = _has_tool_use(
+                        parsed
                     )
                     step_n += 1
                     yield parsed
@@ -170,16 +225,23 @@ def stream_cli_command(
             continue
         now = time.monotonic()
         parsed = parser(line)
-        api_ms = (now - prev_yield_done) * 1000.0
+        elapsed = (now - prev_yield_done) * 1000.0
         tool_type = _extract_tool_type(parsed)
+        if prev_was_tool_use:
+            api_ms = 0.0
+            tool_ms = round(elapsed, 2)
+        else:
+            api_ms = round(elapsed, 2)
+            tool_ms = 0.0
         logger.info(
             "step_timing",
             step=step_n,
-            api_ms=round(api_ms, 2),
-            tool_ms=0.0,
+            api_ms=api_ms,
+            tool_ms=tool_ms,
             tool_type=tool_type,
             timestamp=now,
         )
+        prev_was_tool_use = _has_tool_use(parsed)
         step_n += 1
         yield parsed
         prev_yield_done = time.monotonic()
@@ -192,16 +254,23 @@ def stream_cli_command(
                 continue
             now = time.monotonic()
             parsed = parser(line)
-            api_ms = (now - prev_yield_done) * 1000.0
+            elapsed = (now - prev_yield_done) * 1000.0
             tool_type = _extract_tool_type(parsed)
+            if prev_was_tool_use:
+                api_ms = 0.0
+                tool_ms = round(elapsed, 2)
+            else:
+                api_ms = round(elapsed, 2)
+                tool_ms = 0.0
             logger.info(
                 "step_timing",
                 step=step_n,
-                api_ms=round(api_ms, 2),
-                tool_ms=0.0,
+                api_ms=api_ms,
+                tool_ms=tool_ms,
                 tool_type=tool_type,
                 timestamp=now,
             )
+            prev_was_tool_use = _has_tool_use(parsed)
             step_n += 1
             yield parsed
             prev_yield_done = time.monotonic()
