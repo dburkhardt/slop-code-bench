@@ -1,0 +1,26 @@
+# H264 experiment baseline: single-agent on execution_server
+# Hypothesis: sc-hypotheses.264
+# Architecture reviewer reduces structural erosion on long-sequence problems.
+
+agent:
+  type: claude_code
+  version: "2.0.51"
+  cost_limits:
+    step_limit: 100
+    cost_limit: 5.0
+    net_cost_limit: 20.0
+
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: claude_code_local
+  name: local-claude-sonnet-4-6
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h264_architecture_reviewer/baseline_execution_server_${now:%Y%m%dT%H%M}
+
+problems:
+  - execution_server

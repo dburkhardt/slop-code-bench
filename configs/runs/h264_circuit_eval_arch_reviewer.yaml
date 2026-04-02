@@ -1,0 +1,32 @@
+# H264 experiment treatment: two-agent with architecture reviewer on circuit_eval
+# Hypothesis: sc-hypotheses.264
+# Architecture reviewer reduces structural erosion on long-sequence problems.
+
+agent:
+  type: reviewer_coder
+  version: "2.0.51"
+  cost_limits:
+    step_limit: 100
+    cost_limit: 5.0
+    net_cost_limit: 20.0
+  coder_turns_per_batch: 10
+  num_review_cycles: 3
+
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: claude_code_local
+  name: local-claude-sonnet-4-6
+
+reviewer:
+  prompt: research/prompts/architecture-reviewer.jinja
+  budget_split: 70
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h264_architecture_reviewer/two_agent_circuit_eval_${now:%Y%m%dT%H%M}
+
+problems:
+  - circuit_eval
