@@ -1,0 +1,26 @@
+# H262 experiment baseline: single-agent on eve_industry
+# Hypothesis: sc-hypotheses.262
+# Two-agent benefit extends to eve_industry and file_merger (domain diversity test)
+
+agent:
+  type: claude_code
+  version: "2.0.51"
+  cost_limits:
+    step_limit: 100
+    cost_limit: 5.0
+    net_cost_limit: 20.0
+
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: claude_code_local
+  name: local-claude-sonnet-4-6
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h262_domain_diversity/baseline_eve_industry_${now:%Y%m%dT%H%M}
+
+problems:
+  - eve_industry
