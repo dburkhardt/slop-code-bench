@@ -1,0 +1,33 @@
+# H200 experiment: two-agent with anti-slop reviewer (70/30)
+# Hypothesis: sc-hypotheses.200
+# Structured reviewer prompts reduce verbosity slope by at least 15%
+# Treatment arm: two-agent with anti-slop-reviewer.jinja as reviewer prompt
+#
+# Run via experiment_pipeline.py, NOT slop-code run:
+#   python research/runner/experiment_pipeline.py \
+#     --problem <problem> --model opus-4.5 --budget 10.0 \
+#     --budget-split 70 \
+#     --reviewer-prompt research/prompts/anti-slop-reviewer.jinja \
+#     --hypothesis-id sc-hypotheses.200
+#
+# Pipeline parameters (not part of RunConfig schema):
+#   reviewer_prompt: research/prompts/anti-slop-reviewer.jinja
+#   budget_split: 70
+
+agent: reviewer_coder
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: anthropic
+  name: opus-4.5
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h200_two_agent/${now:%Y%m%dT%H%M}
+
+problems:
+  - file_backup
+  - etl_pipeline
+  - log_query
