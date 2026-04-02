@@ -1,0 +1,26 @@
+# H-database_migration experiment baseline: single-agent
+# Hypothesis: sc-hypotheses.256
+# Tests whether default 70/30 two-agent beats single-agent pass rate
+
+agent:
+  type: claude_code
+  version: "2.0.51"
+  cost_limits:
+    step_limit: 100
+    cost_limit: 5.0
+    net_cost_limit: 20.0
+
+environment: docker-python3.12-uv
+prompt: just-solve
+
+model:
+  provider: nvidia
+  name: nvidia-bedrock-claude-sonnet-4-6
+
+thinking: none
+pass_policy: any
+
+output_path: outputs/h_dbmig_baseline/${now:%Y%m%dT%H%M}
+
+problems:
+  - database_migration
