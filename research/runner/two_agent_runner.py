@@ -23,8 +23,9 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from datetime import UTC
-from datetime import datetime
+from datetime import datetime, timezone
+
+UTC = timezone.utc
 from pathlib import Path
 
 import typer
