@@ -191,5 +191,70 @@ INSERT INTO experiments (
 UPDATE budget SET spent = spent + [actual_cost] WHERE id = 1;
 ```
 
-**Exit criteria:** Row inserted, budget table updated. Run gt done."""
+**Exit criteria:** Row inserted, budget table updated."""
 acceptance = "Experiment row in Dolt experiments table, budget table updated with spend"
+
+[[steps]]
+id = "research-report"
+title = "Write research report and commit"
+needs = ["report"]
+description = """
+Write a structured research report summarizing the experiment results. \
+This is what the Review Board reads to evaluate the hypothesis.
+
+**1. Create report file:**
+
+```bash
+mkdir -p research/experiments
+cat > research/experiments/{{hypothesis_id}}_report.md << 'REPORT'
+# Experiment Report: {{hypothesis_id}}
+
+## Hypothesis
+{{hypothesis_description}}
+
+## Setup
+- Problem(s): {{problem_id}}
+- Model: {{model}}
+- Budget split: {{budget_split}}/{{100 - budget_split}}
+- Budget cap: ${{total_budget_usd}}
+
+## Results
+
+| Problem | Mode | Pass Rate | Cost | Erosion | Verbosity |
+|---------|------|-----------|------|---------|-----------|
+| ... | single | ...% | $... | ... | ... |
+| ... | two-agent | ...% | $... | ... | ... |
+
+## Analysis
+<Interpret results relative to hypothesis. Was the claim supported?>
+
+## Delta vs Baseline
+<Compare to existing Dolt data for same problem with default config>
+
+## Cost Analysis
+<Was the two-agent arm cost-effective? Cost per percentage-point gain?>
+
+## Conclusion
+<SUPPORTED / REFUTED / INCONCLUSIVE — with reasoning>
+REPORT
+```
+
+Fill in actual values from the experiment runs.
+
+**2. Commit everything:**
+
+```bash
+git add research/experiments/{{hypothesis_id}}_report.md
+git add -A  # Any other experiment artifacts
+git commit -m "experiment: {{hypothesis_id}} results — <1-line summary>"
+```
+
+**3. Persist findings to bead:**
+
+```bash
+bd update {{hypothesis_id}} --notes "Results: <pass_rate_delta>, cost: $<total>. Conclusion: SUPPORTED/REFUTED/INCONCLUSIVE."
+bd update {{hypothesis_id}} --design "<paste the full report>"
+```
+
+**Exit criteria:** Report committed, findings persisted to bead. Run gt done."""
+acceptance = "Research report committed to git, findings written to hypothesis bead design field"
