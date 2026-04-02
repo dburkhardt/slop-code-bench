@@ -58,7 +58,6 @@ CANARY_BUDGET_SPLIT = 70
 # available.  The NVIDIA inference endpoint is used
 # when ANTHROPIC_API_KEY is absent.
 CANARY_DEFAULT_MODEL_ANTHROPIC = "opus-4.5"
-CANARY_DEFAULT_MODEL_NVIDIA = "nvidia-sonnet-4.6"
 CANARY_DEFAULT_MODEL_LOCAL = "local-sonnet-4.6"
 
 
@@ -66,7 +65,7 @@ def _default_canary_model() -> str:
     """Return the cheapest available canary model.
 
     Prefers local Claude (console auth) when available,
-    then Anthropic direct API, then NVIDIA endpoint.
+    then Anthropic direct API.
     Local mode uses ``local-py`` environment (no Docker)
     and avoids a ~200s/step latency bug with
     ``ANTHROPIC_BASE_URL`` in Docker containers.
@@ -88,10 +87,6 @@ def _default_canary_model() -> str:
         subprocess.SubprocessError,
     ):
         logger.debug("claude auth status check unavailable")
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return CANARY_DEFAULT_MODEL_ANTHROPIC
-    if os.environ.get("NVIDIA_INFERENCE_KEY"):
-        return CANARY_DEFAULT_MODEL_NVIDIA
     return CANARY_DEFAULT_MODEL_ANTHROPIC
 
 
@@ -189,74 +184,6 @@ def check_api_key(model_name: str) -> None:
         ) from exc
 
 
-def validate_nvidia_api_key() -> None:
-    """Make a lightweight test call to the NVIDIA endpoint.
-
-    Sends a minimal chat completion request with
-    ``max_tokens=1`` to verify that
-    ``NVIDIA_INFERENCE_KEY`` is accepted.  Skipped
-    silently when the key is not set.
-
-    Raises ``CanaryError`` with component="API" on
-    authentication failure.
-    """
-    api_key = os.environ.get("NVIDIA_INFERENCE_KEY")
-    if not api_key:
-        return
-
-    import urllib.error
-    import urllib.request
-
-    url = (
-        "https://inference-api.nvidia.com"
-        "/v1/chat/completions"
-    )
-    payload = json.dumps({
-        "model": "aws/anthropic/bedrock-claude-sonnet-4-6",
-        "messages": [{"role": "user", "content": "hi"}],
-        "max_tokens": 1,
-    }).encode()
-
-    req = urllib.request.Request(  # noqa: S310
-        url,
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(  # noqa: S310
-            req, timeout=15,
-        ) as resp:
-            if resp.status < 200 or resp.status >= 300:
-                raise CanaryError(
-                    "API",
-                    "NVIDIA API key validation failed "
-                    f"with status {resp.status}.",
-                )
-    except urllib.error.HTTPError as exc:
-        raise CanaryError(
-            "API",
-            f"NVIDIA API key validation failed: "
-            f"HTTP {exc.code} — {exc.reason}. "
-            f"Check NVIDIA_INFERENCE_KEY.",
-        ) from exc
-    except urllib.error.URLError as exc:
-        raise CanaryError(
-            "API",
-            f"NVIDIA API endpoint unreachable: {exc}",
-        ) from exc
-    except TimeoutError:
-        raise CanaryError(
-            "API",
-            "NVIDIA API key validation timed out "
-            "after 15 s.",
-        )
-
-
 def check_claude_cli() -> None:
     """Verify that the Claude Code CLI is reachable.
 
@@ -290,70 +217,18 @@ def check_claude_cli() -> None:
         )
 
 
-def ensure_nvidia_proxy(port: int = 8200) -> None:
-    """Start the NVIDIA model-name proxy if not running.
-
-    The proxy rewrites Claude Code model names to NIM
-    model names so that both the CLI and the NVIDIA
-    endpoint are satisfied.  See ``nvidia_proxy.py``.
-    """
-    import socket
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        if s.connect_ex(("127.0.0.1", port)) == 0:
-            return  # Already running
-
-    proxy_script = (
-        Path(__file__).parent / "nvidia_proxy.py"
-    )
-    if not proxy_script.exists():
-        raise CanaryError(
-            "Proxy",
-            f"NVIDIA proxy script not found: "
-            f"{proxy_script}",
-        )
-
-    env = {**os.environ, "NVIDIA_PROXY_PORT": str(port)}
-    subprocess.Popen(  # noqa: S603
-        [sys.executable, str(proxy_script),
-         "--port", str(port)],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    # Wait for proxy to be ready
-    import time
-
-    for _ in range(20):
-        time.sleep(0.25)
-        with socket.socket(
-            socket.AF_INET, socket.SOCK_STREAM,
-        ) as s:
-            if s.connect_ex(("127.0.0.1", port)) == 0:
-                return
-    raise CanaryError(
-        "Proxy",
-        f"NVIDIA proxy failed to start on port {port}",
-    )
-
-
 def run_preflight_checks(model_name: str) -> None:
     """Run all canary preflight checks in order.
 
-    For local auth (claude_code_local): Claude CLI only.
-    For NVIDIA proxy: Docker -> API key -> NVIDIA key ->
-    NVIDIA proxy -> Claude CLI.
+    Checks: Claude CLI -> Docker -> API key.
     Stops on the first failure with a descriptive
     ``CanaryError``.
     """
     check_claude_cli()
     if "claude_code_local" in model_name or "local-" in model_name:
-        return  # Local auth: no Docker, API keys, or proxy needed
+        return  # Local auth: no Docker or API keys needed
     check_docker()
     check_api_key(model_name)
-    validate_nvidia_api_key()
-    ensure_nvidia_proxy()
 
 
 # ---------------------------------------------------------------------------
@@ -824,7 +699,7 @@ def run_slop_code(
             if _mdef is not None:
                 cli_model = f"{_mdef.provider}/{model}"
             else:
-                cli_model = f"nvidia/{model}"
+                cli_model = f"anthropic/{model}"
 
         # Determine environment: use local-py for claude_code_local
         # provider to avoid Docker + ANTHROPIC_BASE_URL latency bug
