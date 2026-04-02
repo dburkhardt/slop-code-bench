@@ -800,9 +800,7 @@ def run_pipeline(
     """
     # Ensure the NVIDIA model-name proxy is running
     # (required for Claude Code + NVIDIA NIM endpoint).
-    from two_agent_runner import (
-        ensure_nvidia_proxy,
-    )
+    from two_agent_runner import ensure_nvidia_proxy
 
     try:
         ensure_nvidia_proxy()
