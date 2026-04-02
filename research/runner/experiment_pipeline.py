@@ -529,6 +529,10 @@ def run_baseline(
     if src_path not in sys.path:
         sys.path.insert(0, src_path)
 
+    # Auto-detect local auth: use local-py environment (no Docker)
+    if "claude_code_local" in model:
+        environment = "local-py"
+
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     run_name = f"baseline_{model}_{problem}_{ts}"
     output_dir = OUTPUTS_DIR / run_name

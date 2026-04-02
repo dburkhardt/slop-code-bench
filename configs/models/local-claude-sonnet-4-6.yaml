@@ -1,0 +1,13 @@
+internal_name: claude-sonnet-4-6
+provider: claude_code_local
+pricing:
+  input: 3
+  output: 15
+  cache_read: 0.30
+  cache_write: 3.75
+aliases:
+  - local-sonnet-4.6
+  - local-sonnet
+
+agent_specific:
+  claude_code: {}
