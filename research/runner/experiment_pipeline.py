@@ -798,6 +798,21 @@ def run_pipeline(
     Both arms use the same model and budget for fair
     comparison.
     """
+    # Ensure the NVIDIA model-name proxy is running
+    # (required for Claude Code + NVIDIA NIM endpoint).
+    from two_agent_runner import (
+        ensure_nvidia_proxy,
+    )
+
+    try:
+        ensure_nvidia_proxy()
+        typer.echo("NVIDIA proxy: running on port 8200")
+    except Exception as exc:  # noqa: BLE001
+        typer.echo(
+            f"Warning: NVIDIA proxy not started: {exc}",
+            err=True,
+        )
+
     result = PipelineResult(
         problem=problem,
         model=model,

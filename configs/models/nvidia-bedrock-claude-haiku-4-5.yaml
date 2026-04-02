@@ -13,9 +13,12 @@ aliases:
   - nvidia/bedrock-claude-haiku-4.5
   - nvidia-haiku-4.5
 
+provider_slugs:
+  nvidia: claude-haiku-4-5
+
 agent_specific:
   claude_code:
-    base_url: https://inference-api.nvidia.com
+    base_url: http://172.17.0.1:8200
 
   mini_swe:
     model_name: openai/aws/anthropic/bedrock-claude-haiku-4-5

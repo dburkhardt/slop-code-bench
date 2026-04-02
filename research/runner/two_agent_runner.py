@@ -284,16 +284,66 @@ def check_claude_cli() -> None:
         )
 
 
+def ensure_nvidia_proxy(port: int = 8200) -> None:
+    """Start the NVIDIA model-name proxy if not running.
+
+    The proxy rewrites Claude Code model names to NIM
+    model names so that both the CLI and the NVIDIA
+    endpoint are satisfied.  See ``nvidia_proxy.py``.
+    """
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if s.connect_ex(("0.0.0.0", port)) == 0:
+            return  # Already running
+
+    proxy_script = (
+        Path(__file__).parent / "nvidia_proxy.py"
+    )
+    if not proxy_script.exists():
+        raise CanaryError(
+            "Proxy",
+            f"NVIDIA proxy script not found: "
+            f"{proxy_script}",
+        )
+
+    env = {**os.environ, "NVIDIA_PROXY_PORT": str(port)}
+    subprocess.Popen(  # noqa: S603
+        [sys.executable, str(proxy_script),
+         "--port", str(port)],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    # Wait for proxy to be ready
+    import time
+
+    for _ in range(20):
+        time.sleep(0.25)
+        with socket.socket(
+            socket.AF_INET, socket.SOCK_STREAM,
+        ) as s:
+            if s.connect_ex(("127.0.0.1", port)) == 0:
+                return
+    raise CanaryError(
+        "Proxy",
+        f"NVIDIA proxy failed to start on port {port}",
+    )
+
+
 def run_preflight_checks(model_name: str) -> None:
     """Run all canary preflight checks in order.
 
-    Checks: Docker -> API key -> NVIDIA key -> Claude CLI.
+    Checks: Docker -> API key -> NVIDIA key ->
+    NVIDIA proxy -> Claude CLI.
     Stops on the first failure with a descriptive
     ``CanaryError``.
     """
     check_docker()
     check_api_key(model_name)
     validate_nvidia_api_key()
+    ensure_nvidia_proxy()
     check_claude_cli()
 
 

@@ -9,9 +9,12 @@ aliases:
   - nvidia/bedrock-claude-opus-4.6
   - nvidia-opus-4.6
 
+provider_slugs:
+  nvidia: claude-opus-4-6
+
 agent_specific:
   claude_code:
-    base_url: https://inference-api.nvidia.com
+    base_url: http://172.17.0.1:8200
 
   mini_swe:
     model_name: openai/aws/anthropic/bedrock-claude-opus-4-6
