@@ -341,16 +341,19 @@ def ensure_nvidia_proxy(port: int = 8200) -> None:
 def run_preflight_checks(model_name: str) -> None:
     """Run all canary preflight checks in order.
 
-    Checks: Docker -> API key -> NVIDIA key ->
+    For local auth (claude_code_local): Claude CLI only.
+    For NVIDIA proxy: Docker -> API key -> NVIDIA key ->
     NVIDIA proxy -> Claude CLI.
     Stops on the first failure with a descriptive
     ``CanaryError``.
     """
+    check_claude_cli()
+    if "claude_code_local" in model_name or "local-" in model_name:
+        return  # Local auth: no Docker, API keys, or proxy needed
     check_docker()
     check_api_key(model_name)
     validate_nvidia_api_key()
     ensure_nvidia_proxy()
-    check_claude_cli()
 
 
 # ---------------------------------------------------------------------------
