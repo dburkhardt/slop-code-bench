@@ -1,11 +1,17 @@
 description = """
-SCBench experiment molecule. Runs a two-agent vs. single-agent \
-comparison on a single problem with a specific hypothesis and config. \
-Six phases: preflight, implement hypothesis, peer review, run \
-experiments, validate results, report."""
+SCBench experiment molecule. Runs a complete baseline vs two-agent \
+comparison on a single problem via experiment_pipeline.py.
+
+The pipeline handles EVERYTHING: baseline run, two-agent run, evaluation, \
+Dolt INSERT, and budget UPDATE. The polecat's job is to call it correctly \
+and verify the output.
+
+IMPORTANT: The pipeline is a SINGLE COMMAND. Do NOT try to run slop-code \
+or two_agent_runner.py individually — use experiment_pipeline.py which \
+orchestrates both arms end-to-end."""
 formula = "mol-scbench-experiment"
 type = "workflow"
-version = 1
+version = 2
 
 [vars]
 [vars.problem_id]
@@ -13,7 +19,7 @@ description = "SCBench problem ID to run"
 required = true
 
 [vars.model]
-description = "Model to use (e.g., claude-sonnet-4-6)"
+description = "Model to use (e.g., claude_code_local/local-claude-sonnet-4-6)"
 required = true
 
 [vars.hypothesis_id]
@@ -25,16 +31,8 @@ description = "Plain-text description of what this experiment tests"
 required = true
 
 [vars.total_budget_usd]
-description = "Maximum spend for this experiment in USD"
+description = "Maximum spend per arm in USD"
 required = true
-
-[vars.implementer_prompt]
-description = "Path to implementer Jinja prompt template"
-default = "configs/prompts/default_implementer.jinja"
-
-[vars.reviewer_prompt]
-description = "Path to reviewer Jinja prompt template"
-default = "configs/prompts/default_reviewer.jinja"
 
 [vars.budget_split]
 description = "Percentage of per-checkpoint budget for implementer (e.g., 70)"
@@ -42,219 +40,157 @@ default = "70"
 
 [[steps]]
 id = "preflight"
-title = "Run preflight canary"
+title = "Verify environment and connectivity"
 description = """
-Run a $0.50 canary (single checkpoint, trivial problem) to validate \
-Docker, API keys, and the pipeline.
+Verify the experiment can run before spending API credits.
 
 ```bash
-cd research/runner
-python two_agent_runner.py --canary --budget 0.50
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# 1. Verify Python venv exists and has dependencies
+.venv/bin/python -c "import slop_code; import pymysql; import typer; print('deps OK')"
+
+# 2. Verify Dolt is reachable
+.venv/bin/python -c "
+import pymysql
+c = pymysql.connect(host='127.0.0.1', port=3307, user='root', database='scbench')
+cur = c.cursor()
+cur.execute('SELECT remaining FROM budget WHERE id=1')
+print(f'Dolt OK, budget remaining: \${cur.fetchone()[0]}')
+c.close()
+"
+
+# 3. Verify claude auth (console auth)
+claude auth status 2>&1 | grep -q loggedIn || echo "WARNING: claude not authenticated"
+
+# 4. Verify the pipeline CLI loads
+.venv/bin/python research/runner/experiment_pipeline.py --help > /dev/null 2>&1 && echo "pipeline CLI OK"
 ```
 
-**Exit criteria:** Canary produces valid output directory with eval \
-results. If it fails, escalate:
-
+If ANY check fails, escalate:
 ```bash
-gt escalate --severity high --reason "Preflight canary failed" \
-  --related {{hypothesis_id}}
+gt escalate --severity high --reason "Preflight failed: <details>"
 ```
 
-Do NOT proceed to the next step if preflight fails."""
-acceptance = "Canary produces valid output directory with eval results and exit code 0"
+Do NOT proceed if preflight fails."""
+acceptance = "All 4 checks pass: deps, Dolt, auth, pipeline CLI"
 
 [[steps]]
-id = "implement-hypothesis"
-title = "Implement the hypothesis"
-needs = ["preflight"]
+id = "run-pipeline"
+title = "Run the full experiment pipeline"
 description = """
-Modify the two-agent runner, prompt templates, or config to implement \
-whatever the hypothesis ({{hypothesis_id}}) claims to test:
-
-> {{hypothesis_description}}
-
-Commit with a clear message referencing the hypothesis ID:
-
-```bash
-git commit -m "experiment: implement {{hypothesis_id}} — {{hypothesis_description}}"
-```
-
-**Exit criteria:** Working tree clean, commit references hypothesis ID."""
-acceptance = "Working tree clean, commit references hypothesis ID"
-
-[[steps]]
-id = "peer-review"
-title = "Peer review (manipulation check)"
-needs = ["implement-hypothesis"]
-description = """
-A second agent reads the hypothesis description and the implementation \
-diff, then answers:
-
-1. Does the code change match the hypothesis?
-2. Are there unintended confounds?
-3. Is the baseline still fair?
-4. Could this trivially fail for mechanical reasons?
-
-Record findings:
+Run experiment_pipeline.py — this single command does EVERYTHING:
+- Runs the single-agent baseline via slop-code
+- Runs the two-agent arm via two_agent_runner.py
+- Evaluates both with slop-code eval
+- Inserts results into Dolt experiments table
+- Updates the budget table
 
 ```bash
-bd update {{hypothesis_id}} --set-metadata manipulation_check=passed
-bd update {{hypothesis_id}} --notes "Manipulation check: [findings]"
-```
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
 
-If any check fails:
-
-```bash
-bd update {{hypothesis_id}} --set-metadata manipulation_check=failed
-bd update {{hypothesis_id}} --notes "BLOCKED: [reason]"
-gt escalate --severity medium --reason "Manipulation check failed for {{hypothesis_id}}"
-```
-
-**Exit criteria:** manipulation_check set to passed or failed. \
-If failed, stop and do not proceed."""
-acceptance = "manipulation_check set to passed or failed on hypothesis bead"
-
-[[steps]]
-id = "run-experiments"
-title = "Run baseline + two-agent experiments"
-needs = ["peer-review"]
-description = """
-Run both the single-agent baseline and the two-agent system:
-
-```bash
-# Baseline (single agent)
-slop-code run --problem {{problem_id}} --model {{model}} \
-  --budget {{total_budget_usd}}
-
-# Two-agent
-cd research/runner
-python two_agent_runner.py \
+.venv/bin/python research/runner/experiment_pipeline.py \
   --problem {{problem_id}} \
   --model {{model}} \
-  --implementer-prompt {{implementer_prompt}} \
-  --reviewer-prompt {{reviewer_prompt}} \
+  --budget {{total_budget_usd}} \
   --budget-split {{budget_split}} \
-  --budget {{total_budget_usd}}
+  --hypothesis-id {{hypothesis_id}} \
+  --use-dolt
 ```
 
-The runner script enforces a per-experiment cost cap. If cumulative API \
-cost exceeds {{total_budget_usd}}, the run aborts and logs partial \
-results. This is the harness-level budget enforcement layer.
+This will take 10-60 minutes depending on the problem.
 
-**Exit criteria:** Both runs complete (or abort with logged reason)."""
-acceptance = "Both baseline and two-agent runs complete with output directories"
+**If it fails:** Read the error output carefully. Common issues:
+- Docker not running → check `docker ps`
+- Dolt not reachable → check `gt dolt status`
+- Budget exhausted → pipeline will abort with message
+- API errors → check claude auth status
+
+**Do NOT try to run slop-code or two_agent_runner.py separately.**
+The pipeline orchestrates both arms and handles all edge cases."""
+acceptance = "Pipeline exits with code 0 and prints results summary"
 
 [[steps]]
-id = "validate-results"
-title = "Validate experiment outputs"
-needs = ["run-experiments"]
+id = "verify-dolt"
+title = "Verify results were written to Dolt"
 description = """
-Verify both runs produced valid output:
-
-- Output directories exist with expected structure
-- Eval results present for each checkpoint
-- No budget overruns beyond the cap
-- Cost accounting matches API logs
-
-Flag invalid experiments:
+Verify the pipeline actually wrote data to the experiments table.
 
 ```bash
-bd update {{hypothesis_id}} --set-metadata results_valid=true
-# or
-bd update {{hypothesis_id}} --set-metadata results_valid=false
-bd update {{hypothesis_id}} --notes "INVALID: [reason]"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+.venv/bin/python -c "
+import pymysql
+c = pymysql.connect(host='127.0.0.1', port=3307, user='root', database='scbench')
+cur = c.cursor()
+
+# Check for this experiment's rows
+cur.execute(
+    'SELECT problem_id, mode, total_pass_rate, total_cost '
+    'FROM experiments WHERE hypothesis_id = %s '
+    'ORDER BY mode',
+    ('{{hypothesis_id}}',)
+)
+rows = cur.fetchall()
+print(f'Found {len(rows)} rows for {{hypothesis_id}}:')
+for r in rows:
+    print(f'  {r[0]} {r[1]}: pass={r[2]}, cost=\${r[3]}')
+
+# HARD CHECK: must have at least 2 rows (baseline + two-agent)
+assert len(rows) >= 2, f'FAIL: expected >=2 rows, got {len(rows)}'
+
+# HARD CHECK: costs must be non-zero
+for r in rows:
+    assert r[3] is not None and float(r[3]) > 0, \
+        f'FAIL: cost is {r[3]} for {r[0]}/{r[1]}'
+
+print('ALL CHECKS PASSED')
+c.close()
+"
 ```
 
-**Exit criteria:** results_valid set to true or false."""
-acceptance = "results_valid set to true or false on hypothesis bead"
-
-[[steps]]
-id = "report"
-title = "Write results to Dolt ledger"
-needs = ["validate-results"]
-description = """
-Insert a row into the experiments Dolt table with all metrics. Update \
-the budget table with actual spend.
-
-```sql
-INSERT INTO experiments (
-  problem_id, model, mode, hypothesis_id,
-  implementer_prompt, reviewer_prompt, budget_split, budget_usd,
-  pass_rates, erosion_scores, verbosity_scores,
-  tokens_implementer, tokens_reviewer, cost_per_checkpoint,
-  total_pass_rate, total_cost, erosion_slope, verbosity_slope,
-  baseline_pass_rate, delta_pass_rate, delta_erosion,
-  manipulation_check, manipulation_notes, results_valid,
-  impl_diff_summary
-) VALUES (...);
-
-UPDATE budget SET spent = spent + [actual_cost] WHERE id = 1;
-```
-
-**Exit criteria:** Row inserted, budget table updated."""
-acceptance = "Experiment row in Dolt experiments table, budget table updated with spend"
+**If checks fail:** Do NOT proceed. The experiment data is incomplete.
+Re-run the pipeline or escalate."""
+acceptance = ">=2 rows in Dolt with non-NULL, non-zero costs for this hypothesis_id"
 
 [[steps]]
 id = "research-report"
 title = "Write research report and commit"
-needs = ["report"]
 description = """
-Write a structured research report summarizing the experiment results. \
-This is what the Review Board reads to evaluate the hypothesis.
+Write a structured report summarizing the experiment results.
 
-**1. Create report file:**
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+```
 
+**1. Create report:**
 ```bash
 mkdir -p research/experiments
-cat > research/experiments/{{hypothesis_id}}_report.md << 'REPORT'
-# Experiment Report: {{hypothesis_id}}
-
-## Hypothesis
-{{hypothesis_description}}
-
-## Setup
-- Problem(s): {{problem_id}}
-- Model: {{model}}
-- Budget split: {{budget_split}}/{{100 - budget_split}}
-- Budget cap: ${{total_budget_usd}}
-
-## Results
-
-| Problem | Mode | Pass Rate | Cost | Erosion | Verbosity |
-|---------|------|-----------|------|---------|-----------|
-| ... | single | ...% | $... | ... | ... |
-| ... | two-agent | ...% | $... | ... | ... |
-
-## Analysis
-<Interpret results relative to hypothesis. Was the claim supported?>
-
-## Delta vs Baseline
-<Compare to existing Dolt data for same problem with default config>
-
-## Cost Analysis
-<Was the two-agent arm cost-effective? Cost per percentage-point gain?>
-
-## Conclusion
-<SUPPORTED / REFUTED / INCONCLUSIVE — with reasoning>
-REPORT
 ```
 
-Fill in actual values from the experiment runs.
+Write to `research/experiments/{{hypothesis_id}}_report.md`:
+- Hypothesis description
+- Setup (problem, model, budget split)
+- Results table (pass rate, cost, erosion, verbosity for each arm)
+- Analysis (was the hypothesis supported?)
+- Cost analysis
+- Conclusion: SUPPORTED / REFUTED / INCONCLUSIVE
 
-**2. Commit everything:**
+**2. Persist findings to bead:**
+```bash
+bd update {{hypothesis_id}} --design "<paste full report>"
+bd update {{hypothesis_id}} --notes "Results: pass_rate_delta=X, cost=$Y. Conclusion: Z."
+```
 
+**3. Commit:**
 ```bash
 git add research/experiments/{{hypothesis_id}}_report.md
-git add -A  # Any other experiment artifacts
-git commit -m "experiment: {{hypothesis_id}} results — <1-line summary>"
+git commit -m "experiment: {{hypothesis_id}} — <1-line result summary>"
 ```
 
-**3. Persist findings to bead:**
-
-```bash
-bd update {{hypothesis_id}} --notes "Results: <pass_rate_delta>, cost: $<total>. Conclusion: SUPPORTED/REFUTED/INCONCLUSIVE."
-bd update {{hypothesis_id}} --design "<paste the full report>"
-```
-
-**Exit criteria:** Report committed, findings persisted to bead. Run gt done."""
-acceptance = "Research report committed to git, findings written to hypothesis bead design field"
+**Exit criteria:** Report committed, findings in bead. Run gt done."""
+acceptance = "Research report committed, findings written to bead design field"
