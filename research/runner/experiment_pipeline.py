@@ -982,42 +982,69 @@ def run_pipeline(
     result.two_agent_row = ta_row
 
     if dolt_conn is not None:
-        # Skip INSERT if metrics are empty (both arms failed)
-        if not baseline_row.pass_rates and not ta_row.pass_rates:
+        # Only insert rows for arms that produced real data
+        inserted = 0
+        total_cost = 0.0
+
+        if baseline_row.pass_rates:
+            try:
+                insert_experiment_row(dolt_conn, baseline_row)
+                total_cost += baseline_metrics.total_cost
+                inserted += 1
+            except Exception as exc:  # noqa: BLE001
+                result.errors.append(
+                    f"Dolt INSERT (baseline) failed: {exc}",
+                )
+        else:
             typer.echo(
-                "WARNING: Both arms produced empty metrics. "
-                "Skipping Dolt INSERT to avoid zero-cost rows.",
+                "Skipping baseline INSERT: no metrics.",
                 err=True,
             )
+
+        if ta_row.pass_rates:
+            try:
+                insert_experiment_row(dolt_conn, ta_row)
+                total_cost += ta_metrics.total_cost
+                inserted += 1
+            except Exception as exc:  # noqa: BLE001
+                result.errors.append(
+                    f"Dolt INSERT (two-agent) failed: {exc}",
+                )
+        else:
+            typer.echo(
+                "Skipping two-agent INSERT: no metrics.",
+                err=True,
+            )
+
+        if inserted == 0:
             result.errors.append(
-                "Both arms failed — no data to insert.",
+                "Both arms failed — no data inserted.",
             )
             return result
 
-        try:
-            insert_experiment_row(dolt_conn, baseline_row)
-            insert_experiment_row(dolt_conn, ta_row)
-            typer.echo(
-                "Inserted experiment rows into Dolt.",
-            )
-        except Exception as exc:  # noqa: BLE001
-            result.errors.append(
-                f"Dolt INSERT failed: {exc}",
-            )
+        typer.echo(
+            f"Inserted {inserted} experiment row(s).",
+        )
 
         # ── Step 7: Update budget ─────────────────────
-        total_cost = (
-            baseline_metrics.total_cost
-            + ta_metrics.total_cost
-        )
-        try:
-            update_budget_spent(dolt_conn, total_cost)
+        if total_cost > 0:
+            try:
+                update_budget_spent(dolt_conn, total_cost)
+                typer.echo(
+                    f"Budget updated: +${total_cost:.2f}",
+                )
+            except Exception as exc:  # noqa: BLE001
+                result.errors.append(
+                    f"Budget UPDATE failed: {exc}",
+                )
+        else:
             typer.echo(
-                f"Budget updated: +${total_cost:.2f}",
+                "WARNING: total_cost is $0.00 — budget "
+                "not updated. Check cost extraction.",
+                err=True,
             )
-        except Exception as exc:  # noqa: BLE001
             result.errors.append(
-                f"Budget UPDATE failed: {exc}",
+                "Zero cost recorded — budget not updated.",
             )
 
     # ── Summary ───────────────────────────────────────
@@ -1144,10 +1171,12 @@ def main(
             typer.echo("Connected to Dolt.")
         except Exception as exc:  # noqa: BLE001
             typer.echo(
-                f"Warning: Could not connect to Dolt: "
-                f"{exc}. Running without Dolt.",
+                f"Error: --use-dolt was set but Dolt is "
+                f"unreachable: {exc}. Refusing to run "
+                f"experiment without data storage.",
                 err=True,
             )
+            raise SystemExit(1) from exc
 
     try:
         result = run_pipeline(
