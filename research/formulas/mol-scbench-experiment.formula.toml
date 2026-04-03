@@ -48,6 +48,14 @@ Verify the experiment can run before spending API credits.
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
+# 0. Create venv if it doesn't exist (worktrees don't have it)
+if [ ! -d .venv ]; then
+  echo "Creating .venv (worktree doesn't have one)..."
+  uv venv .venv --python 3.12
+  uv pip install -e ".[dev]" --python .venv/bin/python
+  uv pip install pymysql typer --python .venv/bin/python
+fi
+
 # 1. Verify Python venv exists and has dependencies
 .venv/bin/python -c "import slop_code; import pymysql; import typer; print('deps OK')"
 
