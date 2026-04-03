@@ -290,7 +290,21 @@ def insert_experiment_row(
         cur.execute(sql, values)
         cur.execute("SELECT LAST_INSERT_ID()")
         result = cur.fetchone()
-    return int(result[0]) if result else 0
+        inserted_id = int(result[0]) if result else 0
+
+        # Validate cost data was written
+        if inserted_id and (row.total_cost is None or row.total_cost == 0):
+            logger.error(
+                "COST DATA MISSING for experiment %d "
+                "(%s/%s). Row inserted but total_cost "
+                "is %s. Budget will not be updated "
+                "correctly.",
+                inserted_id,
+                row.problem_id,
+                row.mode,
+                row.total_cost,
+            )
+    return inserted_id
 
 
 # -------------------------------------------------------------------
@@ -388,6 +402,11 @@ def parse_eval_results(
     if metrics.cost_per_checkpoint:
         metrics.total_cost = round(
             sum(metrics.cost_per_checkpoint), 6,
+        )
+    else:
+        logger.warning(
+            "cost_per_checkpoint is empty — total_cost will be 0. "
+            "Check that the agent runner is reporting cost data.",
         )
 
     return metrics
