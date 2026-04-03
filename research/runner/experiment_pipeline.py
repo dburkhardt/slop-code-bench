@@ -982,6 +982,18 @@ def run_pipeline(
     result.two_agent_row = ta_row
 
     if dolt_conn is not None:
+        # Skip INSERT if metrics are empty (both arms failed)
+        if not baseline_row.pass_rates and not ta_row.pass_rates:
+            typer.echo(
+                "WARNING: Both arms produced empty metrics. "
+                "Skipping Dolt INSERT to avoid zero-cost rows.",
+                err=True,
+            )
+            result.errors.append(
+                "Both arms failed — no data to insert.",
+            )
+            return result
+
         try:
             insert_experiment_row(dolt_conn, baseline_row)
             insert_experiment_row(dolt_conn, ta_row)
