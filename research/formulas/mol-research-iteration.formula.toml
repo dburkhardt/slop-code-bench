@@ -1,8 +1,10 @@
 description = """
 One iteration of the SCBench research loop. Runs orient → plan → \
-execute → analyze → chain-next as a polecat workflow. The last step \
-(chain-next) is a deterministic bash script that checks budget and \
-slings the next iteration automatically.
+red-team review → dispatch → analyze → chain-next as a polecat workflow.
+
+The red-team step dispatches an adversarial reviewer polecat that checks \
+experiment design before budget is committed. The chain-next step is a \
+deterministic bash script that checks budget and slings the next iteration.
 
 This formula is self-perpetuating: each iteration dispatches the next \
 one via chain-next-iteration.sh. The loop stops only when budget is \
@@ -14,7 +16,7 @@ You are the orchestrator, not the executor.
 """
 formula = "mol-research-iteration"
 type = "workflow"
-version = 1
+version = 2
 
 [[steps]]
 id = "orient"
@@ -61,16 +63,13 @@ Prioritize untested hypotheses and problems with gaps in coverage.
 """
 
 [[steps]]
-id = "plan-and-dispatch"
-title = "Create experiment beads and dispatch to polecats"
+id = "plan"
+title = "Plan experiment batch"
 needs = ["orient"]
 description = """
-Create experiment beads using gt formula pour, then sling ALL of them \
-in a SINGLE gt sling call.
+Create a proposed batch bead with 10-15 experiments.
 
-## Step 1: Pour experiment formulas (one per experiment)
-
-For each experiment, create a bead:
+Pour experiment formulas (one per experiment):
 ```bash
 gt formula pour mol-scbench-experiment \
   --var problem_id=<problem> \
@@ -81,9 +80,84 @@ gt formula pour mol-scbench-experiment \
   --var budget_split=60
 ```
 
-Create 10-15 experiments to keep all polecats saturated.
+Create a batch summary bead describing the rationale:
+```bash
+bd create "Proposed Batch N: <summary>" \
+  --label "batch" \
+  --parent sc-research-log \
+  --description "Rationale: <why these experiments>
+Experiments: <list of bead IDs and what they test>
+Expected outcomes: <what we expect to learn>
+Budget estimate: <N experiments * ~$5 = $X>"
+```
 
-## Step 2: Sling ALL beads in ONE call
+**Exit criteria**: Experiment beads created. Batch summary bead filed.
+Do NOT sling yet — Red Team reviews first.
+"""
+
+[[steps]]
+id = "red-team-review"
+title = "Red Team: Adversarial review of batch design"
+needs = ["plan"]
+description = """
+Dispatch a Red Team review polecat to challenge the batch design. \
+This is a BLOCKING gate — experiments do not dispatch until review passes.
+
+## Step 1: Create review bead and block the batch
+
+```bash
+bd create "Red Team Review: Batch N" \
+  --label "red-team-review" \
+  --description "Review the proposed batch. File numbered objections. \
+Consider: sample size sufficiency, confounding variables, budget waste, \
+missing controls, whether this replicates known findings unnecessarily. \
+Write objections as notes on this bead."
+
+# Block batch until review closes
+bd link <review-bead-id> <batch-bead-id> --type blocks
+
+# Dispatch to a polecat (review-only, no code changes)
+gt sling <review-bead-id> scbench --review-only \
+  -m "Red Team review. Read the batch bead <batch-bead-id>. \
+File objections as notes. Close the bead when done."
+```
+
+## Step 2: Wait for review (should take ~3-5 minutes)
+
+Check for completion:
+```bash
+gt mail inbox
+bd show <review-bead-id>
+```
+
+## Step 3: Address objections
+
+Read the review bead notes. For each objection:
+- **Accept**: Modify the batch (remove/replace experiments)
+- **Reject with justification**: Explain why the objection doesn't apply
+
+File your responses:
+```bash
+bd note <review-bead-id> "Responses: \
+1. <objection 1>: <accept/reject + reasoning> \
+2. <objection 2>: <accept/reject + reasoning>"
+```
+
+## Step 4: Close the gate
+
+```bash
+bd close <review-bead-id>
+```
+
+**Exit criteria**: Review bead closed. All objections addressed.
+"""
+
+[[steps]]
+id = "dispatch"
+title = "Dispatch experiments to polecats"
+needs = ["red-team-review"]
+description = """
+Sling ALL experiment beads in a SINGLE gt sling call.
 
 **CRITICAL**: One gt sling call = one convoy = auto-feed. \
 Do NOT sling beads one at a time.
@@ -92,8 +166,7 @@ Do NOT sling beads one at a time.
 gt sling <bead1> <bead2> <bead3> ... scbench
 ```
 
-## Step 3: Log dispatch
-
+Log the dispatch:
 ```bash
 bd note sc-research-log "Iteration N: Dispatched <N> experiments. \
 Beads: <ids>. Hypotheses: <list>."
@@ -105,7 +178,7 @@ Beads: <ids>. Hypotheses: <list>."
 [[steps]]
 id = "wait-and-analyze"
 title = "Wait for experiments then analyze results"
-needs = ["plan-and-dispatch"]
+needs = ["dispatch"]
 description = """
 Wait for the experiment convoy to complete, then analyze results.
 
