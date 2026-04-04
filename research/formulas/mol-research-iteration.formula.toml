@@ -1,0 +1,178 @@
+description = """
+One iteration of the SCBench research loop. Runs orient → plan → \
+execute → analyze → chain-next as a polecat workflow. The last step \
+(chain-next) is a deterministic bash script that checks budget and \
+slings the next iteration automatically.
+
+This formula is self-perpetuating: each iteration dispatches the next \
+one via chain-next-iteration.sh. The loop stops only when budget is \
+exhausted (deterministic check, not LLM decision).
+
+## DO NOT RUN EXPERIMENTS YOURSELF
+You dispatch experiments to OTHER polecats via gt formula pour + gt sling. \
+You are the orchestrator, not the executor.
+"""
+formula = "mol-research-iteration"
+type = "workflow"
+version = 1
+
+[[steps]]
+id = "orient"
+title = "Orient: Read state and plan experiments"
+description = """
+Reconstruct context and decide what experiments to run.
+
+1. Read prior findings:
+```bash
+cat ~/gt/scbench/PRIOR_FINDINGS.md
+```
+
+2. Read research log for recent results:
+```bash
+bd show sc-research-log
+```
+
+3. Check budget:
+```bash
+cd ~/gt/.dolt-data/scbench && dolt sql -q "SELECT remaining FROM budget WHERE id = 1;"
+```
+
+4. Check recent experiment results:
+```bash
+cd ~/gt/.dolt-data/scbench && dolt sql -q "
+  SELECT problem_id, mode, total_pass_rate, total_cost
+  FROM experiments WHERE results_valid = 1
+  ORDER BY id DESC LIMIT 20;
+"
+```
+
+5. Check recent conclusions:
+```bash
+bd list --label conclusion
+```
+
+6. Check open hypotheses:
+```bash
+bd list --parent sc-hypotheses --status open
+```
+
+Based on all of this, decide what experiments to run next. \
+Prioritize untested hypotheses and problems with gaps in coverage.
+"""
+
+[[steps]]
+id = "plan-and-dispatch"
+title = "Create experiment beads and dispatch to polecats"
+needs = ["orient"]
+description = """
+Create experiment beads using gt formula pour, then sling ALL of them \
+in a SINGLE gt sling call.
+
+## Step 1: Pour experiment formulas (one per experiment)
+
+For each experiment, create a bead:
+```bash
+gt formula pour mol-scbench-experiment \
+  --var problem_id=<problem> \
+  --var model=local-sonnet-4.6 \
+  --var hypothesis_id=<hyp-id> \
+  --var hypothesis_description="<description>" \
+  --var total_budget_usd=5 \
+  --var budget_split=60
+```
+
+Create 10-15 experiments to keep all polecats saturated.
+
+## Step 2: Sling ALL beads in ONE call
+
+**CRITICAL**: One gt sling call = one convoy = auto-feed. \
+Do NOT sling beads one at a time.
+
+```bash
+gt sling <bead1> <bead2> <bead3> ... scbench
+```
+
+## Step 3: Log dispatch
+
+```bash
+bd note sc-research-log "Iteration N: Dispatched <N> experiments. \
+Beads: <ids>. Hypotheses: <list>."
+```
+
+**Exit criteria**: All experiment beads slung. Convoy created.
+"""
+
+[[steps]]
+id = "wait-and-analyze"
+title = "Wait for experiments then analyze results"
+needs = ["plan-and-dispatch"]
+description = """
+Wait for the experiment convoy to complete, then analyze results.
+
+## Waiting
+
+You will be notified via mail when the convoy lands. Check:
+```bash
+gt mail inbox
+gt convoy list
+```
+
+If experiments are still running, check progress:
+```bash
+gt polecat list scbench
+```
+
+## Analysis (after experiments complete)
+
+Query Dolt for the batch results:
+```bash
+cd ~/gt/.dolt-data/scbench && dolt sql -q "
+  SELECT problem_id, mode, total_pass_rate, total_cost, budget_split
+  FROM experiments
+  WHERE results_valid = 1
+  ORDER BY id DESC LIMIT 20;
+"
+```
+
+Write a brief analysis as a conclusion bead:
+```bash
+bd create "Conclusion: <key finding>" \
+  --label "conclusion" \
+  --parent sc-research-log \
+  --description "<analysis with data>"
+```
+
+Update the research log:
+```bash
+bd note sc-research-log "Iteration N analysis: <summary of findings>"
+```
+
+**Exit criteria**: Conclusion bead filed. Research log updated.
+"""
+
+[[steps]]
+id = "chain-next"
+title = "Chain to next iteration (deterministic budget gate)"
+needs = ["wait-and-analyze"]
+description = """
+Run the deterministic chain script. This checks budget in Dolt and \
+either dispatches the next iteration or notifies the Mayor for shutdown.
+
+**YOU MUST RUN THIS SCRIPT. DO NOT SKIP IT.**
+
+```bash
+bash research/scripts/chain-next-iteration.sh
+```
+
+This script:
+- Queries Dolt for budget remaining
+- If remaining > $10: creates next iteration bead and slings it
+- If remaining <= $10: mails Mayor for shutdown
+
+After running the script, run gt done to exit:
+```bash
+gt done
+```
+
+**Exit criteria**: chain-next-iteration.sh ran successfully. gt done executed.
+"""
