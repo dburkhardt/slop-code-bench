@@ -2,11 +2,15 @@
 # chain-next-iteration.sh — Deterministic budget gate for research loop continuation
 #
 # Called as the LAST step of mol-research-iteration formula.
-# Checks budget remaining in Dolt. If sufficient, creates and slings the
-# next iteration bead. If exhausted, notifies Mayor for shutdown.
+# Checks budget remaining in Dolt. If sufficient, mails the Mayor to
+# dispatch the next iteration. If exhausted, mails Mayor for shutdown.
+#
+# NOTE: Polecats cannot sling (gastown design constraint). This script
+# mails the Mayor who CAN sling. The Mayor's CLAUDE.md tells it to
+# dispatch immediately on receiving CHAIN_NEXT mail.
 #
 # This is the ONLY mechanism that keeps experiments flowing.
-# It is deterministic — no LLM compliance required.
+# It is deterministic — no LLM compliance required for the budget check.
 
 set -euo pipefail
 
@@ -38,41 +42,27 @@ if [ "$REMAINING_INT" -le "$BUDGET_THRESHOLD" ]; then
     $GT mail send mayor/ \
         -s "SHUTDOWN: Budget exhausted" \
         -m "Budget remaining: \$$REMAINING (threshold: \$$BUDGET_THRESHOLD). Research loop stopping. Please run shutdown sequence."
-    # Log to research log
     $BD note sc-research-log "BUDGET GATE: Remaining \$$REMAINING <= \$$BUDGET_THRESHOLD. Research loop halted. Mayor notified for shutdown."
     exit 0
 fi
 
-# 3. Budget sufficient — create and sling next iteration
-echo "Budget sufficient. Creating next iteration bead."
+# 3. Budget sufficient — mail Mayor to dispatch next iteration
+echo "Budget sufficient. Mailing Mayor to dispatch next iteration."
 
 # Count existing iterations for numbering
 ITER_COUNT=$($BD list --parent sc-research-log 2>/dev/null | grep -c "Research Iteration" || echo "0")
 NEXT_ITER=$((ITER_COUNT + 1))
 
-BEAD_ID=$($BD create "Research Iteration $NEXT_ITER" \
-    --label "research-iteration" \
-    --parent sc-research-log \
-    --description "Autonomous research iteration. Read PRIOR_FINDINGS.md and research log. Run orient → plan → execute → analyze cycle. Budget: \$$REMAINING remaining." \
-    2>&1 | grep -oP 'sc-\S+' | head -1)
+$GT mail send mayor/ \
+    -s "CHAIN_NEXT: Dispatch iteration $NEXT_ITER" \
+    -m "Budget: \$$REMAINING remaining. Please dispatch next research iteration:
 
-if [ -z "$BEAD_ID" ]; then
-    echo "ERROR: Failed to create iteration bead."
-    $GT escalate -s HIGH "chain-next-iteration: failed to create bead"
-    exit 1
-fi
+bd create \"Research Iteration $NEXT_ITER\" --label research-iteration --parent sc-research-log --description \"Autonomous research iteration. Budget: \$$REMAINING remaining.\"
+gt sling <bead-id> scbench --formula mol-research-iteration -m \"Iteration $NEXT_ITER. Budget: \$$REMAINING.\"
 
-echo "Created bead: $BEAD_ID"
-echo "Slinging to $RIG..."
+This is automated — dispatch immediately, do not wait for confirmation."
 
-$GT sling "$BEAD_ID" "$RIG" \
-    --formula mol-research-iteration \
-    --no-convoy \
-    -m "Iteration $NEXT_ITER. Budget: \$$REMAINING. Continue research loop."
+$BD note sc-research-log "CHAIN: Iteration $NEXT_ITER requested. Budget: \$$REMAINING. Mayor mailed to dispatch."
 
-echo "Next iteration slung. Chain continues."
-
-# Log to research log
-$BD note sc-research-log "CHAIN: Iteration $NEXT_ITER dispatched (bead $BEAD_ID). Budget: \$$REMAINING remaining."
-
+echo "Mayor mailed. Chain continues when Mayor dispatches."
 exit 0

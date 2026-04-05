@@ -2,21 +2,23 @@ description = """
 One iteration of the SCBench research loop. Runs orient → plan → \
 red-team review → dispatch → analyze → chain-next as a polecat workflow.
 
-The red-team step dispatches an adversarial reviewer polecat that checks \
-experiment design before budget is committed. The chain-next step is a \
-deterministic bash script that checks budget and slings the next iteration.
+IMPORTANT: Polecats cannot sling. For dispatch steps (red-team, experiments), \
+mail the Mayor with exact commands. The Mayor dispatches immediately on \
+receiving DISPATCH_REQUEST mail.
 
-This formula is self-perpetuating: each iteration dispatches the next \
-one via chain-next-iteration.sh. The loop stops only when budget is \
-exhausted (deterministic check, not LLM decision).
+The chain-next step is a deterministic bash script that checks budget and \
+mails the Mayor to sling the next iteration.
+
+This formula is self-perpetuating via Mayor relay. The loop stops only when \
+budget is exhausted (deterministic check, not LLM decision).
 
 ## DO NOT RUN EXPERIMENTS YOURSELF
-You dispatch experiments to OTHER polecats via gt formula pour + gt sling. \
-You are the orchestrator, not the executor.
+You create experiment beads via gt formula pour, then ask the Mayor to sling \
+them. You are the orchestrator, the Mayor is the dispatcher.
 """
 formula = "mol-research-iteration"
 type = "workflow"
-version = 2
+version = 3
 
 [[steps]]
 id = "orient"
@@ -67,9 +69,9 @@ id = "plan"
 title = "Plan experiment batch"
 needs = ["orient"]
 description = """
-Create a proposed batch bead with 10-15 experiments.
+Create experiment beads (10-15) using gt formula pour.
 
-Pour experiment formulas (one per experiment):
+For each experiment:
 ```bash
 gt formula pour mol-scbench-experiment \
   --var problem_id=<problem> \
@@ -80,19 +82,18 @@ gt formula pour mol-scbench-experiment \
   --var budget_split=60
 ```
 
-Create a batch summary bead describing the rationale:
+Create a batch summary bead:
 ```bash
 bd create "Proposed Batch N: <summary>" \
-  --label "batch" \
-  --parent sc-research-log \
-  --description "Rationale: <why these experiments>
-Experiments: <list of bead IDs and what they test>
-Expected outcomes: <what we expect to learn>
-Budget estimate: <N experiments * ~$5 = $X>"
+  --label "batch" --parent sc-research-log \
+  --description "Rationale: <why>
+Experiments: <bead IDs and what they test>
+Budget estimate: ~$X"
 ```
 
+**Collect all experiment bead IDs** — you will need them for the dispatch step.
+
 **Exit criteria**: Experiment beads created. Batch summary bead filed.
-Do NOT sling yet — Red Team reviews first.
 """
 
 [[steps]]
@@ -100,52 +101,41 @@ id = "red-team-review"
 title = "Red Team: Adversarial review of batch design"
 needs = ["plan"]
 description = """
-Dispatch a Red Team review polecat to challenge the batch design. \
-This is a BLOCKING gate — experiments do not dispatch until review passes.
+Create a Red Team review bead and mail the Mayor to dispatch it.
 
-## Step 1: Create review bead and block the batch
+## Step 1: Create review bead
 
 ```bash
 bd create "Red Team Review: Batch N" \
   --label "red-team-review" \
-  --description "Review the proposed batch. File numbered objections. \
-Consider: sample size sufficiency, confounding variables, budget waste, \
-missing controls, whether this replicates known findings unnecessarily. \
-Write objections as notes on this bead."
-
-# Block batch until review closes
-bd link <review-bead-id> <batch-bead-id> --type blocks
-
-# Dispatch to a polecat (review-only, no code changes)
-gt sling <review-bead-id> scbench --review-only \
-  -m "Red Team review. Read the batch bead <batch-bead-id>. \
-File objections as notes. Close the bead when done."
+  --description "Review the proposed batch. File numbered objections."
 ```
 
-## Step 2: Wait for review (should take ~3-5 minutes)
+## Step 2: Mail Mayor to dispatch the review
 
-Check for completion:
+**Polecats cannot sling.** Mail the Mayor with exact commands:
+
+```bash
+gt mail send mayor/ \
+  -s "DISPATCH_REQUEST: Red Team review" \
+  -m "Please dispatch this review-only bead to a polecat:
+gt sling <review-bead-id> scbench --review-only
+Dispatch immediately, do not wait for confirmation."
+```
+
+## Step 3: Wait for review completion
+
+Check mail for the review polecat's response:
 ```bash
 gt mail inbox
 bd show <review-bead-id>
 ```
 
-## Step 3: Address objections
+## Step 4: Address objections and close the gate
 
-Read the review bead notes. For each objection:
-- **Accept**: Modify the batch (remove/replace experiments)
-- **Reject with justification**: Explain why the objection doesn't apply
-
-File your responses:
+Read objections. For each, accept or reject with justification:
 ```bash
-bd note <review-bead-id> "Responses: \
-1. <objection 1>: <accept/reject + reasoning> \
-2. <objection 2>: <accept/reject + reasoning>"
-```
-
-## Step 4: Close the gate
-
-```bash
+bd note <review-bead-id> "Responses: ..."
 bd close <review-bead-id>
 ```
 
@@ -154,25 +144,29 @@ bd close <review-bead-id>
 
 [[steps]]
 id = "dispatch"
-title = "Dispatch experiments to polecats"
+title = "Mail Mayor to dispatch experiments"
 needs = ["red-team-review"]
 description = """
-Sling ALL experiment beads in a SINGLE gt sling call.
+Mail the Mayor with ALL experiment bead IDs in a single dispatch request.
 
-**CRITICAL**: One gt sling call = one convoy = auto-feed. \
-Do NOT sling beads one at a time.
+**Polecats cannot sling.** The Mayor dispatches on your behalf.
 
 ```bash
+gt mail send mayor/ \
+  -s "DISPATCH_REQUEST: Batch N experiments" \
+  -m "Please sling these experiment beads in ONE call:
 gt sling <bead1> <bead2> <bead3> ... scbench
+CRITICAL: One gt sling call = one convoy = auto-feed.
+Dispatch immediately, do not wait for confirmation."
 ```
 
-Log the dispatch:
+Log the dispatch request:
 ```bash
-bd note sc-research-log "Iteration N: Dispatched <N> experiments. \
-Beads: <ids>. Hypotheses: <list>."
+bd note sc-research-log "Iteration N: Requested dispatch of <N> experiments. \
+Beads: <ids>. Mailed Mayor."
 ```
 
-**Exit criteria**: All experiment beads slung. Convoy created.
+**Exit criteria**: Mayor mailed with all bead IDs.
 """
 
 [[steps]]
@@ -180,18 +174,13 @@ id = "wait-and-analyze"
 title = "Wait for experiments then analyze results"
 needs = ["dispatch"]
 description = """
-Wait for the experiment convoy to complete, then analyze results.
+Wait for experiments to complete, then analyze results.
 
 ## Waiting
 
-You will be notified via mail when the convoy lands. Check:
+Check progress periodically:
 ```bash
 gt mail inbox
-gt convoy list
-```
-
-If experiments are still running, check progress:
-```bash
 gt polecat list scbench
 ```
 
@@ -207,17 +196,16 @@ cd ~/gt/.dolt-data/scbench && dolt sql -q "
 "
 ```
 
-Write a brief analysis as a conclusion bead:
+Write a conclusion bead:
 ```bash
 bd create "Conclusion: <key finding>" \
-  --label "conclusion" \
-  --parent sc-research-log \
+  --label "conclusion" --parent sc-research-log \
   --description "<analysis with data>"
 ```
 
 Update the research log:
 ```bash
-bd note sc-research-log "Iteration N analysis: <summary of findings>"
+bd note sc-research-log "Iteration N analysis: <summary>"
 ```
 
 **Exit criteria**: Conclusion bead filed. Research log updated.
@@ -228,8 +216,8 @@ id = "chain-next"
 title = "Chain to next iteration (deterministic budget gate)"
 needs = ["wait-and-analyze"]
 description = """
-Run the deterministic chain script. This checks budget in Dolt and \
-either dispatches the next iteration or notifies the Mayor for shutdown.
+Run the deterministic chain script. This checks budget and mails the \
+Mayor to dispatch the next iteration (or shutdown if budget exhausted).
 
 **YOU MUST RUN THIS SCRIPT. DO NOT SKIP IT.**
 
@@ -239,7 +227,7 @@ bash research/scripts/chain-next-iteration.sh
 
 This script:
 - Queries Dolt for budget remaining
-- If remaining > $10: creates next iteration bead and slings it
+- If remaining > $10: mails Mayor to create and sling next iteration
 - If remaining <= $10: mails Mayor for shutdown
 
 After running the script, run gt done to exit:
