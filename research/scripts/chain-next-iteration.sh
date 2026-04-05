@@ -64,5 +64,17 @@ This is automated — dispatch immediately, do not wait for confirmation."
 
 $BD note sc-research-log "CHAIN: Iteration $NEXT_ITER requested. Budget: \$$REMAINING. Mayor mailed to dispatch."
 
-echo "Mayor mailed. Chain continues when Mayor dispatches."
+# 4. Also request analysis of completed experiments from previous batch
+echo "Requesting analysis polecat for previous batch results."
+
+$GT mail send mayor/ \
+    -s "DISPATCH_REQUEST: Analyze recent experiments" \
+    -m "Please create and dispatch an analysis polecat:
+
+bd create \"Analyze experiments (post-iteration $((NEXT_ITER - 1)))\" --label research-analyze --parent sc-research-log --description \"Analyze recent experiment results. Query Dolt, find patterns, file conclusion bead.\"
+gt sling <bead-id> scbench --formula mol-research-analyze -m \"Analyze latest batch results\"
+
+Dispatch immediately."
+
+echo "Mayor mailed for both next iteration and analysis. Chain continues."
 exit 0

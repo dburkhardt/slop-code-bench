@@ -1,24 +1,20 @@
 description = """
-One iteration of the SCBench research loop. Runs orient → plan → \
-red-team review → dispatch → analyze → chain-next as a polecat workflow.
+FAST dispatch iteration: orient → plan → red-team → dispatch → chain-next. \
+Does NOT wait for experiments to complete. Chains immediately to the next \
+iteration so polecats always have queued work. Analysis happens separately \
+via mol-research-analyze (dispatched by chain-next-iteration.sh).
 
-IMPORTANT: Polecats cannot sling. For dispatch steps (red-team, experiments), \
-mail the Mayor with exact commands. The Mayor dispatches immediately on \
-receiving DISPATCH_REQUEST mail.
-
-The chain-next step is a deterministic bash script that checks budget and \
-mails the Mayor to sling the next iteration.
-
-This formula is self-perpetuating via Mayor relay. The loop stops only when \
-budget is exhausted (deterministic check, not LLM decision).
+IMPORTANT: Polecats cannot sling. Mail the Mayor with exact gt sling commands. \
+The Mayor dispatches immediately on receiving DISPATCH_REQUEST mail.
 
 ## DO NOT RUN EXPERIMENTS YOURSELF
-You create experiment beads via gt formula pour, then ask the Mayor to sling \
-them. You are the orchestrator, the Mayor is the dispatcher.
+## DO NOT WAIT FOR EXPERIMENTS TO COMPLETE
+You create experiment beads, dispatch them, and IMMEDIATELY chain to the next \
+iteration. Analysis of results is handled by a separate polecat.
 """
 formula = "mol-research-iteration"
 type = "workflow"
-version = 3
+version = 4
 
 [[steps]]
 id = "orient"
@@ -170,51 +166,9 @@ Beads: <ids>. Mailed Mayor."
 """
 
 [[steps]]
-id = "wait-and-analyze"
-title = "Wait for experiments then analyze results"
-needs = ["dispatch"]
-description = """
-Wait for experiments to complete, then analyze results.
-
-## Waiting
-
-Check progress periodically:
-```bash
-gt mail inbox
-gt polecat list scbench
-```
-
-## Analysis (after experiments complete)
-
-Query Dolt for the batch results:
-```bash
-cd ~/gt/.dolt-data/scbench && dolt sql -q "
-  SELECT problem_id, mode, total_pass_rate, total_cost, budget_split
-  FROM experiments
-  WHERE results_valid = 1
-  ORDER BY id DESC LIMIT 20;
-"
-```
-
-Write a conclusion bead:
-```bash
-bd create "Conclusion: <key finding>" \
-  --label "conclusion" --parent sc-research-log \
-  --description "<analysis with data>"
-```
-
-Update the research log:
-```bash
-bd note sc-research-log "Iteration N analysis: <summary>"
-```
-
-**Exit criteria**: Conclusion bead filed. Research log updated.
-"""
-
-[[steps]]
 id = "chain-next"
 title = "Chain to next iteration (deterministic budget gate)"
-needs = ["wait-and-analyze"]
+needs = ["dispatch"]
 description = """
 Run the deterministic chain script. This checks budget and mails the \
 Mayor to dispatch the next iteration (or shutdown if budget exhausted).

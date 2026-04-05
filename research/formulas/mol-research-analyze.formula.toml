@@ -1,0 +1,69 @@
+description = """
+One-shot analysis of recent experiment results. Query Dolt, compute \
+patterns, file a conclusion bead. No dispatch, no chaining — just analysis.
+
+Dispatched by chain-next-iteration.sh after each dispatch iteration completes. \
+Runs in parallel with the next dispatch iteration's experiments.
+"""
+formula = "mol-research-analyze"
+type = "workflow"
+version = 1
+
+[[steps]]
+id = "analyze"
+title = "Analyze recent experiments and file conclusion"
+description = """
+Query Dolt for recent experiment results and file a conclusion bead.
+
+## Step 1: Get recent results
+
+```bash
+cd ~/gt/.dolt-data/scbench && dolt sql -q "
+  SELECT problem_id, mode, total_pass_rate, total_cost, budget_split,
+         hypothesis_id, created_at
+  FROM experiments
+  WHERE results_valid = 1
+  ORDER BY id DESC LIMIT 30;
+"
+```
+
+## Step 2: Read recent conclusions for context
+
+```bash
+bd list --label conclusion | head -5
+```
+
+Read the most recent conclusion to avoid repeating findings.
+
+## Step 3: Analyze patterns
+
+Look for:
+- Pass rate deltas between single and two-agent modes per problem
+- Which problems benefit from two-agent vs which are harmed
+- Anti-slop prompt effects on verbosity
+- Cost efficiency (cost per percentage point improvement)
+- Any new findings not covered by existing conclusions
+
+## Step 4: File conclusion bead
+
+```bash
+bd create "Conclusion: <key finding>" \
+  --label "conclusion" \
+  --parent sc-research-log \
+  --description "<analysis with specific data, sample sizes, and references to experiment IDs>"
+```
+
+## Step 5: Update research log
+
+```bash
+bd note sc-research-log "Analysis: <summary of findings from latest batch>"
+```
+
+## Step 6: Run gt done
+
+```bash
+gt done
+```
+
+**Exit criteria**: Conclusion bead filed. Research log updated. gt done executed.
+"""
