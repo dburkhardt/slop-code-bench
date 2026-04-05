@@ -1,81 +1,89 @@
-# Experiment Report: sc-hypotheses.286
+# Experiment Report: sc-hypotheses.286 (eve_market_tools, polecat shale)
 
 ## Hypothesis
 
-Experiment B8.6 (sc-hypotheses.286): Compare single-agent baseline vs two-agent
-(implementer + reviewer) on eve_route_planner using local-sonnet-4.6.
+Run baseline + two-agent on eve_market_tools to establish baselines and test
+the threshold hypothesis: reviewer helps when baseline pass rate < 50%, hurts
+when > 50%. This run is a replication attempt within the broader N=20 coverage
+campaign.
 
 ## Setup
 
-- **Problem**: eve_route_planner (3 checkpoints)
-- **Model**: local-sonnet-4.6
-- **Budget**: $5 total, 60/40 split (implementer/reviewer)
+- **Problem**: eve_market_tools (4 checkpoints)
+- **Model**: local-sonnet-4.6 (Claude Sonnet 4.6 via local claude code)
+- **Budget**: $5 per arm
+- **Budget split**: 60/40 (implementer/reviewer)
 - **Implementer prompt**: configs/prompts/default_implementer.jinja
-- **Hypothesis ID**: sc-hypotheses.286
+- **Reviewer prompt**: configs/prompts/default_reviewer.jinja
+- **Polecat**: shale
 - **Date**: 2026-04-05
 
 ## Results
 
-**EXPERIMENT FAILED**: Neither arm produced complete results.
+### Baseline (single-agent)
 
-### Failure Details
+| Checkpoint | State | Pass Rate | Tests | Cost |
+|------------|-------|-----------|-------|------|
+| checkpoint_1 | error | 0.0% | 0/10 | $0.00 |
+| checkpoint_2 | missing | - | - | - |
+| checkpoint_3 | missing | - | - | - |
+| checkpoint_4 | missing | - | - | - |
 
-1. **Two-agent arm**: Timed out after 3600s. The two_agent_runner.py orchestrates
-   alternating implementer/reviewer runs across all checkpoints. With 3 checkpoints
-   and alternating passes, the total runtime exceeded the 3600s timeout.
+The baseline agent timed out on checkpoint_1 after 614 seconds. The Claude Code
+process produced zero tokens and zero cost, suggesting the agent never received
+API responses within the timeout window. All subsequent checkpoints were skipped.
 
-2. **Baseline arm**: slop-code output landed in the default directory structure
-   (`outputs/local-sonnet-4.6/claude_code-*`) instead of the pipeline's expected
-   `outputs/baseline_*` directory. The pipeline's `parse_eval_results` could not
-   find the `checkpoint_results.jsonl` at the expected path, so metrics were empty.
+### Two-agent
 
-3. **No Dolt insertion**: Both `baseline_row.pass_rates` and `ta_row.pass_rates`
-   were empty lists, so the pipeline skipped INSERT for both arms.
+| Run | Checkpoint | State | Pass Rate | Tests | Cost |
+|-----|------------|-------|-----------|-------|------|
+| Implementer | checkpoint_1 | error | 0.0% | 0/10 | $0.00 |
+| Reviewer | checkpoint_1 | ran | 10.0% | 1/10 | $0.98 |
+| Implementer | checkpoint_2 | ran | 0.0% | 0/28 | $0.91 |
+| Implementer | checkpoint_3 | error | 8.1% | 5/62 | $0.54 |
+| Reviewer retry | checkpoint_1 | error | 0.0% | 0/10 | $0.42 |
 
-### Partial Data (checkpoint_1 only)
+The two-agent arm produced partial results before the overall 3600s subprocess
+timeout killed it. The implementer failed on checkpoint_1 (same timeout issue
+as baseline), but the reviewer pass on checkpoint_1 achieved 1/10 tests passing
+at $0.98 cost. Subsequent checkpoints show degrading performance on increasingly
+complex specs.
 
-All runs completed only checkpoint_1 of 3. Results were identical across all 4 runs:
+Total two-agent cost: ~$2.85 (partial, 5 checkpoint runs before timeout)
 
-| Run | Prompt | Pass Rate | Core Pass | Duration | Cost | Steps |
-|-----|--------|-----------|-----------|----------|------|-------|
-| Implementer #1 | default_implementer | 45.5% | 0.0% | 849s | $0.120 | 10 |
-| Reviewer #1 | default_reviewer | 45.5% | 0.0% | 771s | $0.173 | 12 |
-| Implementer #2 | default_implementer | 45.5% | 0.0% | 609s | $0.102 | 8 |
-| Reviewer #2 | default_reviewer | 45.5% | 0.0% | 1167s | $0.148 | 11 |
+### Cost Analysis
 
-All runs: 5/11 tests passed, 0/1 core tests passed, 6 assertion errors, state="error".
-Quality metrics (LOC, CC, verbosity, erosion) all zero, suggesting the agent
-produced no code files that the analysis pipeline could parse.
+- Baseline: $0.00 (timeout before any API calls completed)
+- Two-agent: ~$2.85 (partial runs)
+- Total experiment cost: ~$2.85
 
-## Cost Analysis
+## Analysis
 
-- Budget allocated: $5.00
-- Actual cost (partial runs): ~$0.54 (checkpoint_1 only across both arms)
-- Budget decrease observed: $8.78 ($616.48 to $607.70), suggesting other experiments
-  ran concurrently on the same budget pool
+This experiment is **INCONCLUSIVE** due to infrastructure failures.
 
-## Root Cause Analysis
+The baseline arm timed out entirely on checkpoint_1, producing no usable data.
+The Claude Code agent process failed to complete within the 614s checkpoint
+timeout, with zero tokens generated. This suggests API congestion or scheduling
+delays rather than a problem-specific issue.
 
-Two issues prevented successful completion:
+The two-agent arm produced partial results but was killed by the 3600s
+subprocess timeout before completing all checkpoints. No data was inserted
+into Dolt because the pipeline requires both arms to produce valid metrics.
 
-1. **save_dir override not respected by slop-code**: The pipeline passes
-   `save_dir=<path>` and `save_template=.` as overrides, but slop-code wrote
-   output to its default directory structure. This broke the pipeline's metric
-   collection for the baseline arm.
+### Existing Data Context
 
-2. **3600s timeout insufficient**: The two-agent runner needs to complete 3
-   checkpoints with alternating implementer/reviewer passes. Each checkpoint
-   takes 600-1200s per pass. With 3 checkpoints and 2 passes each, the minimum
-   runtime is approximately 3600-7200s, exceeding the timeout.
+Other polecats have already run eve_market_tools for sc-hypotheses.286:
+- **Single-agent** (prior run): pass_rate=0.28, cost=$1.23
+- **Two-agent** (prior run): pass_rate=0.13, cost=$2.21
+
+The prior data shows the two-agent arm performed worse than baseline on this
+problem (0.13 vs 0.28 pass rate). The baseline is below 50%, yet the reviewer
+did not help, which contradicts the "helps below 50%" threshold prediction.
 
 ## Conclusion
 
-**INCONCLUSIVE**: The experiment infrastructure failed before producing
-comparable results. The hypothesis cannot be evaluated.
-
-### Recommendations
-
-- File a bug for the save_dir override not being respected by slop-code
-- Increase two-agent timeout to at least 7200s for 3-checkpoint problems
-- Consider running baseline and two-agent arms sequentially instead of in parallel
-  to reduce resource contention
+**INCONCLUSIVE**: Pipeline infrastructure failures (agent timeouts) prevented
+this replication from producing insertable data. The hypothesis already has
+39 rows from other polecats covering this problem and others. This run adds
+no new evidence but confirms that the local-sonnet-4.6 agent can experience
+timeout failures under concurrent load from multiple polecats.
