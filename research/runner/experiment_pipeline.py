@@ -699,6 +699,9 @@ def _find_latest_run_dir(
     When *prefix* is given, only directories whose name
     starts with *prefix* are considered.  When *prefix*
     is ``None``, all directories are scanned.
+
+    Searches up to two levels deep to handle output
+    layouts like ``outputs/model/run_id/problem/``.
     """
     if not OUTPUTS_DIR.exists():
         return None
@@ -710,9 +713,20 @@ def _find_latest_run_dir(
             prefix,
         ):
             continue
+        # Check direct child: outputs/<dir>/<problem>
         prob_dir = d / problem
         if prob_dir.is_dir():
             candidates.append((d.stat().st_mtime, d))
+            continue
+        # Check one level deeper: outputs/<dir>/<sub>/<problem>
+        for sub in d.iterdir():
+            if not sub.is_dir():
+                continue
+            prob_dir = sub / problem
+            if prob_dir.is_dir():
+                candidates.append(
+                    (sub.stat().st_mtime, sub),
+                )
     if not candidates:
         return None
     candidates.sort(reverse=True)
