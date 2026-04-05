@@ -832,6 +832,7 @@ def run_pipeline(
 
     # ── Step 1: Budget check ──────────────────────────
     if dolt_conn is not None:
+        budget_needed = budget if single_only else budget * 2
         try:
             budget_needed = budget if single_only else budget * 2
             sufficient, remaining = check_budget(
@@ -1168,6 +1169,14 @@ def main(
         DOLT_PORT,
         "--dolt-port",
         help="Dolt server port.",
+    ),
+    single_only: bool = typer.Option(  # noqa: FBT001
+        False,  # noqa: FBT003
+        "--single-only/--both-arms",
+        help=(
+            "Run only the single-agent baseline arm, "
+            "skipping the two-agent arm."
+        ),
     ),
 ) -> None:
     """Run baseline vs. two-agent experiment pipeline."""
