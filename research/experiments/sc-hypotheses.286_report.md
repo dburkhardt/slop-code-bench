@@ -2,84 +2,80 @@
 
 ## Hypothesis
 
-Two-agent (implementer + reviewer) workflow on `migrate_configs` with Sonnet 4.6
-produces higher pass rates and lower erosion than the single-agent baseline.
+Experiment B8.6 (sc-hypotheses.286): Compare single-agent baseline vs two-agent
+(implementer + reviewer) on eve_route_planner using local-sonnet-4.6.
 
 ## Setup
 
-- **Problem**: migrate_configs (5 checkpoints)
-- **Model**: local-sonnet-4.6 (Claude Sonnet 4.6 via local proxy)
-- **Budget**: $5.00 per arm
-- **Budget split**: 60/40 (implementer/reviewer)
+- **Problem**: eve_route_planner (3 checkpoints)
+- **Model**: local-sonnet-4.6
+- **Budget**: $5 total, 60/40 split (implementer/reviewer)
 - **Implementer prompt**: configs/prompts/default_implementer.jinja
-- **Reviewer prompt**: configs/prompts/default_reviewer.jinja
+- **Hypothesis ID**: sc-hypotheses.286
+- **Date**: 2026-04-05
 
 ## Results
 
-### Baseline (single-agent)
+**EXPERIMENT FAILED**: Neither arm produced complete results.
 
-| Checkpoint | Pass Rate | Erosion | Verbosity | Cost |
-|------------|-----------|---------|-----------|------|
-| 1          | 0.957     | 0.246   | 0.000     | $0.59 |
-| 2          | 0.941     | 0.428   | 0.014     | $0.31 |
-| 3 (error)  | 0.617     | 0.428   | 0.014     | $0.17 |
+### Failure Details
 
-- **Aggregate pass rate**: 0.8383
-- **Total cost**: $1.08
-- **Notes**: Checkpoint 3 errored (Claude Code process timed out). Code was unchanged
-  from checkpoint 2, so evaluation ran against stale code. Checkpoints 4-5 were skipped.
+1. **Two-agent arm**: Timed out after 3600s. The two_agent_runner.py orchestrates
+   alternating implementer/reviewer runs across all checkpoints. With 3 checkpoints
+   and alternating passes, the total runtime exceeded the 3600s timeout.
 
-### Two-agent
+2. **Baseline arm**: slop-code output landed in the default directory structure
+   (`outputs/local-sonnet-4.6/claude_code-*`) instead of the pipeline's expected
+   `outputs/baseline_*` directory. The pipeline's `parse_eval_results` could not
+   find the `checkpoint_results.jsonl` at the expected path, so metrics were empty.
 
-| Checkpoint | Pass Rate | Erosion | Verbosity | Cost |
-|------------|-----------|---------|-----------|------|
-| 1          | 0.725     | 0.379   | 0.027     | $2.62 |
+3. **No Dolt insertion**: Both `baseline_row.pass_rates` and `ta_row.pass_rates`
+   were empty lists, so the pipeline skipped INSERT for both arms.
 
-- **Aggregate pass rate**: 0.7255
-- **Total cost**: $2.62
-- **Notes**: Run timed out after 3600s during checkpoint 2. Only 1 of 5 checkpoints
-  completed. The two-agent workflow spent $2.62 on a single checkpoint vs $0.59 for
-  the baseline on the same checkpoint, a 4.4x cost multiplier.
+### Partial Data (checkpoint_1 only)
 
-### Comparison
+All runs completed only checkpoint_1 of 3. Results were identical across all 4 runs:
 
-| Metric | Baseline | Two-Agent | Delta |
-|--------|----------|-----------|-------|
-| Pass rate (overall) | 0.8383 | 0.7255 | -0.1128 |
-| Pass rate (cp1 only) | 0.957 | 0.725 | -0.232 |
-| Erosion (cp1) | 0.246 | 0.379 | +0.133 |
-| Verbosity (cp1) | 0.000 | 0.027 | +0.027 |
-| Cost (cp1) | $0.59 | $2.62 | +$2.03 |
-| Checkpoints completed | 3/5 | 1/5 | -2 |
+| Run | Prompt | Pass Rate | Core Pass | Duration | Cost | Steps |
+|-----|--------|-----------|-----------|----------|------|-------|
+| Implementer #1 | default_implementer | 45.5% | 0.0% | 849s | $0.120 | 10 |
+| Reviewer #1 | default_reviewer | 45.5% | 0.0% | 771s | $0.173 | 12 |
+| Implementer #2 | default_implementer | 45.5% | 0.0% | 609s | $0.102 | 8 |
+| Reviewer #2 | default_reviewer | 45.5% | 0.0% | 1167s | $0.148 | 11 |
 
-## Analysis
-
-The two-agent arm underperformed the baseline on every metric for checkpoint 1:
-lower pass rate (0.725 vs 0.957), higher erosion (0.379 vs 0.246), higher verbosity
-(0.027 vs 0.000), and 4.4x higher cost. The reviewer feedback loop did not improve
-the solution quality.
-
-The two-agent arm also completed fewer checkpoints (1 vs 3) before timing out.
-The implementer-reviewer round-trips consume substantially more tokens and wall-clock
-time, leaving less capacity for later checkpoints.
-
-This result is consistent with earlier migrate_configs runs in sc-hypotheses.286 where
-the two-agent arm achieved 0.95 pass rate at $1.51, suggesting high variance in the
-two-agent workflow. The baseline is more consistent (0.84 in this run vs 0.83 in the
-earlier run).
+All runs: 5/11 tests passed, 0/1 core tests passed, 6 assertion errors, state="error".
+Quality metrics (LOC, CC, verbosity, erosion) all zero, suggesting the agent
+produced no code files that the analysis pipeline could parse.
 
 ## Cost Analysis
 
-- Baseline: $1.08 total ($0.36/checkpoint average)
-- Two-agent: $2.62 total ($2.62/checkpoint, only 1 completed)
-- Combined spend: $3.69
-- Budget remaining after this experiment: $607.70
+- Budget allocated: $5.00
+- Actual cost (partial runs): ~$0.54 (checkpoint_1 only across both arms)
+- Budget decrease observed: $8.78 ($616.48 to $607.70), suggesting other experiments
+  ran concurrently on the same budget pool
 
-## Conclusion: INCONCLUSIVE
+## Root Cause Analysis
 
-The two-agent arm's timeout and single-checkpoint completion make direct comparison
-unreliable. On the one checkpoint that did complete, the single-agent baseline was
-substantially better on all metrics. However, the high variance across runs (compare
-with the earlier migrate_configs two-agent result of 0.95 pass rate) means a single
-comparison is insufficient to draw conclusions. The hypothesis is neither supported
-nor refuted by this data point alone.
+Two issues prevented successful completion:
+
+1. **save_dir override not respected by slop-code**: The pipeline passes
+   `save_dir=<path>` and `save_template=.` as overrides, but slop-code wrote
+   output to its default directory structure. This broke the pipeline's metric
+   collection for the baseline arm.
+
+2. **3600s timeout insufficient**: The two-agent runner needs to complete 3
+   checkpoints with alternating implementer/reviewer passes. Each checkpoint
+   takes 600-1200s per pass. With 3 checkpoints and 2 passes each, the minimum
+   runtime is approximately 3600-7200s, exceeding the timeout.
+
+## Conclusion
+
+**INCONCLUSIVE**: The experiment infrastructure failed before producing
+comparable results. The hypothesis cannot be evaluated.
+
+### Recommendations
+
+- File a bug for the save_dir override not being respected by slop-code
+- Increase two-agent timeout to at least 7200s for 3-checkpoint problems
+- Consider running baseline and two-agent arms sequentially instead of in parallel
+  to reduce resource contention

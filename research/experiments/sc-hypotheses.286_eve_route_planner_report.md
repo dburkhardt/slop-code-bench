@@ -1,81 +1,81 @@
-# Experiment Report: H-coverage eve_route_planner (sc-hypotheses.286.3)
+# Experiment Report: sc-hypotheses.286 (eve_route_planner)
 
-## Overview
+## Hypothesis
 
-| Field | Value |
-|-------|-------|
-| Problem | eve_route_planner |
-| Model | claude_code_local/local-claude-sonnet-4-6 |
-| Budget | $5/arm |
-| Budget Split | 60/40 (implementer/reviewer) |
-| Hypothesis | sc-hypotheses.286 (baseline coverage across 20 problems) |
-| Date | 2026-04-04 |
+Experiment B8.6 (sc-hypotheses.286): Compare single-agent baseline vs two-agent
+(implementer + reviewer) on eve_route_planner using local-sonnet-4.6.
 
-## Baseline (Single-Agent)
+## Setup
 
-The single-agent baseline timed out on checkpoint 1 after ~620 seconds and 7 steps. No further checkpoints were attempted.
+- **Problem**: eve_route_planner (3 checkpoints)
+- **Model**: local-sonnet-4.6
+- **Budget**: $5 total, 60/40 split (implementer/reviewer)
+- **Implementer prompt**: configs/prompts/default_implementer.jinja
+- **Hypothesis ID**: sc-hypotheses.286
+- **Date**: 2026-04-05
 
-| Checkpoint | Pass Rate | State | Cost | Steps |
-|------------|-----------|-------|------|-------|
-| 1 | 45.45% (5/11) | error | $0.22 | 7 |
-| 2 | -- | skipped | -- | -- |
-| 3 | -- | skipped | -- | -- |
+## Results
 
-**Totals:** Mean pass rate = 45.45%, Total cost = $0.22
+**EXPERIMENT FAILED**: Neither arm produced complete results.
 
-**Quality metrics:** Erosion and verbosity both 0.0 (insufficient code produced for meaningful measurement). The agent's code passed 5 of 10 functionality tests and 0 of 1 core tests.
+### Failure Details
 
-### Observations
+1. **Two-agent arm**: Timed out after 3600s. The two_agent_runner.py orchestrates
+   alternating implementer/reviewer runs across all checkpoints. With 3 checkpoints
+   and alternating passes, the total runtime exceeded the 3600s timeout.
 
-The agent spent most of its 620s wall-clock time waiting for responses, completing only 7 steps before timing out. The $0.22 cost is far below the $5 budget, indicating the timeout was a wall-clock constraint, not a budget constraint. The 0/1 core test failure suggests the fundamental implementation was incomplete.
+2. **Baseline arm**: slop-code output landed in the default directory structure
+   (`outputs/local-sonnet-4.6/claude_code-*`) instead of the pipeline's expected
+   `outputs/baseline_*` directory. The pipeline's `parse_eval_results` could not
+   find the `checkpoint_results.jsonl` at the expected path, so metrics were empty.
 
-## Two-Agent (60/40 Split)
+3. **No Dolt insertion**: Both `baseline_row.pass_rates` and `ta_row.pass_rates`
+   were empty lists, so the pipeline skipped INSERT for both arms.
 
-The two-agent arm completed 2 of 3 checkpoint orchestration loops before the pipeline-level 3600s timeout terminated the run.
+### Partial Data (checkpoint_1 only)
 
-### Per-Checkpoint Results
+All runs completed only checkpoint_1 of 3. Results were identical across all 4 runs:
 
-| Checkpoint | Phase | Pass Rate | Cost | Tokens |
-|------------|-------|-----------|------|--------|
-| 1 | Implementer | 45.45% (5/11) | $0.21 | 339,034 |
-| 1 | Reviewer | 45.45% (5/11) | $0.13 | 109,993 |
-| 2 | Implementer | 45.45% (5/11) | $0.20 | 329,905 |
-| 2 | Reviewer | 45.45% (5/11) | $0.18 | 329,084 |
+| Run | Prompt | Pass Rate | Core Pass | Duration | Cost | Steps |
+|-----|--------|-----------|-----------|----------|------|-------|
+| Implementer #1 | default_implementer | 45.5% | 0.0% | 849s | $0.120 | 10 |
+| Reviewer #1 | default_reviewer | 45.5% | 0.0% | 771s | $0.173 | 12 |
+| Implementer #2 | default_implementer | 45.5% | 0.0% | 609s | $0.102 | 8 |
+| Reviewer #2 | default_reviewer | 45.5% | 0.0% | 1167s | $0.148 | 11 |
 
-**Totals:** Cumulative cost = $0.71, Mean pass rate = 45.45%
+All runs: 5/11 tests passed, 0/1 core tests passed, 6 assertion errors, state="error".
+Quality metrics (LOC, CC, verbosity, erosion) all zero, suggesting the agent
+produced no code files that the analysis pipeline could parse.
 
-### Observations
+## Cost Analysis
 
-Pass rates were identical across all four phases (implementer and reviewer, checkpoints 1 and 2). The reviewer failed to improve on the implementer's output in either checkpoint. Erosion and verbosity remained at 0.0 throughout, consistent with the agent producing minimal or no code changes.
+- Budget allocated: $5.00
+- Actual cost (partial runs): ~$0.54 (checkpoint_1 only across both arms)
+- Budget decrease observed: $8.78 ($616.48 to $607.70), suggesting other experiments
+  ran concurrently on the same budget pool
 
-The 0/1 core test failure persisted across all phases, suggesting the fundamental architectural approach was incorrect and neither agent role could correct it within the time budget.
+## Root Cause Analysis
 
-## Comparison
+Two issues prevented successful completion:
 
-| Metric | Baseline | Two-Agent |
-|--------|----------|-----------|
-| Checkpoints completed | 1 (error) | 2 (timeout) |
-| cp1 pass rate | 45.45% | 45.45% |
-| cp2 pass rate | -- | 45.45% |
-| Mean pass rate | 45.45% | 45.45% |
-| Total cost | $0.22 | $0.71 |
-| Delta pass rate | -- | 0.0 |
-| Delta erosion | -- | 0.0 |
+1. **save_dir override not respected by slop-code**: The pipeline passes
+   `save_dir=<path>` and `save_template=.` as overrides, but slop-code wrote
+   output to its default directory structure. This broke the pipeline's metric
+   collection for the baseline arm.
 
-## Key Findings
-
-1. **No improvement from two-agent configuration.** Pass rates were identical (45.45%) across both arms and all phases. The reviewer added no value on this problem, suggesting the implementation challenges were beyond what targeted review could address.
-
-2. **eve_route_planner is resistant to the current agent approach.** Both arms failed the core test, indicating a fundamental gap in the agent's ability to implement the route planning logic correctly. The 45.45% pass rate came entirely from functionality tests (5/10), with 0/1 core tests passing.
-
-3. **Low cost utilization.** The baseline used only $0.22 of its $5 budget, and the two-agent arm used $0.71. Both were constrained by wall-clock timeouts rather than budget limits, suggesting eve_route_planner triggers slow agent behavior (likely complex reasoning or repeated failed attempts).
-
-4. **Reviewer token usage was disproportionate on checkpoint 2.** The reviewer consumed 329,084 tokens on checkpoint 2 (nearly matching the implementer's 329,905), up from 109,993 on checkpoint 1. This 3x increase suggests the reviewer attempted more extensive modifications on checkpoint 2, but without any pass rate improvement.
-
-## Data Verification
-
-Both baseline and two-agent experiment rows were inserted into the Dolt `experiments` table with hypothesis_id `sc-hypotheses.286` and problem_id `eve_route_planner`. Row IDs: 600 (baseline), 601 (two-agent).
+2. **3600s timeout insufficient**: The two-agent runner needs to complete 3
+   checkpoints with alternating implementer/reviewer passes. Each checkpoint
+   takes 600-1200s per pass. With 3 checkpoints and 2 passes each, the minimum
+   runtime is approximately 3600-7200s, exceeding the timeout.
 
 ## Conclusion
 
-For eve_route_planner at the $5 budget with 60/40 split, the two-agent configuration provides no measurable benefit over the single-agent baseline. Both achieve 45.45% pass rate with 0% core test passage. The problem appears to require a fundamentally different implementation strategy that neither the implementer nor the reviewer could discover within the timeout constraints. Eve_route_planner represents a problem where the two-agent review pattern adds cost ($0.71 vs $0.22) without improving outcomes.
+**INCONCLUSIVE**: The experiment infrastructure failed before producing
+comparable results. The hypothesis cannot be evaluated.
+
+### Recommendations
+
+- File a bug for the save_dir override not being respected by slop-code
+- Increase two-agent timeout to at least 7200s for 3-checkpoint problems
+- Consider running baseline and two-agent arms sequentially instead of in parallel
+  to reduce resource contention
