@@ -89,14 +89,46 @@ Three findings:
 
 The existing Dolt baseline (id=577) shows a pass rate of 83% for log_query on single-agent with the same model. Our new baseline scored 97.0% on cp1 but 31.4% on cp2 (timeout), averaging 64.2%. The difference in cp1 performance (97% vs 83%) may reflect natural variance in agent behavior.
 
+## Replication Run (2026-04-05, sc-wisp-mol-qonv3)
+
+A replication attempt was run on 2026-04-05 with local-sonnet-4.6. Both arms timed
+out (3600s) before completing all 5 checkpoints. No new data was inserted to Dolt.
+
+### Partial replication data (two-agent arm):
+
+| Phase | Checkpoint | Pass Rate | Core Pass | LOC | Verbosity | Erosion | Cost |
+|-------|-----------|-----------|-----------|-----|-----------|---------|------|
+| Implementer | cp1 | 97.0% | 100% | 585 | 0.080 | 0.595 | $0.604 |
+| Implementer | cp2 | 98.1% | 100% | 818 | 0.065 | 0.577 | $0.343 |
+| Reviewer | cp1 | 90.3% | 90% | 314 | 0.045 | 0.594 | $0.256 |
+| Reviewer | cp2 | 92.3% | 100% | 459 | 0.052 | 0.496 | $0.288 |
+| Combined | cp1 | 91.8% | 100% | 620 | 0.071 | 0.548 | $0.144 |
+
+**Replication findings:**
+
+- The implementer again achieved high pass rates (97.0%, 98.1%) consistent with the
+  original run.
+- The reviewer pass again degraded cp1 pass rate (97.0% to 90.3%), reinforcing the
+  "reviewer hurts passing solutions" pattern.
+- LOC dropped substantially in the reviewer pass (585 to 314 for cp1), suggesting
+  aggressive code removal.
+- Erosion remained roughly stable across phases (~0.5-0.6).
+- Total partial cost: ~$1.63 (incomplete).
+
+**Conclusion: INCONCLUSIVE for replication (timeout), but partial data is consistent
+with the original REFUTED verdict. The reviewer consistently degrades pass rates
+on log_query.**
+
 ## Dolt Records
 
 - Baseline: experiment id=581
 - Two-agent: experiment id=582
 - Budget updated: +$2.21
+- Replication (2026-04-05): no new Dolt rows (timed out)
 
 ## Raw Data
 
 - Baseline output: `outputs/baseline_claude_code_local/local-claude-sonnet-4-6_log_query_20260404_152316/`
 - Two-agent output: `outputs/two_agent_local-claude-sonnet-4-6_log_query_20260404_153906_5d1d6dd5bffb/`
 - Two-agent metrics: `two_agent_metrics.json` (cumulative_cost: $1.39, 1 completed checkpoint)
+- Replication two-agent output: `outputs/two_agent_local-sonnet-4.6_log_query_20260405_082517_5b50297c8461/`
