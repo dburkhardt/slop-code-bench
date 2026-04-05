@@ -90,3 +90,41 @@ Both baseline and two-agent experiment rows were successfully inserted into the 
 ## Conclusion
 
 For trajectory_api at the $5 budget, the single-agent baseline outperforms the two-agent (60/40) configuration on throughput (4 vs 1 completed checkpoint loops). Both achieve identical pass rates on checkpoint 1 (93.75%), but the two-agent arm cannot progress through the problem's 5 checkpoints within the time budget. The trajectory_api problem's escalating complexity, particularly the EBNF parsing in checkpoint 4, represents a boundary condition where neither configuration achieves full coverage.
+
+---
+
+## Replication Run (2026-04-05, polecat jade)
+
+A second experiment was run with the same parameters (local-sonnet-4.6, $5 budget, 60/40 split).
+
+### Results
+
+| Metric | Baseline (single) | Two-agent | Delta |
+|--------|-------------------|-----------|-------|
+| cp1 pass rate | 95.3% (61/64) | 98.4% (63/64) | +3.1% |
+| Cost | $0.41 | $2.87 | +$2.46 |
+| Erosion (high_cc_pct) | 0.744 | 0.564 | -0.180 |
+| Verbosity | 0.130 | 0.074 | -0.057 |
+| LOC | 576 | 598 | +22 |
+| CC max | 47 | 22 | -25 |
+| Clone lines | 75 | 44 | -31 |
+
+Both arms timed out after checkpoint_1 of the implementer pass (3600s limit).
+The two-agent reviewer completed all 5 checkpoints, but the subsequent implementer
+pass only finished checkpoint 1 before timeout.
+
+### Comparison with first run
+
+The replication confirms two patterns from the initial run:
+
+1. **Two-agent improves code quality metrics.** Erosion dropped 0.744 to 0.564 (vs 0.723 to similar in run 1). Verbosity dropped 0.130 to 0.074. Max CC dropped from 47 to 22.
+
+2. **Two-agent is substantially more expensive.** 7x cost increase ($0.41 vs $2.87) for a 3.1% pass rate improvement. The reviewer pass across all 5 checkpoints consumed $2.51 of the total.
+
+3. **Agent timeout remains the bottleneck.** Both runs hit the 3600s limit, preventing multi-checkpoint analysis.
+
+### Dolt rows
+
+- Baseline: experiments.id = 650
+- Two-agent: experiments.id = 651
+- Total cost charged to budget: $3.28
