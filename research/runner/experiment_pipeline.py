@@ -1162,14 +1162,6 @@ def main(
         "--dolt-port",
         help="Dolt server port.",
     ),
-    single_only: bool = typer.Option(  # noqa: FBT001
-        False,  # noqa: FBT003
-        "--single-only/--both-arms",
-        help=(
-            "Run only the single-agent baseline arm, "
-            "skipping the two-agent arm."
-        ),
-    ),
 ) -> None:
     """Run baseline vs. two-agent experiment pipeline."""
 
