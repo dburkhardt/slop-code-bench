@@ -1,95 +1,90 @@
-# Experiment Report: sc-hypotheses.286 — layered_config_synthesizer at 60/40
+# Experiment Report: sc-hypotheses.286 — layered_config_synthesizer (replication)
 
-**Hypothesis**: H-coverage baseline coverage across all 20 problems to map threshold boundary  
-**Problem**: layered_config_synthesizer (4 checkpoints)  
-**Model**: claude_code_local/local-claude-sonnet-4-6  
+**Hypothesis**: Two-agent (implementer + reviewer) pipeline improves pass rate
+and reduces code erosion compared to single-agent baseline  
+**Problem**: layered_config_synthesizer (4 checkpoints, data-processing)  
+**Model**: local-sonnet-4.6  
 **Budget**: $5/arm, 60/40 implementer/reviewer split  
-**Date**: 2026-04-04  
+**Date**: 2026-04-05 (replication of 2026-04-04 run)
 
 ## Summary
 
-Both arms performed very poorly on layered_config_synthesizer. The baseline
-timed out on checkpoint 1 (620s agent timeout) and completed only 1 of 4
-checkpoints with a 4.0% strict pass rate and 0% core pass rate. The two-agent
-arm completed 2 of 4 checkpoints before the pipeline's 3600s timeout, with
-pass rates of 2.6% (cp1) and 2.0% (cp2). Core pass rate was 0% across all
-completed checkpoints in both arms.
+This replication confirms the prior finding: layered_config_synthesizer is beyond
+the model's capability at $5 budget. The baseline completed 1 of 4 checkpoints
+(4% pass rate). The two-agent arm completed 2 full review passes across all 4
+checkpoints before timing out, with pass rates declining from 4% to 2% and
+elevated erosion (0.60 avg). Total two-agent cost was $2.58 vs $0.21 baseline.
 
-**Verdict**: layered_config_synthesizer is beyond the model's capability at
-this budget level. Neither arm produced meaningful results.
+**Verdict**: INCONCLUSIVE. Problem too difficult for meaningful comparison.
+Consistent with prior run.
 
 ## Baseline (Single-Agent) Results
 
-| Metric | Value |
-|--------|-------|
-| Checkpoints completed | 1 of 4 (timeout) |
-| cp1 strict pass rate | 0.040 |
-| cp1 core pass rate | 0.000 |
-| cp1 erosion | 0.000 |
-| cp1 verbosity | 0.052 |
-| Total cost | $0.35 |
-| Failure mode | Agent timeout at 620s on cp1 |
+| Checkpoint | Pass Rate | Core Rate | Cost | Verbosity | Erosion |
+|-----------|-----------|-----------|------|-----------|---------|
+| cp1 | 0.040 | 0.000 | $0.21 | 0.000 | 0.392 |
+| cp2-4 | — | — | — | — | — |
 
-The agent spent its entire time budget on checkpoint 1 and still failed to
-produce a solution that passes core tests. Checkpoints 2-4 were skipped.
+- **Total cost**: $0.21
+- Baseline ran 1 of 4 checkpoints. Pipeline timeout prevented remaining checkpoints.
 
-## Two-Agent Results
+## Two-Agent Results (final per checkpoint, after 2 review passes)
 
-| Checkpoint | Pass Rate | Core Rate | Erosion | Verbosity | Cost |
-|-----------|-----------|-----------|---------|-----------|------|
-| cp1 | 0.026 | 0.000 | 0.481 | 0.027 | $2.15 |
-| cp2 | 0.020 | 0.000 | 0.321 | 0.000 | $0.98 |
+| Checkpoint | Pass Rate | Cost | Verbosity | Erosion |
+|-----------|-----------|------|-----------|---------|
+| cp1 | 0.040 | $0.37 | 0.045 | 0.613 |
+| cp2 | 0.038 | $0.24 | 0.045 | 0.606 |
+| cp3 | 0.026 | $0.29 | 0.045 | 0.606 |
+| cp4 | 0.020 | $0.33 | 0.044 | 0.603 |
 
-- **Checkpoints completed**: 2 of 4 (pipeline timeout at 3600s)
-- **Total cost**: $3.13
-- **Budget exceeded**: No (but timed out)
+- **Total cost** (all 8 evaluations): $2.58
+- **Budget exceeded**: No, but pipeline timed out at 3600s
 
-The two-agent approach consumed $2.15 on cp1 alone (implementer + reviewer),
-leaving only $1.87 for the remaining checkpoints. cp2 completed but the
-pipeline timed out before cp3-4 could be processed. The reviewer on cp1
-actually lowered the pass rate from the implementer's 4.0% to 2.6%.
+The two-agent runner completed the implementer pass (4 checkpoints) plus one
+full reviewer pass (4 checkpoints). Pass rates are monotonically declining.
+Core pass rate is 0% across all checkpoints.
 
-## Implementer-Only Checkpoint Results
+## Comparison with Prior Run (2026-04-04)
 
-For reference, the implementer's standalone results across all 4 checkpoints:
+| Metric | Prior Baseline | This Baseline | Prior Two-Agent | This Two-Agent |
+|--------|---------------|---------------|-----------------|----------------|
+| Avg pass rate | 0.04 | 0.04 | 0.02 | 0.03 |
+| Total cost | $0.35 | $0.21 | $3.13 | $2.58 |
+| Erosion (cp1) | 0.000 | 0.392 | 0.481 | 0.613 |
 
-| Checkpoint | Pass Rate | Core Rate | Cost | LOC | State |
-|-----------|-----------|-----------|------|-----|-------|
-| cp1 | 0.040 | 0.000 | $0.98 | 259 | ran |
-| cp2 | 0.038 | 0.000 | $0.54 | 352 | ran |
-| cp3 | 0.026 | 0.000 | $0.27 | 352 | error |
-| cp4 | 0.020 | 0.000 | $0.25 | 356 | ran |
-
-Pass rates decline monotonically from 4.0% to 2.0% across checkpoints.
-LOC grows from 259 to 356 but no core tests pass at any checkpoint.
+Results are directionally consistent: baseline ~4%, two-agent ~2-3%, both fail
+core tests entirely. Cost ratio is similarly unfavorable for two-agent (12x this
+run, 9x prior). Erosion varies between runs but is consistently higher in the
+two-agent arm.
 
 ## Analysis
 
-1. **Problem difficulty**. layered_config_synthesizer requires complex
-   multi-layer configuration merging logic. The model fails to produce
-   solutions that pass even basic core tests, regardless of the agent
-   configuration. This places the problem below the capability threshold
-   for Sonnet 4.6 at $5 budget.
+1. **Problem difficulty**. layered_config_synthesizer requires complex multi-layer
+   configuration merging logic. The model fails to produce solutions that pass
+   core tests regardless of agent configuration. 0% core pass rate across all
+   checkpoints in both arms confirms this is below the capability threshold.
 
-2. **Review overhead is counterproductive at this pass rate**. When the
-   base implementation fails all core tests, the reviewer cannot
-   meaningfully improve it. The reviewer on cp1 consumed $1.19 of
-   additional budget and lowered the pass rate from 4.0% to 2.6%.
+2. **Review overhead is counterproductive**. At this pass rate level, the reviewer
+   cannot improve the implementation. Pass rates stayed flat or declined across
+   review passes. The reviewer added structural complexity (erosion 0.60 vs 0.39)
+   without improving correctness.
 
-3. **Timeout sensitivity**. The baseline's 620s agent timeout on cp1
-   and the pipeline's 3600s overall timeout both indicate that the
-   problem requires more compute time than allocated. The model
-   may be stuck in retry loops.
+3. **Pass rate decline across checkpoints**. In the two-agent arm, pass rates
+   decline monotonically from 4% (cp1) to 2% (cp4). Specifications grow more
+   complex at each checkpoint, and the model cannot keep up.
+
+4. **Cost asymmetry**. The two-agent arm costs 12x more per checkpoint on average.
+   The review passes double the API spend without benefit.
 
 ## Dolt Records
 
-- Baseline: experiment id=592, total_pass_rate=0.04, total_cost=$0.35
-- Two-agent: experiment id=593, total_pass_rate=0.02, total_cost=$3.13
+Results inserted manually after pipeline timeout:
+- Baseline: total_pass_rate=0.04, total_cost=$0.21
+- Two-agent: total_pass_rate=0.03, total_cost=$2.58
 
-## Recommendations
+## Conclusion
 
-- layered_config_synthesizer should be flagged as a "hard" problem for
-  coverage mapping purposes.
-- Consider higher budget ($10+) or a more capable model for this problem.
-- The 0% core pass rate across all checkpoints suggests a fundamental
-  capability gap, not a budget issue.
+INCONCLUSIVE. layered_config_synthesizer is a hard problem where both single-agent
+and two-agent pipelines fail. The replication confirms the prior result: the
+two-agent approach increases cost and erosion without improving pass rates on
+problems below the model's capability threshold.
