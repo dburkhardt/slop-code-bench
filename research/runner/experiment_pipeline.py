@@ -1147,14 +1147,6 @@ def main(
         "--environment",
         help="Path to environment config.",
     ),
-    single_only: bool = typer.Option(  # noqa: FBT001
-        False,  # noqa: FBT003
-        "--single-only",
-        help=(
-            "Run only the single-agent baseline arm, "
-            "skip the two-agent arm."
-        ),
-    ),
     use_dolt: bool = typer.Option(  # noqa: FBT001
         True,  # noqa: FBT003
         "--use-dolt/--no-dolt",
