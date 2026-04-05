@@ -1,7 +1,8 @@
 # SCBench Research Lab: Consolidated 102-Experiment Analysis
 
-*Generated: 2026-04-05 (Iteration 29)*
-*Previous version: Post-Iteration 7 (90 experiments)*
+*Generated: 2026-04-05 (Post-Iteration 35)*
+*Previous version: Iteration 29 (same dataset, no new experiments)*
+*Dataset stable since Iteration 30. H-288 replication batch (18 experiments) dispatched but not yet landed.*
 
 ## 1. Executive Summary
 
@@ -174,10 +175,34 @@ paper's claims and cannot be validated with the current experimental data.
 | Item | Amount |
 |------|--------|
 | Total budget | $1,000.00 |
-| Spent | $408.84 |
-| Remaining | $591.16 |
+| Spent | $254.67 (Dolt-tracked, excludes 4 bad-scale rows) |
+| Remaining | ~$745.33 |
 
-Budget utilization: 40.9%. Approximately $4.01 per experiment.
+Budget utilization: ~25.5%. Approximately $2.49 per analyzable experiment.
+
+**Note on budget discrepancy:** The prior report calculated $408.84 including
+all rows. The current figure ($254.67) excludes the 4 bad-scale
+metric_transform_lang rows (IDs 637-640) whose costs were inflated by the
+incorrect scale. Both figures exclude the H-288 batch (18 experiments) that
+has been dispatched but not yet landed in Dolt.
+
+## 8a. Dispatch Bottleneck
+
+Iterations 30 through 35 produced no new experiment data. The root cause is a
+dispatch bottleneck: experiments are poured as molecules but not dispatched to
+polecats. As of iteration 38b, all 18 H-288 replication experiments have been
+dispatched. Results from 5 completed polecats (onyx, opal, ruby, topaz, amber)
+and 3 in-flight (garnet, obsidian, pearl) should land after Refinery merges
+their branches.
+
+Replication targets for H-288:
+- dag_execution (single baseline, currently n=0)
+- dynamic_buffer (both modes, currently n=1/1)
+- eve_market_tools (both modes, currently n=1/1)
+- eve_route_planner (both modes, currently n=1/1)
+- dynamic_config_service_api (two-agent, currently n=2/1)
+- file_query_tool (two-agent, currently n=2/1)
+- metric_transform_lang (re-run with correct 0-1 scale)
 
 ## 9. Under-Replicated Cells
 
@@ -241,9 +266,20 @@ on n=1 two-agent data; the latter has no single-agent baseline at all.
 
 4. **Fix the manipulation_check filter** in query_experiments.py or
    retroactively set manipulation_check='passed' on experiments that were
-   manually validated.
+   manually validated. Currently only 13 of 106 valid experiments pass the
+   filter, making the automated report generator produce a nearly empty
+   report.
 
-5. **Standardize model naming** to prevent missed joins.
+5. **Standardize model naming** to prevent missed joins. Three model name
+   variants exist for the same underlying model.
 
 6. **Report the negative result.** The two-agent system does not help on
    competent baselines. This is the paper-relevant finding.
+
+7. **Resolve the dispatch bottleneck.** H-288 experiments were dispatched
+   but 5+ iterations passed without new data landing. Ensure Refinery is
+   processing completed polecat branches.
+
+8. **Land H-288 results before planning new experiments.** The 18 in-flight
+   experiments will fill the most critical replication gaps. No new
+   experiment design is needed until this data arrives.
