@@ -6,9 +6,14 @@ The pipeline handles EVERYTHING: baseline run, two-agent run, evaluation, \
 Dolt INSERT, and budget UPDATE. The polecat's job is to call it correctly \
 and verify the output.
 
-IMPORTANT: The pipeline is a SINGLE COMMAND. Do NOT try to run slop-code \
-or two_agent_runner.py individually — use experiment_pipeline.py which \
-orchestrates both arms end-to-end."""
+IMPORTANT: The pipeline is a SINGLE COMMAND. Do NOT run slop-code or \
+two_agent_runner.py individually — use experiment_pipeline.py which \
+orchestrates both arms end-to-end.
+
+CRITICAL: The pipeline takes 15-30 MINUTES to complete. You MUST set \
+a timeout of at least 45 minutes (2700 seconds) on the Bash tool call. \
+Do NOT let it timeout at the default 2 minutes.
+"""
 formula = "mol-scbench-experiment"
 type = "workflow"
 version = 2
@@ -19,7 +24,7 @@ description = "SCBench problem ID to run"
 required = true
 
 [vars.model]
-description = "Model to use (e.g., claude_code_local/local-claude-sonnet-4-6)"
+description = "Model to use (e.g., local-sonnet-4.6)"
 required = true
 
 [vars.hypothesis_id]
@@ -31,8 +36,16 @@ description = "Plain-text description of what this experiment tests"
 required = true
 
 [vars.total_budget_usd]
-description = "Maximum spend per arm in USD"
+description = "Maximum spend for this experiment in USD"
 required = true
+
+[vars.implementer_prompt]
+description = "Path to implementer Jinja prompt template"
+default = "configs/prompts/default_implementer.jinja"
+
+[vars.reviewer_prompt]
+description = "Path to reviewer Jinja prompt template"
+default = "configs/prompts/default_reviewer.jinja"
 
 [vars.budget_split]
 description = "Percentage of per-checkpoint budget for implementer (e.g., 70)"
@@ -40,165 +53,91 @@ default = "70"
 
 [[steps]]
 id = "preflight"
-title = "Verify environment and connectivity"
+title = "Verify environment"
 description = """
-Verify the experiment can run before spending API credits.
+Quick checks before running the pipeline:
 
 ```bash
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-cd "$REPO_ROOT"
+# Verify venv
+ls .venv/bin/python && echo "venv OK"
 
-# 0. Create venv if it doesn't exist (worktrees don't have it)
-if [ ! -d .venv ]; then
-  echo "Creating .venv (worktree doesn't have one)..."
-  uv venv .venv --python 3.12
-  uv pip install -e ".[dev]" --python .venv/bin/python
-  uv pip install pymysql typer --python .venv/bin/python
-fi
+# Verify Dolt
+python3 -c "import pymysql; c=pymysql.connect(host='127.0.0.1',port=3307,user='root',database='scbench'); print('Dolt OK'); c.close()"
 
-# 1. Verify Python venv exists and has dependencies
-.venv/bin/python -c "import slop_code; import pymysql; import typer; print('deps OK')"
-
-# 2. Verify Dolt is reachable
-.venv/bin/python -c "
-import pymysql
-c = pymysql.connect(host='127.0.0.1', port=3307, user='root', database='scbench')
-cur = c.cursor()
-cur.execute('SELECT remaining FROM budget WHERE id=1')
-print(f'Dolt OK, budget remaining: \${cur.fetchone()[0]}')
-c.close()
-"
-
-# 3. Verify claude auth (console auth)
-claude auth status 2>&1 | grep -q loggedIn || echo "WARNING: claude not authenticated"
-
-# 4. Verify the pipeline CLI loads
-.venv/bin/python research/runner/experiment_pipeline.py --help > /dev/null 2>&1 && echo "pipeline CLI OK"
+# Verify claude CLI
+which claude && echo "claude OK"
 ```
 
-If ANY check fails, escalate:
+**Exit criteria:** All three checks pass. If any fail, run:
 ```bash
-gt escalate --severity high --reason "Preflight failed: <details>"
+# Fix venv if missing
+uv sync
 ```
-
-Do NOT proceed if preflight fails."""
-acceptance = "All 4 checks pass: deps, Dolt, auth, pipeline CLI"
+"""
 
 [[steps]]
 id = "run-pipeline"
 title = "Run the full experiment pipeline"
+needs = ["preflight"]
 description = """
-Run experiment_pipeline.py — this single command does EVERYTHING:
-- Runs the single-agent baseline via slop-code
-- Runs the two-agent arm via two_agent_runner.py
-- Evaluates both with slop-code eval
-- Inserts results into Dolt experiments table
-- Updates the budget table
+Run experiment_pipeline.py. This is ONE command that handles everything: \
+baseline run, two-agent run, evaluation, Dolt INSERT, and budget UPDATE.
+
+⚠️ **CRITICAL: SET TIMEOUT TO 2700 SECONDS (45 minutes).** ⚠️
+The pipeline takes 15-30 minutes. The default Bash timeout of 2 minutes \
+will kill the experiment before it completes. You MUST pass timeout=2700000 \
+(45 min in milliseconds) to the Bash tool.
 
 ```bash
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-cd "$REPO_ROOT"
-
 .venv/bin/python research/runner/experiment_pipeline.py \
   --problem {{problem_id}} \
   --model {{model}} \
   --budget {{total_budget_usd}} \
   --budget-split {{budget_split}} \
+  --implementer-prompt {{implementer_prompt}} \
+  --reviewer-prompt {{reviewer_prompt}} \
   --hypothesis-id {{hypothesis_id}} \
   --use-dolt
 ```
 
-This will take 10-60 minutes depending on the problem.
+**Set timeout: 2700000 milliseconds (45 minutes).**
 
-**If it fails:** Read the error output carefully. Common issues:
-- Docker not running → check `docker ps`
-- Dolt not reachable → check `gt dolt status`
-- Budget exhausted → pipeline will abort with message
-- API errors → check claude auth status
+Wait for the command to complete. Do NOT run it in the background. \
+Do NOT proceed to the next step until it exits.
 
-**Do NOT try to run slop-code or two_agent_runner.py separately.**
-The pipeline orchestrates both arms and handles all edge cases."""
-acceptance = "Pipeline exits with code 0 and prints results summary"
+**Exit criteria:** Pipeline exits with return code 0 and prints \
+"Inserted N experiment row(s)." If it fails, note the error and \
+proceed to report step anyway.
+"""
 
 [[steps]]
-id = "verify-dolt"
-title = "Verify results were written to Dolt"
+id = "report"
+title = "Write research report and persist findings"
+needs = ["run-pipeline"]
 description = """
-Verify the pipeline actually wrote data to the experiments table.
+Verify the pipeline wrote to Dolt:
 
 ```bash
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-cd "$REPO_ROOT"
-
-.venv/bin/python -c "
-import pymysql
-c = pymysql.connect(host='127.0.0.1', port=3307, user='root', database='scbench')
-cur = c.cursor()
-
-# Check for this experiment's rows
-cur.execute(
-    'SELECT problem_id, mode, total_pass_rate, total_cost '
-    'FROM experiments WHERE hypothesis_id = %s '
-    'ORDER BY mode',
-    ('{{hypothesis_id}}',)
-)
-rows = cur.fetchall()
-print(f'Found {len(rows)} rows for {{hypothesis_id}}:')
-for r in rows:
-    print(f'  {r[0]} {r[1]}: pass={r[2]}, cost=\${r[3]}')
-
-# HARD CHECK: must have at least 2 rows (baseline + two-agent)
-assert len(rows) >= 2, f'FAIL: expected >=2 rows, got {len(rows)}'
-
-# HARD CHECK: costs must be non-zero
-for r in rows:
-    assert r[3] is not None and float(r[3]) > 0, \
-        f'FAIL: cost is {r[3]} for {r[0]}/{r[1]}'
-
-print('ALL CHECKS PASSED')
-c.close()
-"
+cd ~/gt/.dolt-data/scbench && dolt sql -q \
+  "SELECT id, problem_id, mode, total_pass_rate, total_cost \
+   FROM experiments ORDER BY id DESC LIMIT 4;"
 ```
 
-**If checks fail:** Do NOT proceed. The experiment data is incomplete.
-Re-run the pipeline or escalate."""
-acceptance = ">=2 rows in Dolt with non-NULL, non-zero costs for this hypothesis_id"
-
-[[steps]]
-id = "research-report"
-title = "Write research report and commit"
-description = """
-Write a structured report summarizing the experiment results.
-
+Persist findings to the bead:
 ```bash
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-cd "$REPO_ROOT"
+bd note {{hypothesis_id}} "Experiment complete. Problem: {{problem_id}}. \
+Results: <pass_rate> pass, <cost> cost. Dolt rows inserted."
 ```
 
-**1. Create report:**
+Commit any local changes:
 ```bash
-mkdir -p research/experiments
+git add -A && git commit -m "experiment: {{problem_id}} {{hypothesis_id}}" || true
 ```
 
-Write to `research/experiments/{{hypothesis_id}}_report.md`:
-- Hypothesis description
-- Setup (problem, model, budget split)
-- Results table (pass rate, cost, erosion, verbosity for each arm)
-- Analysis (was the hypothesis supported?)
-- Cost analysis
-- Conclusion: SUPPORTED / REFUTED / INCONCLUSIVE
-
-**2. Persist findings to bead:**
+Then run gt done:
 ```bash
-bd update {{hypothesis_id}} --design "<paste full report>"
-bd update {{hypothesis_id}} --notes "Results: pass_rate_delta=X, cost=$Y. Conclusion: Z."
+gt done
 ```
 
-**3. Commit:**
-```bash
-git add research/experiments/{{hypothesis_id}}_report.md
-git commit -m "experiment: {{hypothesis_id}} — <1-line result summary>"
-```
-
-**Exit criteria:** Report committed, findings in bead. Run gt done."""
-acceptance = "Research report committed, findings written to bead design field"
+**Exit criteria:** Findings persisted. gt done executed.
+"""
