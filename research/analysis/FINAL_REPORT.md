@@ -1,8 +1,8 @@
 # SCBench Research Lab: Consolidated 102-Experiment Analysis
 
-*Generated: 2026-04-05 (Post-Iteration 35)*
-*Previous version: Iteration 29 (same dataset, no new experiments)*
-*Dataset stable since Iteration 30. H-288 replication batch (18 experiments) dispatched but not yet landed.*
+*Generated: 2026-04-05 (Post-Iteration 38)*
+*Previous version: Post-Iteration 35 (same dataset, no new experiments)*
+*Dataset stable since Iteration 30. H-288 replication batch (18 experiments) partially dispatched; 4 polecats completed but no new Dolt entries. Bottleneck shifted from dispatch to execution/ingestion.*
 
 ## 1. Executive Summary
 
@@ -186,14 +186,23 @@ metric_transform_lang rows (IDs 637-640) whose costs were inflated by the
 incorrect scale. Both figures exclude the H-288 batch (18 experiments) that
 has been dispatched but not yet landed in Dolt.
 
-## 8a. Dispatch Bottleneck
+## 8a. Dispatch and Ingestion Bottleneck
 
-Iterations 30 through 35 produced no new experiment data. The root cause is a
-dispatch bottleneck: experiments are poured as molecules but not dispatched to
-polecats. As of iteration 38b, all 18 H-288 replication experiments have been
-dispatched. Results from 5 completed polecats (onyx, opal, ruby, topaz, amber)
-and 3 in-flight (garnet, obsidian, pearl) should land after Refinery merges
-their branches.
+Iterations 30 through 41 produced no new experiment data. The bottleneck evolved
+across three phases:
+
+1. **Iterations 30-37 (dispatch failure):** Experiments were poured as molecules
+   but not dispatched to polecats. No experiments executed.
+2. **Iteration 38b (dispatch resolved):** All 18 H-288 experiments had convoys
+   dispatched. Six polecats were assigned work.
+3. **Iterations 39-41 (ingestion failure):** 4 polecats completed H-288 work
+   (marble on dag_execution, jasper on dag_execution, slate on dynamic_buffer,
+   malachite on dynamic_config_service_api) but the valid experiment count in
+   Dolt remains 106. Either the experiments failed validation, or Dolt ingestion
+   did not complete.
+
+As of iteration 41, 6 of 18 H-288 experiments have been dispatched (4 complete,
+2 in progress). The remaining 12 are still OPEN.
 
 Replication targets for H-288:
 - dag_execution (single baseline, currently n=0)
@@ -276,10 +285,14 @@ on n=1 two-agent data; the latter has no single-agent baseline at all.
 6. **Report the negative result.** The two-agent system does not help on
    competent baselines. This is the paper-relevant finding.
 
-7. **Resolve the dispatch bottleneck.** H-288 experiments were dispatched
-   but 5+ iterations passed without new data landing. Ensure Refinery is
-   processing completed polecat branches.
+7. **Investigate the ingestion failure.** 4 polecats completed H-288 work
+   but no new valid experiments appeared in Dolt. Determine whether the
+   experiments failed execution, failed validation, or failed Dolt
+   ingestion. This is the highest-priority operational issue.
 
-8. **Land H-288 results before planning new experiments.** The 18 in-flight
-   experiments will fill the most critical replication gaps. No new
-   experiment design is needed until this data arrives.
+8. **Complete H-288 dispatch.** 12 of 18 H-288 experiments remain OPEN.
+   Continue dispatching while investigating the ingestion pipeline.
+
+9. **Pause the iteration loop.** Iterations 30 through 41 consumed budget
+   on orchestration overhead without producing experiments. The loop should
+   not iterate again until at least 3 new valid experiments appear in Dolt.
