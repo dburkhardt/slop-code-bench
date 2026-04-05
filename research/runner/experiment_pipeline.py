@@ -807,6 +807,7 @@ def run_pipeline(
     hypothesis_id: str | None = None,
     dolt_conn: Any | None = None,
     environment: str = DEFAULT_ENVIRONMENT,
+    single_only: bool = False,
 ) -> PipelineResult:
     """Execute the full experiment pipeline.
 
@@ -832,14 +833,16 @@ def run_pipeline(
     # ── Step 1: Budget check ──────────────────────────
     if dolt_conn is not None:
         try:
+            budget_needed = budget if single_only else budget * 2
             sufficient, remaining = check_budget(
-                dolt_conn, budget * 2,
+                dolt_conn, budget_needed,
             )
             if not sufficient:
+                n_arms = 1 if single_only else 2
                 result.errors.append(
                     f"Insufficient budget: ${remaining:.2f} "
-                    f"remaining, need ${budget * 2:.2f} "
-                    f"(${budget:.2f} per arm)",
+                    f"remaining, need ${budget_needed:.2f} "
+                    f"(${budget:.2f} x {n_arms} arm(s))",
                 )
                 return result
         except Exception as exc:  # noqa: BLE001
@@ -871,32 +874,37 @@ def run_pipeline(
         result.partial = True
 
     # ── Step 3: Two-agent run ─────────────────────────
-    typer.echo(
-        f"Running two-agent on {problem} with {model} "
-        f"(split {budget_split}/{100 - budget_split}) ...",
-    )
-    ta_dir, ta_rc = run_two_agent(
-        problem=problem,
-        model=model,
-        budget=budget,
-        budget_split=budget_split,
-        implementer_prompt=implementer_prompt,
-        reviewer_prompt=reviewer_prompt,
-    )
-
-    if ta_dir is not None:
-        result.two_agent_output_dir = str(ta_dir)
-
-    if ta_rc != 0 and ta_dir is None:
-        result.errors.append(
-            f"Two-agent run failed (exit code {ta_rc})",
+    ta_dir: Path | None = None
+    ta_rc = 0
+    if single_only:
+        typer.echo("Skipping two-agent arm (--single-only).")
+    else:
+        typer.echo(
+            f"Running two-agent on {problem} with {model} "
+            f"(split {budget_split}/{100 - budget_split}) ...",
         )
-        result.partial = True
+        ta_dir, ta_rc = run_two_agent(
+            problem=problem,
+            model=model,
+            budget=budget,
+            budget_split=budget_split,
+            implementer_prompt=implementer_prompt,
+            reviewer_prompt=reviewer_prompt,
+        )
 
-    if ta_rc != 0 and ta_dir is not None:
-        # Budget exceeded mid-run: still has partial results
-        result.budget_exceeded = True
-        result.partial = True
+        if ta_dir is not None:
+            result.two_agent_output_dir = str(ta_dir)
+
+        if ta_rc != 0 and ta_dir is None:
+            result.errors.append(
+                f"Two-agent run failed (exit code {ta_rc})",
+            )
+            result.partial = True
+
+        if ta_rc != 0 and ta_dir is not None:
+            # Budget exceeded mid-run: still has partial results
+            result.budget_exceeded = True
+            result.partial = True
 
     # ── Step 4: Evaluate both ─────────────────────────
     baseline_metrics = EvalMetrics()
@@ -1001,24 +1009,27 @@ def run_pipeline(
                 err=True,
             )
 
-        if ta_row.pass_rates:
-            try:
-                insert_experiment_row(dolt_conn, ta_row)
-                total_cost += ta_metrics.total_cost
-                inserted += 1
-            except Exception as exc:  # noqa: BLE001
-                result.errors.append(
-                    f"Dolt INSERT (two-agent) failed: {exc}",
+        if not single_only:
+            if ta_row.pass_rates:
+                try:
+                    insert_experiment_row(dolt_conn, ta_row)
+                    total_cost += ta_metrics.total_cost
+                    inserted += 1
+                except Exception as exc:  # noqa: BLE001
+                    result.errors.append(
+                        f"Dolt INSERT (two-agent) failed: "
+                        f"{exc}",
+                    )
+            else:
+                typer.echo(
+                    "Skipping two-agent INSERT: "
+                    "no metrics.",
+                    err=True,
                 )
-        else:
-            typer.echo(
-                "Skipping two-agent INSERT: no metrics.",
-                err=True,
-            )
 
         if inserted == 0:
             result.errors.append(
-                "Both arms failed — no data inserted.",
+                "No data inserted (all arms failed).",
             )
             return result
 
@@ -1048,15 +1059,25 @@ def run_pipeline(
             )
 
     # ── Summary ───────────────────────────────────────
-    typer.echo(
-        f"\nPipeline complete for {problem}.\n"
-        f"  Baseline pass rate: "
-        f"{baseline_metrics.total_pass_rate:.4f}\n"
-        f"  Two-agent pass rate: "
-        f"{ta_metrics.total_pass_rate:.4f}\n"
-        f"  Delta pass rate: {delta_pr:+.4f}\n"
-        f"  Delta erosion:   {delta_er:+.4f}"
-    )
+    if single_only:
+        typer.echo(
+            f"\nPipeline complete for {problem} "
+            f"(single-only).\n"
+            f"  Baseline pass rate: "
+            f"{baseline_metrics.total_pass_rate:.4f}\n"
+            f"  Total cost: "
+            f"${baseline_metrics.total_cost:.2f}"
+        )
+    else:
+        typer.echo(
+            f"\nPipeline complete for {problem}.\n"
+            f"  Baseline pass rate: "
+            f"{baseline_metrics.total_pass_rate:.4f}\n"
+            f"  Two-agent pass rate: "
+            f"{ta_metrics.total_pass_rate:.4f}\n"
+            f"  Delta pass rate: {delta_pr:+.4f}\n"
+            f"  Delta erosion:   {delta_er:+.4f}"
+        )
 
     return result
 
@@ -1125,6 +1146,14 @@ def main(
         "--environment",
         help="Path to environment config.",
     ),
+    single_only: bool = typer.Option(  # noqa: FBT001
+        False,  # noqa: FBT003
+        "--single-only",
+        help=(
+            "Run only the single-agent baseline arm, "
+            "skip the two-agent arm."
+        ),
+    ),
     use_dolt: bool = typer.Option(  # noqa: FBT001
         True,  # noqa: FBT003
         "--use-dolt/--no-dolt",
@@ -1189,6 +1218,7 @@ def main(
             hypothesis_id=hypothesis_id,
             dolt_conn=dolt_conn,
             environment=environment,
+            single_only=single_only,
         )
     finally:
         if dolt_conn is not None:
