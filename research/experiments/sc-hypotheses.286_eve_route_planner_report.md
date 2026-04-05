@@ -73,6 +73,16 @@ Two issues prevented successful completion:
 **INCONCLUSIVE**: The experiment infrastructure failed before producing
 comparable results. The hypothesis cannot be evaluated.
 
+### Replication Run (flint, 2026-04-05 08:21-09:22 UTC)
+
+A second run reproduced the identical failure mode:
+- Two-agent arm timed out at 3600s
+- Baseline arm produced no metrics (same save_dir issue)
+- Partial checkpoint_1 results: 45.5% pass rate, 0% core, all quality metrics zero
+- Cost: ~$0.40 across partial runs (budget decreased from $607.70 to $604.42, concurrent runs)
+
+Two independent runs confirm the infrastructure failures are systematic, not transient.
+
 ### Recommendations
 
 - File a bug for the save_dir override not being respected by slop-code
