@@ -587,6 +587,9 @@ def run_baseline(
         )
     except subprocess.TimeoutExpired:
         logger.error("Baseline run timed out after 7200s")
+        # Check if partial output was produced before timeout
+        if output_dir.is_dir():
+            return output_dir, 1
         return None, 1
 
     # The output directory was passed explicitly so it
@@ -642,6 +645,12 @@ def run_two_agent(
         )
     except subprocess.TimeoutExpired:
         logger.error("Two-agent run timed out after 7200s")
+        # Check for partial output before giving up
+        actual_dir = _find_latest_run_dir(
+            problem, prefix="two_agent",
+        )
+        if actual_dir is not None:
+            return actual_dir, 1
         return None, 1
 
     # Find the actual output directory.  The runner
@@ -983,6 +992,11 @@ def run_pipeline(
 
     if dolt_conn is not None and baseline_metrics.pass_rates:
         try:
+            # Reconnect in case connection was lost during long run
+            try:
+                dolt_conn.ping(reconnect=True)
+            except Exception:  # noqa: BLE001
+                dolt_conn = get_dolt_connection()
             insert_experiment_row(dolt_conn, baseline_row)
             update_budget_spent(
                 dolt_conn, baseline_metrics.total_cost,
@@ -1025,6 +1039,11 @@ def run_pipeline(
     if dolt_conn is not None and not single_only:
         if ta_metrics.pass_rates:
             try:
+                # Reconnect in case connection was lost during long run
+                try:
+                    dolt_conn.ping(reconnect=True)
+                except Exception:  # noqa: BLE001
+                    dolt_conn = get_dolt_connection()
                 insert_experiment_row(dolt_conn, ta_row)
                 update_budget_spent(
                     dolt_conn, ta_metrics.total_cost,
