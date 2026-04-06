@@ -582,11 +582,11 @@ def run_baseline(
             capture_output=True,
             text=True,
             cwd=str(REPO_ROOT),
-            timeout=5400,
+            timeout=7200,
             env=env,
         )
     except subprocess.TimeoutExpired:
-        logger.error("Baseline run timed out after 5400s")
+        logger.error("Baseline run timed out after 7200s")
         return None, 1
 
     # The output directory was passed explicitly so it
@@ -637,11 +637,11 @@ def run_two_agent(
             capture_output=True,
             text=True,
             cwd=str(REPO_ROOT),
-            timeout=5400,
+            timeout=7200,
             env=env,
         )
     except subprocess.TimeoutExpired:
-        logger.error("Two-agent run timed out after 5400s")
+        logger.error("Two-agent run timed out after 7200s")
         return None, 1
 
     # Find the actual output directory.  The runner
