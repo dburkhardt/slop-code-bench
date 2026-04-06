@@ -965,14 +965,8 @@ def run_pipeline(
             "checkpoint directories.",
         )
 
-    # ── Step 5: Compute deltas ────────────────────────
-    delta_pr, delta_er = compute_deltas(
-        baseline_metrics, ta_metrics,
-    )
-    result.delta_pass_rate = delta_pr
-    result.delta_erosion = delta_er
-
-    # ── Step 6: Build and insert rows ─────────────────
+    # ── Step 5a: Insert baseline row immediately ───────
+    # Write incrementally so data survives timeout kills.
     baseline_row = build_experiment_row(
         problem=problem,
         model=model,
@@ -986,6 +980,29 @@ def run_pipeline(
     )
     result.baseline_row = baseline_row
 
+    if dolt_conn is not None and baseline_metrics.pass_rates:
+        try:
+            insert_experiment_row(dolt_conn, baseline_row)
+            update_budget_spent(
+                dolt_conn, baseline_metrics.total_cost,
+            )
+            typer.echo(
+                f"Inserted baseline row + budget "
+                f"+${baseline_metrics.total_cost:.2f}",
+            )
+        except Exception as exc:  # noqa: BLE001
+            result.errors.append(
+                f"Dolt baseline INSERT failed: {exc}",
+            )
+
+    # ── Step 5b: Compute deltas ──────────────────────
+    delta_pr, delta_er = compute_deltas(
+        baseline_metrics, ta_metrics,
+    )
+    result.delta_pass_rate = delta_pr
+    result.delta_erosion = delta_er
+
+    # ── Step 6: Insert two-agent row immediately ─────
     ta_row = build_experiment_row(
         problem=problem,
         model=model,
@@ -1004,73 +1021,25 @@ def run_pipeline(
     )
     result.two_agent_row = ta_row
 
-    if dolt_conn is not None:
-        # Only insert rows for arms that produced real data
-        inserted = 0
-        total_cost = 0.0
-
-        if baseline_row.pass_rates:
+    if dolt_conn is not None and not single_only:
+        if ta_metrics.pass_rates:
             try:
-                insert_experiment_row(dolt_conn, baseline_row)
-                total_cost += baseline_metrics.total_cost
-                inserted += 1
-            except Exception as exc:  # noqa: BLE001
-                result.errors.append(
-                    f"Dolt INSERT (baseline) failed: {exc}",
+                insert_experiment_row(dolt_conn, ta_row)
+                update_budget_spent(
+                    dolt_conn, ta_metrics.total_cost,
                 )
-        else:
-            typer.echo(
-                "Skipping baseline INSERT: no metrics.",
-                err=True,
-            )
-
-        if not single_only:
-            if ta_row.pass_rates:
-                try:
-                    insert_experiment_row(dolt_conn, ta_row)
-                    total_cost += ta_metrics.total_cost
-                    inserted += 1
-                except Exception as exc:  # noqa: BLE001
-                    result.errors.append(
-                        f"Dolt INSERT (two-agent) failed: "
-                        f"{exc}",
-                    )
-            else:
                 typer.echo(
-                    "Skipping two-agent INSERT: "
-                    "no metrics.",
-                    err=True,
-                )
-
-        if inserted == 0:
-            result.errors.append(
-                "No data inserted (all arms failed).",
-            )
-            return result
-
-        typer.echo(
-            f"Inserted {inserted} experiment row(s).",
-        )
-
-        # ── Step 7: Update budget ─────────────────────
-        if total_cost > 0:
-            try:
-                update_budget_spent(dolt_conn, total_cost)
-                typer.echo(
-                    f"Budget updated: +${total_cost:.2f}",
+                    f"Inserted two-agent row + budget "
+                    f"+${ta_metrics.total_cost:.2f}",
                 )
             except Exception as exc:  # noqa: BLE001
                 result.errors.append(
-                    f"Budget UPDATE failed: {exc}",
+                    f"Dolt two-agent INSERT failed: {exc}",
                 )
         else:
             typer.echo(
-                "WARNING: total_cost is $0.00 — budget "
-                "not updated. Check cost extraction.",
+                "Skipping two-agent INSERT: no metrics.",
                 err=True,
-            )
-            result.errors.append(
-                "Zero cost recorded — budget not updated.",
             )
 
     # ── Summary ───────────────────────────────────────
