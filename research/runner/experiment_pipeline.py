@@ -554,7 +554,8 @@ def run_baseline(
         environment = "local-py"
 
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    run_name = f"baseline_{model}_{problem}_{ts}"
+    safe_model = model.replace("/", "_")
+    run_name = f"baseline_{safe_model}_{problem}_{ts}"
     output_dir = OUTPUTS_DIR / run_name
 
     cmd = [
@@ -581,11 +582,11 @@ def run_baseline(
             capture_output=True,
             text=True,
             cwd=str(REPO_ROOT),
-            timeout=3600,
+            timeout=2400,
             env=env,
         )
     except subprocess.TimeoutExpired:
-        logger.error("Baseline run timed out after 3600s")
+        logger.error("Baseline run timed out after 2400s")
         return None, 1
 
     # The output directory was passed explicitly so it
@@ -636,11 +637,11 @@ def run_two_agent(
             capture_output=True,
             text=True,
             cwd=str(REPO_ROOT),
-            timeout=3600,
+            timeout=2400,
             env=env,
         )
     except subprocess.TimeoutExpired:
-        logger.error("Two-agent run timed out after 3600s")
+        logger.error("Two-agent run timed out after 2400s")
         return None, 1
 
     # Find the actual output directory.  The runner
@@ -1155,6 +1156,10 @@ def main(
     ),
 ) -> None:
     """Run baseline vs. two-agent experiment pipeline."""
+
+    # Auto-expand shorthand model names to provider/model format
+    if "/" not in model and model.startswith("local-"):
+        model = f"claude_code_local/{model}"
 
     # Validate budget_split
     if budget_split < 1 or budget_split > 99:
