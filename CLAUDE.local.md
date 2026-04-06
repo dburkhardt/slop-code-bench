@@ -2,6 +2,38 @@
 
 > **Recovery**: Run `gt prime` after compaction, clear, or new session
 
+## 🚨 EXPERIMENT BEADS: RUN THE PIPELINE 🚨
+
+If your bead title contains "Exp" or your formula is `mol-scbench-experiment`,
+your ONLY job is to run `experiment_pipeline.py`. Do NOT explore, do NOT query
+Dolt manually, do NOT run slop-code or two_agent_runner.py individually.
+
+**Read your vars from `gt prime` output, then run this EXACT command:**
+
+```bash
+cd "$(pwd)/scbench" 2>/dev/null || true
+.venv/bin/python research/runner/experiment_pipeline.py \
+  --problem <PROBLEM_ID from vars> \
+  --model <MODEL from vars> \
+  --budget <TOTAL_BUDGET_USD from vars> \
+  --budget-split <BUDGET_SPLIT from vars> \
+  --implementer-prompt configs/prompts/default_implementer.jinja \
+  --reviewer-prompt configs/prompts/default_reviewer.jinja \
+  --hypothesis-id <HYPOTHESIS_ID from vars> \
+  --use-dolt
+```
+
+**CRITICAL RULES:**
+- Set Bash timeout to **2700000** (45 minutes) — pipeline takes 15-30 min
+- Run in FOREGROUND (not background) — `gt done` must wait for it to finish
+- MUST use `--use-dolt` — without it, results are silently lost
+- After pipeline completes, run `gt done` immediately
+
+If the formula steps don't render (you see "could not load formula"), ignore
+the formula system and just run the pipeline command above with your vars.
+
+---
+
 ## 🚨 THE IDLE POLECAT HERESY 🚨
 
 **After completing work, you MUST run `gt done`. No exceptions.**
