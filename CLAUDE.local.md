@@ -24,10 +24,11 @@ cd "$(pwd)/scbench" 2>/dev/null || true
 ```
 
 **CRITICAL RULES:**
-- Set Bash timeout to **2700000** (45 minutes) — pipeline takes 15-30 min
+- Set Bash timeout to **5400000** (90 minutes) — pipeline takes 40-50 min for both arms
 - Run in FOREGROUND (not background) — `gt done` must wait for it to finish
 - MUST use `--use-dolt` — without it, results are silently lost
 - After pipeline completes, run `gt done` immediately
+- If you want faster completion, add `--single-only` to skip the two-agent arm (15-20 min)
 
 If the formula steps don't render (you see "could not load formula"), ignore
 the formula system and just run the pipeline command above with your vars.
