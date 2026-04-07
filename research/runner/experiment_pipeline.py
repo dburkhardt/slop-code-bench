@@ -153,6 +153,7 @@ class PipelineResult(BaseModel):
     delta_erosion: float | None = None
     budget_exceeded: bool = False
     partial: bool = False
+    baseline_inserted: bool = False
     errors: list[str] = Field(default_factory=list)
 
 
@@ -549,20 +550,27 @@ def run_baseline(
     if src_path not in sys.path:
         sys.path.insert(0, src_path)
 
+    # Resolve model alias to provider/name format for slop-code CLI
+    from slop_code.common.llms import ModelCatalog
+    cli_model = model
+    if "/" not in model:
+        _mdef = ModelCatalog.get(model)
+        if _mdef is not None:
+            cli_model = f"{_mdef.provider}/{_mdef.name}"
+
     # Auto-detect local auth: use local-py environment (no Docker)
-    if "claude_code_local" in model:
+    if "claude_code_local" in cli_model or "local-" in model:
         environment = "local-py"
 
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    safe_model = model.replace("/", "_")
-    run_name = f"baseline_{safe_model}_{problem}_{ts}"
+    run_name = f"baseline_{model}_{problem}_{ts}"
     output_dir = OUTPUTS_DIR / run_name
 
     cmd = [
         sys.executable, "-m", "slop_code",
         "run",
         "--problem", problem,
-        "--model", model,
+        "--model", cli_model,
         "--prompt", prompt,
         "--environment", environment,
         "--evaluate",
@@ -586,26 +594,21 @@ def run_baseline(
             env=env,
         )
     except subprocess.TimeoutExpired:
-        logger.error("Baseline run timed out after 7200s")
-        # Only use output from THIS run's explicit dir, never stale data
-        if output_dir.is_dir() and any(output_dir.iterdir()):
-            logger.info("Baseline output found despite timeout: %s", output_dir)
-            return output_dir, 1
+        logger.error("Baseline run timed out after 3600s")
         return None, 1
 
     # The output directory was passed explicitly so it
-    # should exist.  Do NOT fall back to stale output
-    # from previous runs — that silently masks failures
-    # and contaminates data (Bug O14/O20).
+    # should exist.  Fall back to general lookup only
+    # when the explicit dir is absent.
     if output_dir.is_dir():
         return output_dir, result.returncode
 
-    logger.error(
-        "Baseline output dir %s does not exist after run "
-        "(exit code %d). NOT falling back to stale data.",
-        output_dir, result.returncode,
+    actual_dir = _find_latest_run_dir(
+        problem, prefix=None,
     )
-    return None, result.returncode
+    if actual_dir is not None:
+        return actual_dir, result.returncode
+    return output_dir, result.returncode
 
 
 def run_two_agent(
@@ -646,14 +649,7 @@ def run_two_agent(
             env=env,
         )
     except subprocess.TimeoutExpired:
-        logger.error("Two-agent run timed out after 7200s")
-        # Check if output was produced despite the timeout
-        actual_dir = _find_latest_run_dir(problem, prefix="two_agent")
-        if actual_dir is None:
-            actual_dir = _find_latest_run_dir(problem, prefix=None)
-        if actual_dir is not None:
-            logger.info("Two-agent output found despite timeout: %s", actual_dir)
-            return actual_dir, 1
+        logger.error("Two-agent run timed out after 3600s")
         return None, 1
 
     # Find the actual output directory.  The runner
@@ -712,9 +708,6 @@ def _find_latest_run_dir(
     When *prefix* is given, only directories whose name
     starts with *prefix* are considered.  When *prefix*
     is ``None``, all directories are scanned.
-
-    Searches up to two levels deep to handle output
-    layouts like ``outputs/model/run_id/problem/``.
     """
     if not OUTPUTS_DIR.exists():
         return None
@@ -726,20 +719,9 @@ def _find_latest_run_dir(
             prefix,
         ):
             continue
-        # Check direct child: outputs/<dir>/<problem>
         prob_dir = d / problem
         if prob_dir.is_dir():
             candidates.append((d.stat().st_mtime, d))
-            continue
-        # Check one level deeper: outputs/<dir>/<sub>/<problem>
-        for sub in d.iterdir():
-            if not sub.is_dir():
-                continue
-            prob_dir = sub / problem
-            if prob_dir.is_dir():
-                candidates.append(
-                    (sub.stat().st_mtime, sub),
-                )
     if not candidates:
         return None
     candidates.sort(reverse=True)
@@ -859,18 +841,16 @@ def run_pipeline(
 
     # ── Step 1: Budget check ──────────────────────────
     if dolt_conn is not None:
-        budget_needed = budget if single_only else budget * 2
         try:
-            budget_needed = budget if single_only else budget * 2
+            cost_multiplier = 1 if single_only else 2
             sufficient, remaining = check_budget(
-                dolt_conn, budget_needed,
+                dolt_conn, budget * cost_multiplier,
             )
             if not sufficient:
-                n_arms = 1 if single_only else 2
                 result.errors.append(
                     f"Insufficient budget: ${remaining:.2f} "
-                    f"remaining, need ${budget_needed:.2f} "
-                    f"(${budget:.2f} x {n_arms} arm(s))",
+                    f"remaining, need ${budget * 2:.2f} "
+                    f"(${budget:.2f} per arm)",
                 )
                 return result
         except Exception as exc:  # noqa: BLE001
@@ -902,7 +882,7 @@ def run_pipeline(
         result.partial = True
 
     # ── Step 3: Two-agent run ─────────────────────────
-    ta_dir: Path | None = None
+    ta_dir = None
     ta_rc = 0
     if single_only:
         typer.echo("Skipping two-agent arm (--single-only).")
@@ -951,6 +931,40 @@ def run_pipeline(
         )
         result.baseline_metrics = baseline_metrics
 
+        # ── Incremental Dolt write: baseline ─────────
+        # Write baseline results NOW, before the two-agent
+        # arm starts.  If the session is killed mid-run,
+        # at least the baseline data survives in Dolt.
+        if dolt_conn is not None and baseline_metrics.pass_rates:
+            _bl_row = build_experiment_row(
+                problem=problem,
+                model=model,
+                mode="single",
+                budget=budget,
+                metrics=baseline_metrics,
+                implementer_prompt=implementer_prompt,
+                hypothesis_id=hypothesis_id,
+                manipulation_check="skipped",
+                results_valid=bool(baseline_metrics.pass_rates),
+            )
+            try:
+                insert_experiment_row(dolt_conn, _bl_row)
+                _bl_cost = baseline_metrics.total_cost
+                if _bl_cost > 0:
+                    update_budget_spent(dolt_conn, _bl_cost)
+                typer.echo(
+                    f"Baseline written to Dolt "
+                    f"(+${_bl_cost:.2f}).",
+                )
+                result.baseline_row = _bl_row
+                result.baseline_inserted = True
+            except Exception as exc:  # noqa: BLE001
+                typer.echo(
+                    f"WARNING: Incremental baseline "
+                    f"INSERT failed: {exc}",
+                    err=True,
+                )
+
     if ta_dir is not None and ta_dir.exists():
         typer.echo("Evaluating two-agent output ...")
         eval_rc = run_eval(ta_dir)
@@ -978,8 +992,14 @@ def run_pipeline(
             "checkpoint directories.",
         )
 
-    # ── Step 5a: Insert baseline row immediately ───────
-    # Write incrementally so data survives timeout kills.
+    # ── Step 5: Compute deltas ────────────────────────
+    delta_pr, delta_er = compute_deltas(
+        baseline_metrics, ta_metrics,
+    )
+    result.delta_pass_rate = delta_pr
+    result.delta_erosion = delta_er
+
+    # ── Step 6: Build and insert rows ─────────────────
     baseline_row = build_experiment_row(
         problem=problem,
         model=model,
@@ -993,98 +1013,106 @@ def run_pipeline(
     )
     result.baseline_row = baseline_row
 
-    if dolt_conn is not None and baseline_metrics.pass_rates:
-        try:
-            # Reconnect in case connection was lost during long run
-            try:
-                dolt_conn.ping(reconnect=True)
-            except Exception:  # noqa: BLE001
-                dolt_conn = get_dolt_connection()
-            insert_experiment_row(dolt_conn, baseline_row)
-            update_budget_spent(
-                dolt_conn, baseline_metrics.total_cost,
-            )
-            typer.echo(
-                f"Inserted baseline row + budget "
-                f"+${baseline_metrics.total_cost:.2f}",
-            )
-        except Exception as exc:  # noqa: BLE001
-            result.errors.append(
-                f"Dolt baseline INSERT failed: {exc}",
-            )
-
-    # ── Step 5b: Compute deltas ──────────────────────
-    delta_pr, delta_er = compute_deltas(
-        baseline_metrics, ta_metrics,
-    )
-    result.delta_pass_rate = delta_pr
-    result.delta_erosion = delta_er
-
-    # ── Step 6: Insert two-agent row immediately ─────
-    ta_row = build_experiment_row(
-        problem=problem,
-        model=model,
-        mode="two-agent",
-        budget=budget,
-        metrics=ta_metrics,
-        budget_split=budget_split,
-        implementer_prompt=implementer_prompt,
-        reviewer_prompt=reviewer_prompt,
-        hypothesis_id=hypothesis_id,
-        manipulation_check="skipped",
-        results_valid=bool(ta_metrics.pass_rates),
-        baseline_pass_rate=baseline_metrics.total_pass_rate,
-        delta_pass_rate=delta_pr,
-        delta_erosion=delta_er,
-    )
+    ta_row = None
+    if not single_only:
+        ta_row = build_experiment_row(
+            problem=problem,
+            model=model,
+            mode="two-agent",
+            budget=budget,
+            metrics=ta_metrics,
+            budget_split=budget_split,
+            implementer_prompt=implementer_prompt,
+            reviewer_prompt=reviewer_prompt,
+            hypothesis_id=hypothesis_id,
+            manipulation_check="skipped",
+            results_valid=bool(ta_metrics.pass_rates),
+            baseline_pass_rate=baseline_metrics.total_pass_rate,
+            delta_pass_rate=delta_pr,
+            delta_erosion=delta_er,
+        )
     result.two_agent_row = ta_row
 
-    if dolt_conn is not None and not single_only:
-        if ta_metrics.pass_rates:
+    if dolt_conn is not None:
+        # Only insert rows for arms that produced real data
+        inserted = 0
+        total_cost = 0.0
+
+        # Baseline may already be written (incremental write
+        # above).  Skip duplicate insert if so.
+        if getattr(result, "baseline_inserted", False):
+            inserted += 1  # count it but don't re-insert
+        elif baseline_row.pass_rates:
             try:
-                # Reconnect in case connection was lost during long run
-                try:
-                    dolt_conn.ping(reconnect=True)
-                except Exception:  # noqa: BLE001
-                    dolt_conn = get_dolt_connection()
-                insert_experiment_row(dolt_conn, ta_row)
-                update_budget_spent(
-                    dolt_conn, ta_metrics.total_cost,
-                )
-                typer.echo(
-                    f"Inserted two-agent row + budget "
-                    f"+${ta_metrics.total_cost:.2f}",
-                )
+                insert_experiment_row(dolt_conn, baseline_row)
+                total_cost += baseline_metrics.total_cost
+                inserted += 1
             except Exception as exc:  # noqa: BLE001
                 result.errors.append(
-                    f"Dolt two-agent INSERT failed: {exc}",
+                    f"Dolt INSERT (baseline) failed: {exc}",
                 )
         else:
+            typer.echo(
+                "Skipping baseline INSERT: no metrics.",
+                err=True,
+            )
+
+        if ta_row is not None and ta_row.pass_rates:
+            try:
+                insert_experiment_row(dolt_conn, ta_row)
+                total_cost += ta_metrics.total_cost
+                inserted += 1
+            except Exception as exc:  # noqa: BLE001
+                result.errors.append(
+                    f"Dolt INSERT (two-agent) failed: {exc}",
+                )
+        elif ta_row is not None:
             typer.echo(
                 "Skipping two-agent INSERT: no metrics.",
                 err=True,
             )
 
+        if inserted == 0:
+            result.errors.append(
+                "Both arms failed — no data inserted.",
+            )
+            return result
+
+        typer.echo(
+            f"Inserted {inserted} experiment row(s).",
+        )
+
+        # ── Step 7: Update budget ─────────────────────
+        if total_cost > 0:
+            try:
+                update_budget_spent(dolt_conn, total_cost)
+                typer.echo(
+                    f"Budget updated: +${total_cost:.2f}",
+                )
+            except Exception as exc:  # noqa: BLE001
+                result.errors.append(
+                    f"Budget UPDATE failed: {exc}",
+                )
+        else:
+            typer.echo(
+                "WARNING: total_cost is $0.00 — budget "
+                "not updated. Check cost extraction.",
+                err=True,
+            )
+            result.errors.append(
+                "Zero cost recorded — budget not updated.",
+            )
+
     # ── Summary ───────────────────────────────────────
-    if single_only:
-        typer.echo(
-            f"\nPipeline complete for {problem} "
-            f"(single-only).\n"
-            f"  Baseline pass rate: "
-            f"{baseline_metrics.total_pass_rate:.4f}\n"
-            f"  Total cost: "
-            f"${baseline_metrics.total_cost:.2f}"
-        )
-    else:
-        typer.echo(
-            f"\nPipeline complete for {problem}.\n"
-            f"  Baseline pass rate: "
-            f"{baseline_metrics.total_pass_rate:.4f}\n"
-            f"  Two-agent pass rate: "
-            f"{ta_metrics.total_pass_rate:.4f}\n"
-            f"  Delta pass rate: {delta_pr:+.4f}\n"
-            f"  Delta erosion:   {delta_er:+.4f}"
-        )
+    typer.echo(
+        f"\nPipeline complete for {problem}.\n"
+        f"  Baseline pass rate: "
+        f"{baseline_metrics.total_pass_rate:.4f}\n"
+        f"  Two-agent pass rate: "
+        f"{ta_metrics.total_pass_rate:.4f}\n"
+        f"  Delta pass rate: {delta_pr:+.4f}\n"
+        f"  Delta erosion:   {delta_er:+.4f}"
+    )
 
     return result
 
@@ -1155,10 +1183,11 @@ def main(
     ),
     single_only: bool = typer.Option(  # noqa: FBT001
         False,  # noqa: FBT003
-        "--single-only",
+        "--single-only/--both-arms",
         help=(
-            "Run only the single-agent baseline arm, "
-            "skipping the two-agent comparison."
+            "Run only the single-agent arm, skip "
+            "the two-agent arm. Useful for prompt "
+            "comparison experiments."
         ),
     ),
     use_dolt: bool = typer.Option(  # noqa: FBT001
@@ -1178,13 +1207,6 @@ def main(
     ),
 ) -> None:
     """Run baseline vs. two-agent experiment pipeline."""
-
-    # Auto-expand shorthand model names to provider/model format
-    if "/" not in model:
-        if model.startswith("local-"):
-            model = f"claude_code_local/{model}"
-        elif model.startswith("claude-"):
-            model = f"anthropic/{model}"
 
     # Validate budget_split
     if budget_split < 1 or budget_split > 99:
