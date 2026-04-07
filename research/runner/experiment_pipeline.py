@@ -1180,8 +1180,11 @@ def main(
     """Run baseline vs. two-agent experiment pipeline."""
 
     # Auto-expand shorthand model names to provider/model format
-    if "/" not in model and model.startswith("local-"):
-        model = f"claude_code_local/{model}"
+    if "/" not in model:
+        if model.startswith("local-"):
+            model = f"claude_code_local/{model}"
+        elif model.startswith("claude-"):
+            model = f"anthropic/{model}"
 
     # Validate budget_split
     if budget_split < 1 or budget_split > 99:
