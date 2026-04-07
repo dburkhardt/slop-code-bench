@@ -587,28 +587,25 @@ def run_baseline(
         )
     except subprocess.TimeoutExpired:
         logger.error("Baseline run timed out after 7200s")
-        # Check if output was produced despite the timeout
+        # Only use output from THIS run's explicit dir, never stale data
         if output_dir.is_dir() and any(output_dir.iterdir()):
             logger.info("Baseline output found despite timeout: %s", output_dir)
             return output_dir, 1
-        actual_dir = _find_latest_run_dir(problem, prefix=None)
-        if actual_dir is not None:
-            logger.info("Baseline output found despite timeout: %s", actual_dir)
-            return actual_dir, 1
         return None, 1
 
     # The output directory was passed explicitly so it
-    # should exist.  Fall back to general lookup only
-    # when the explicit dir is absent.
+    # should exist.  Do NOT fall back to stale output
+    # from previous runs — that silently masks failures
+    # and contaminates data (Bug O14/O20).
     if output_dir.is_dir():
         return output_dir, result.returncode
 
-    actual_dir = _find_latest_run_dir(
-        problem, prefix=None,
+    logger.error(
+        "Baseline output dir %s does not exist after run "
+        "(exit code %d). NOT falling back to stale data.",
+        output_dir, result.returncode,
     )
-    if actual_dir is not None:
-        return actual_dir, result.returncode
-    return output_dir, result.returncode
+    return None, result.returncode
 
 
 def run_two_agent(

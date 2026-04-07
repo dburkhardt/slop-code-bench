@@ -714,6 +714,8 @@ def run_slop_code(
             "--prompt", effective_prompt,
             "--evaluate",
             f"agent.cost_limits.cost_limit={cost_limit}",
+            f"save_dir={output_dir}",
+            "save_template=.",
         ]
         if environment:
             cmd.extend(["--environment", environment])
@@ -740,9 +742,10 @@ def run_slop_code(
             with contextlib.suppress(OSError):
                 tmp_prompt_path.unlink()
 
-    # Parse cost and metrics from the output directory
+    # Parse cost and metrics from the EXPLICIT output directory
+    # (not _find_latest_run_dir which grabs stale data)
     parsed = _parse_slop_code_output(
-        problem, result.stdout,
+        problem, result.stdout, explicit_dir=output_dir,
     )
 
     return {
@@ -761,14 +764,18 @@ def run_slop_code(
 def _parse_slop_code_output(
     problem: str,
     stdout: str,
+    explicit_dir: Path | None = None,
 ) -> dict:
-    """Parse metrics from the latest slop-code output dir.
+    """Parse metrics from slop-code output dir.
 
-    Reads ``checkpoint_results.jsonl`` from the most recent
-    output directory matching the problem name.  Aggregates
-    cost and tokens across all checkpoint entries and uses
-    the last entry's pass_rate, erosion, and verbosity
-    (representing the final checkpoint state).
+    When *explicit_dir* is provided (preferred), reads from
+    that directory directly instead of scanning for the
+    latest run — this prevents cross-contamination between
+    concurrent experiments.
+
+    Reads ``checkpoint_results.jsonl`` and aggregates cost
+    and tokens across all checkpoint entries, using the last
+    entry's pass_rate, erosion, and verbosity.
 
     Returns a dict with cost, tokens, pass_rate, erosion,
     verbosity, and output_dir.
@@ -782,11 +789,14 @@ def _parse_slop_code_output(
         "output_dir": None,
     }
 
-    run_dir = _find_latest_run_dir(problem)
-    if run_dir is None:
-        return result
-
-    run_dir_path, _ = run_dir
+    # Use explicit directory if provided, else fall back to scan
+    if explicit_dir is not None and explicit_dir.is_dir():
+        run_dir_path = explicit_dir
+    else:
+        found = _find_latest_run_dir(problem)
+        if found is None:
+            return result
+        run_dir_path, _ = found
     result["output_dir"] = str(run_dir_path)
 
     # Parse checkpoint_results.jsonl
